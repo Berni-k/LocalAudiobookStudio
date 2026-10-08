@@ -171,6 +171,10 @@ Run the tests with `dotnet test`; they need no GPU, workers or network.
 | `docs/` | User documentation: [text format](docs/text-format.md), [supported models](docs/models.md), [ComfyUI bridge](docs/comfyui.md) |
 | `examples/` | The example project, copied next to the app |
 
+## Support
+
+Local Audiobook Studio is free. If you find it useful, you can support its development on [Ko-fi](https://ko-fi.com/berni46639).
+
 ## License
 
 Local Audiobook Studio is released under the [MIT License](LICENSE.txt). Copyright (c) 2026 Berni.
