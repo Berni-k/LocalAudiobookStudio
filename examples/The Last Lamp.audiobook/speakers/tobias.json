@@ -1,0 +1,13 @@
+{
+  "id": "tobias",
+  "displayName": "Tobias",
+  "color": "#93C47D",
+  "worker": "kokoro",
+  "settings": {
+    "voice": "bm_george",
+    "speed": 1.0
+  },
+  "markerAliases": [
+    "Tobias"
+  ]
+}

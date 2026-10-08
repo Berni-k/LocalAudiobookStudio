@@ -1,0 +1,13 @@
+{
+  "id": "mack",
+  "displayName": "Mack",
+  "color": "#F6B26B",
+  "worker": "kokoro",
+  "settings": {
+    "voice": "am_eric",
+    "speed": 1.0
+  },
+  "markerAliases": [
+    "Mack"
+  ]
+}

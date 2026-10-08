@@ -1,0 +1,19 @@
+{
+  "app": "LocalAudiobookStudio",
+  "formatVersion": 1,
+  "title": "The Last Lamp",
+  "author": "",
+  "readOnly": true,
+  "chapterOrder": [
+    "e9042d77-10f0-4fc6-9ed3-14511984e781",
+    "ad6a916b-ceb9-4225-81f7-c714fb9c4a2b",
+    "de6fe1a5-8a67-4b6f-8597-65977b42f29d"
+  ],
+  "defaults": {
+    "speaker": "narrator",
+    "gapAfterMs": 400,
+    "chapterGapMs": 2000,
+    "targetLoudnessLufs": -18,
+    "sampleRate": 44100
+  }
+}

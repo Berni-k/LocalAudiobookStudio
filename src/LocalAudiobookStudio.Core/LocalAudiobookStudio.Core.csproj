@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Project model, JSON I/O, text import and timeline math. No UI and no audio I/O. -->
+  <PropertyGroup>
+    <RootNamespace>LocalAudiobookStudio.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LocalAudiobookStudio.Tests" />
+  </ItemGroup>
+</Project>

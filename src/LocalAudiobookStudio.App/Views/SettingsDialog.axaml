@@ -1,0 +1,195 @@
+<!-- App settings (machine-specific; stored in settings.json, never in a project). -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:ao="using:LocalAudiobookStudio.App.Devices"
+        x:Class="LocalAudiobookStudio.App.Views.SettingsDialog"
+        x:DataType="vm:AppSettingsViewModel"
+        Title="Settings"
+        Width="780" Height="720" MinWidth="620" MinHeight="480"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button Classes="primary" Content="OK" Click="OnOk" IsDefault="True" MinWidth="90" HorizontalContentAlignment="Center" />
+      <Button Content="Cancel" Click="OnCancel" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+    <!-- Groups in the same style as the Speakers dialog: a titled card each, labels on the left. -->
+    <ScrollViewer>
+      <StackPanel Spacing="12" Margin="0,0,12,0">
+        <!-- ===== Devices: the GPUs and the CPU, and how many workers may run on each -->
+        <Border Classes="group">
+          <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Devices" Classes="groupTitle" />
+              <Button Grid.Column="1" Content="Detect GPUs" Command="{Binding DetectGpusCommand}" FontSize="12" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding ComputeDevices}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeviceSettingsViewModel">
+                  <Border Classes="card" Margin="0,4,0,0" Padding="8,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                      <!-- No checkbox content: the margin keeps the name from touching the box. -->
+                      <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip.Tip="Run workers on this device. Which device a worker uses is its own setting (Workers window)." />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0"
+                                  ToolTip.Tip="How many workers may generate (or load a model) on this device at the same time. Empty = 1.">
+                        <TextBlock Text="Max active" VerticalAlignment="Center" />
+                        <NumericUpDown Value="{Binding MaxActive}" Minimum="1" Maximum="64" Increment="1" FormatString="0"
+                                       Watermark="1" Width="72" MinWidth="0" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="16,0,0,0"
+                                  ToolTip.Tip="How many worker processes may exist on this device, idle ones included. Empty = any. When it is full, the longest-idle one is stopped to make room.">
+                        <TextBlock Text="Max total" VerticalAlignment="Center" />
+                        <NumericUpDown Value="{Binding MaxTotal}" Minimum="1" Maximum="64" Increment="1" FormatString="0"
+                                       Watermark="Any" Width="72" MinWidth="0" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- ===== Workers -->
+        <Border Classes="group">
+          <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+            <TextBlock Text="Workers" Classes="groupTitle" Margin="0,0,0,4" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Idle timeout" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <NumericUpDown Value="{Binding IdleTimeout}" Minimum="0" Maximum="1440" FormatString="0" Width="130" />
+                <TextBlock Text="minutes (0 = never unload)" Classes="caption" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Generation timeout" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <NumericUpDown Value="{Binding GenerationTimeout}" Minimum="1" Maximum="600" FormatString="0" Width="130" />
+                <TextBlock Text="minutes without output" Classes="caption" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Hugging Face token" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <TextBox Text="{Binding HuggingFaceToken}" PasswordChar="•" RevealPassword="False" Watermark="hf_…"
+                         ToolTip.Tip="An access token from huggingface.co/settings/tokens. Gated models (Stable Audio 3) also need their terms accepted on their Hugging Face page." />
+                <TextBlock Text="For gated models. Saved in plain text in settings.json: only use a read-only token." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Data root" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding DataRoot}" />
+                  <Button Grid.Column="1" Content="…" Command="{Binding BrowseDataRootCommand}" Margin="4,0,0,0" />
+                </Grid>
+                <TextBlock Text="Python, environments, model weights and caches." Classes="caption" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding StorageText}" Classes="caption" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding DataRootWarning}" Classes="warning" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ===== Audio and export -->
+        <Border Classes="group">
+          <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+            <TextBlock Text="Audio and export" Classes="groupTitle" Margin="0,0,0,4" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Output device" Classes="formLabel" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding Devices}" SelectedItem="{Binding Device}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="ao:AudioDeviceInfo">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Input device" Classes="formLabel" ToolTip.Tip="Microphone for recording segments of speakers without a worker" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding InputDevices}" SelectedItem="{Binding InputDevice}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="ao:AudioDeviceInfo">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Silence trim" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <NumericUpDown Value="{Binding SilenceThreshold}" Minimum="-90" Maximum="-20" Increment="1" FormatString="0" Width="110"
+                                 ToolTip.Tip="Quieter than this counts as silence. Lower values (-70) keep softer sounds; higher ones (-45) trim more." />
+                  <TextBlock Text="dB threshold" Classes="caption" VerticalAlignment="Center" />
+                  <NumericUpDown Value="{Binding TrimPadding}" Minimum="0" Maximum="1000" Increment="10" FormatString="0" Width="110" Margin="12,0,0,0"
+                                 ToolTip.Tip="How much of the silence to keep before the first and after the last sound." />
+                  <TextBlock Text="ms kept" Classes="caption" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="Applies to takes generated or recorded from now on." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="FFmpeg" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding FfmpegPath}" Watermark="leave empty to use tools/ffmpeg or PATH" />
+                  <Button Grid.Column="1" Content="…" Command="{Binding BrowseFfmpegCommand}" Margin="4,0,0,0" />
+                </Grid>
+                <TextBlock Text="{Binding FfmpegFound, StringFormat='Used for export and clip conversion. Using: {0}'}" Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ===== Text: how it reads and how editing it behaves -->
+        <Border Classes="group">
+          <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+            <TextBlock Text="Text" Classes="groupTitle" Margin="0,0,0,4" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Font" Classes="formLabel" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding Fonts}" SelectedItem="{Binding TextFont}" Width="220" HorizontalAlignment="Left" />
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Size" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <NumericUpDown Value="{Binding TextSize}" Minimum="10" Maximum="32" FormatString="0" Width="130" />
+                <TextBlock Text="px" Classes="caption" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Editing" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <CheckBox IsChecked="{Binding ConfirmTextEdits}" Content="Ask before saving changed text" />
+                <TextBlock Text="Off: leaving a segment's text saves your changes. Escape still discards them." Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Segments show" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <CheckBox IsChecked="{Binding ShowSegmentNumbers}" Content="Number in the chapter" />
+                <CheckBox IsChecked="{Binding ShowSegmentTimes}" Content="Length and end time" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

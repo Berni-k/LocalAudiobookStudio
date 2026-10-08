@@ -1,0 +1,26 @@
+{
+  "id": "fish_s2",
+  "displayName": "Fish Audio S2 Pro",
+  "description": "Very expressive multilingual TTS (80+ languages) with inline [tags] like [whisper] or [laughing]. Clones from a reference clip plus its transcript. Needs a 24 GB GPU. Research / non-commercial license.",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone"],
+  "priority": 80,
+  "modelVersion": "s2-pro",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1000,
+  "sampleRate": 44100,
+  "voiceCloning": true,
+  "approxVramGb": 20,
+  "devices": ["cuda"],
+  "models": ["fish-s2-pro"],
+  "settings": [
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "",
+      "description": "The exact words spoken in the reference clip. Required for cloning. Without a reference clip the model invents a different voice for every segment." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.8, "label": "Temperature" },
+    { "key": "topP", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.8, "label": "Top-p" },
+    { "key": "repetitionPenalty", "type": "float", "min": 0.9, "max": 2.0, "step": 0.05, "default": 1.1, "label": "Repetition penalty" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

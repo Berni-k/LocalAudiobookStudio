@@ -1,0 +1,96 @@
+// The shared Python environments. A worker names its environment with "envGroup" in its manifest; the
+// environment decides the Python version, the torch build and the versions forced over upstream pins.
+//
+// Naming: torch<major>_<minor>-<cuda>-<library line>. Everything in the name is something two environments
+// can't share: the torch build (wheels are per CUDA version) and the transformers major line (tx5, tx4).
+// Names are folder names, so keep to letters, digits, "-" and "_" (no dots). Workers that need no torch use "basic".
+//
+// To move forward (a new torch, CUDA or transformers line): add a new environment next to the old one, move
+// workers over one by one after testing them there, then delete the old entry. The Workers window offers to
+// delete environment folders that no worker uses any more. Changing an existing entry instead marks its
+// installed workers "update available" (Repair rebuilds them).
+//
+// "packages" are installed with every worker in the environment. "overrides" replace every other requirement
+// on the same package, including pins inside upstream packages (uv --override); "pkg ; sys_platform == 'never'"
+// drops a dependency nobody here uses.
+{
+  "environments": [
+    {
+      "name": "torch2_11-cu128-tx5",
+      "description": "torch 2.11 (CUDA 12.8), transformers 5",
+      "python": "3.12",
+      "torchIndexUrl": "https://download.pytorch.org/whl/cu128",
+      "packages": ["torch==2.11.0+cu128", "torchaudio==2.11.0+cu128"],
+      "overrides": [
+        // Upstream pins replaced here: Stable Audio 3 torch 2.7.1; MOSS torch 2.9, numpy 1.26,
+        // transformers 4.57.1, diffusers 0.37.1, safetensors 0.7.0. All workers here were tested with these.
+        "torch==2.11.0+cu128",
+        "torchaudio==2.11.0+cu128",
+        "transformers==5.18.0",
+        "huggingface-hub>=1.7.1",
+        "numpy>=2.2.6,<2.4",
+        "diffusers==0.40.0",
+        "safetensors>=0.7.0",
+        "gradio ; sys_platform == 'never'"
+      ]
+    },
+    {
+      "name": "torch2_11-cu128-tx4",
+      "description": "torch 2.11 (CUDA 12.8), transformers 4.57 (qwen-tts doesn't run on transformers 5)",
+      "python": "3.12",
+      "torchIndexUrl": "https://download.pytorch.org/whl/cu128",
+      "packages": ["torch==2.11.0+cu128", "torchaudio==2.11.0+cu128"],
+      "overrides": [
+        // qwen-tts pins transformers 4.57.3 / accelerate 1.12.0; the VibeVoice fork pins transformers 4.51.3 /
+        // accelerate 1.6.0 (its worker patches the two transformers changes it trips over).
+        "torch==2.11.0+cu128",
+        "torchaudio==2.11.0+cu128",
+        "transformers==4.57.3",
+        "accelerate==1.12.0",
+        "numpy>=2.2.6,<2.4",
+        "gradio ; sys_platform == 'never'",
+        "aiortc ; sys_platform == 'never'"
+      ]
+    },
+    {
+      // ONNX Runtime without torch: a few hundred MB instead of ~5 GB, and imports in seconds instead of ~14 s.
+      // For any model with an ONNX export. "torch ; never" keeps a stray dependency from pulling torch in.
+      "name": "onnx1_30-cpu",
+      "description": "ONNX Runtime 1.30 on the CPU (no torch, no GPU needed)",
+      "python": "3.12",
+      "packages": ["onnxruntime==1.30.0"],
+      "overrides": [
+        "onnxruntime==1.30.0",
+        "onnxruntime-gpu ; sys_platform == 'never'",
+        "torch ; sys_platform == 'never'",
+        // misaki (Kokoro's text-to-phonemes): its en extra lists spacy-curated-transformers, which needs torch
+        // and is only used by the large spaCy model; and kokoro-onnx's phonemizer would overwrite misaki's
+        // phonemizer-fork (both install the module "phonemizer").
+        "spacy-curated-transformers ; sys_platform == 'never'",
+        "phonemizer ; sys_platform == 'never'"
+      ]
+    },
+    {
+      // The GPU build of the same. NVIDIA's CUDA 13 and cuDNN libraries come as packages (most of the ~2 GB);
+      // the driver must support CUDA 13 (580 or newer).
+      "name": "onnx1_30-cu13",
+      "description": "ONNX Runtime 1.30 with CUDA 13 (no torch)",
+      "python": "3.12",
+      "packages": ["onnxruntime-gpu[cuda,cudnn]==1.30.0"],
+      "overrides": [
+        // Packages that ask for the CPU build (kokoro-onnx) would install it over the GPU build's module.
+        "onnxruntime ; sys_platform == 'never'",
+        // With the extras: an override replaces the whole requirement, and without them NVIDIA's libraries would be dropped.
+        "onnxruntime-gpu[cuda,cudnn]==1.30.0",
+        "torch ; sys_platform == 'never'",
+        "spacy-curated-transformers ; sys_platform == 'never'",
+        "phonemizer ; sys_platform == 'never'"
+      ]
+    },
+    {
+      "name": "basic",
+      "description": "No torch: workers that only need the standard library or NumPy",
+      "python": "3.12"
+    }
+  ]
+}

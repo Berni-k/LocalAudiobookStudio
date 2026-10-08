@@ -1,0 +1,16 @@
+<Project>
+  <!-- Shared build settings for every project in the solution. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Version>0.1.0</Version>
+    <Company>Local Audiobook Studio</Company>
+    <Product>Local Audiobook Studio</Product>
+    <Authors>Berni</Authors>
+    <Copyright>Copyright (c) 2026 Berni</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>

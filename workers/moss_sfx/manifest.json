@@ -1,0 +1,30 @@
+{
+  "id": "moss_sfx",
+  "displayName": "MOSS-SoundEffect v2.0",
+  "description": "Sound effects from a text prompt (English or Chinese), up to 30 s at 48 kHz. Environmental, urban, creature and human-action sounds.",
+  "experimental": true,
+  "tags": ["SFX"],
+  "priority": 60,
+  "modelVersion": "v2.0",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1000,
+  "sampleRate": 48000,
+  "voiceCloning": false,
+  "approxVramGb": 10,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Slow on the CPU: every effect denoises a full 30 s latent, so expect minutes per effect. Fewer diffusion steps help.",
+  "models": ["moss-soundeffect-2.0"],
+  "length": { "mode": "required", "min": 0.5, "max": 30 },
+  "settings": [
+    { "key": "steps", "type": "int", "min": 10, "max": 200, "default": 100, "label": "Diffusion steps",
+      "description": "Fewer steps are faster; 100 is the upstream default." },
+    { "key": "cfgScale", "type": "float", "min": 1.0, "max": 10.0, "step": 0.1, "default": 4.0, "label": "CFG scale",
+      "description": "How strictly the sound follows the prompt." },
+    { "key": "negativePrompt", "type": "string", "label": "Negative prompt", "default": "",
+      "description": "Sounds to avoid, e.g. \"music, speech\"." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "id": "e9042d77-10f0-4fc6-9ed3-14511984e781",
+  "title": "Chapter 1: The Keeper",
+  "items": [
+    {
+      "id": "c51917a9-e949-4742-b84a-c3998ab33546",
+      "kind": "tts",
+      "text": "Chapter 1: The Keeper",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "65d1a92c-0c91-4fb6-9e1b-67a7d6d33ca7",
+      "kind": "comment",
+      "text": "Example project. Lines starting with a [Name] are dialogue for that speaker; plain paragraphs go to the Narrator. Comments like this one are notes for the production and are never spoken.",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "042e409b-0e49-43d7-b8e2-140e7d664df1",
+      "kind": "tts",
+      "text": "On a rock at the edge of the northern sea stood a lighthouse, and in the lighthouse lived a keeper named Tobias Wren.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "8a609bff-2757-41db-bdd9-58f7fd6996e0",
+      "kind": "tts",
+      "text": "Every evening for forty years, Tobias climbed the hundred and twelve steps to the lamp room. He trimmed the wick, polished the great glass lens, and watched the beam sweep out across the water.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "44dfd1dc-e01e-4e34-b0c2-8425eb9877a2",
+      "kind": "pause",
+      "durationMs": 1000,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "f405cb63-4d15-43df-b8f9-5ded57c57925",
+      "kind": "tts",
+      "text": "Once a month, the supply boat came out from the harbour. This month it brought Clara, the harbourmaster\u0027s daughter, who was twelve and afraid of nothing.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "ef8c8a70-0ceb-4d13-aa3f-506576edb9e8",
+      "kind": "tts",
+      "text": "Is it true you\u0027ve never missed a single night?",
+      "speaker": "clara",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "2240aa42-ef1d-4d75-ab95-ee623f7fccd7",
+      "kind": "tts",
+      "text": "Yeah yeah i am also talking in the background while the two over there keep yapping about.",
+      "speaker": "mack",
+      "gainDb": -20,
+      "background": true,
+      "locked": false
+    },
+    {
+      "id": "fc459c2f-3dd2-4afc-8528-056f70b7826b",
+      "kind": "tts",
+      "text": "Not one. Not in forty years.",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "4578beca-53bf-4ac4-890e-6c7385259cb6",
+      "kind": "tts",
+      "text": "Not even when you were ill?",
+      "speaker": "clara",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "cbf5c65a-ea6a-4fda-a96a-3d2f630b13e2",
+      "kind": "pause",
+      "durationMs": -500,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "dbc4f1f4-6caa-4157-bcf2-cd12c3ba88dd",
+      "kind": "tts",
+      "text": "Especially not then. The sea doesn\u0027t care whether I have a cold.",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "854a8d50-e2cc-445e-a5fb-c6a2fa2ffa2c",
+      "kind": "comment",
+      "text": "Tobias is gruff but fond of her. Keep his lines slow and warm.",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "96d753cb-a631-4805-b502-e15350658132",
+      "kind": "tts",
+      "text": "Clara laughed, and the gulls on the railing laughed with her.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    }
+  ]
+}

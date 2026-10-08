@@ -1,0 +1,80 @@
+<!-- Setup, before the main window: where data lives, what the machine has, and an optional quick test. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:host="using:LocalAudiobookStudio.Engine.Hosting"
+        x:Class="LocalAudiobookStudio.App.Views.SetupDialog"
+        x:DataType="vm:SetupViewModel"
+        Title="Welcome to Local Audiobook Studio"
+        Width="720" SizeToContent="Height" MaxHeight="900" CanResize="False"
+        WindowStartupLocation="CenterScreen">
+
+  <DockPanel Margin="20">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+      <Button Content="Quit" Click="OnQuit" MinWidth="90" HorizontalContentAlignment="Center" />
+      <Button Classes="primary" Content="Continue" Click="OnContinue" IsDefault="True" MinWidth="100" HorizontalContentAlignment="Center" />
+    </StackPanel>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="6">
+        <TextBlock Text="Setup" Classes="title" />
+
+        <!-- Where -->
+        <TextBlock Text="WHERE TO KEEP THE APP'S DATA" Classes="header" Margin="0,12,0,2" />
+        <StackPanel Spacing="6" IsVisible="{Binding CanChooseMode}">
+          <RadioButton GroupName="location" IsChecked="{Binding IsPortable}" IsEnabled="{Binding PortableAvailable}">
+            <StackPanel Spacing="2">
+              <TextBlock Text="In the app folder (portable)" FontWeight="SemiBold" />
+              <Border Classes="path"><SelectableTextBlock Text="{Binding PortablePath}" /></Border>
+              <TextBlock Text="{Binding PortableNote}" Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+          </RadioButton>
+          <RadioButton GroupName="location" IsChecked="{Binding IsUserProfile}">
+            <StackPanel Spacing="2">
+              <TextBlock Text="In my user profile" FontWeight="SemiBold" />
+              <Border Classes="path"><SelectableTextBlock Text="{Binding UserProfilePath}" /></Border>
+              <TextBlock Text="Settings, environments, models and logs, all in this folder." Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+          </RadioButton>
+        </StackPanel>
+        <StackPanel Spacing="2" IsVisible="{Binding IsModeLocked}">
+          <TextBlock Text="{Binding LockedNote}" TextWrapping="Wrap" />
+          <Border Classes="path"><SelectableTextBlock Text="{Binding LockedPath}" /></Border>
+        </StackPanel>
+
+        <TextBlock Text="Environments, models and caches (several GB per model family)" Margin="0,8,0,0" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding DataRoot}" />
+          <Button Grid.Column="1" Content="…" Command="{Binding BrowseCommand}" Margin="4,0,0,0" />
+        </Grid>
+        <TextBlock Text="{Binding DriveWarning}" IsVisible="{Binding DriveWarning, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   Classes="caption warning" TextWrapping="Wrap" />
+
+        <!-- System check -->
+        <Grid ColumnDefinitions="*,Auto" Margin="0,12,0,2">
+          <TextBlock Text="SYSTEM CHECK" Classes="header" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ProgressBar IsIndeterminate="True" Width="100" IsVisible="{Binding IsChecking}" VerticalAlignment="Center" />
+            <Button Content="Check again" Command="{Binding RunChecksCommand}" IsEnabled="{Binding !IsChecking}" />
+          </StackPanel>
+        </Grid>
+        <TextBlock Text="Checking…" Classes="caption" IsVisible="{Binding IsChecking}" />
+        <ItemsControl ItemsSource="{Binding Checks}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SystemCheckRow">
+              <ContentControl Content="{Binding}" Margin="0,3" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <ContentControl Content="{Binding Disk}" Margin="0,3" />
+
+        <!-- Quick test -->
+        <TextBlock Text="QUICK TEST" Classes="header" Margin="0,12,0,2" />
+        <CheckBox IsChecked="{Binding InstallKokoro}" IsEnabled="{Binding CanInstallKokoro}"
+                  Content="Install the Kokoro worker after setup (fast English TTS on the CPU, a 330 MB model download)" />
+        <CheckBox IsChecked="{Binding OpenExample}" IsVisible="{Binding HasExampleProject}" Content="{Binding OpenExampleText}" />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+
+</Window>

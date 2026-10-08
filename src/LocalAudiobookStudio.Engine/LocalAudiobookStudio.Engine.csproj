@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The studio without a user interface: the host (settings, logging, workers, scheduler, devices, system
+    checks), the project engine (hashing, jobs, takes, timeline, import), export (rendering, ffmpeg, .abproj
+    packages) and one-off generations. The desktop app and the command line (las) both build on it.
+  -->
+  <PropertyGroup>
+    <RootNamespace>LocalAudiobookStudio.Engine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LocalAudiobookStudio.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Core\LocalAudiobookStudio.Core.csproj" />
+    <ProjectReference Include="..\LocalAudiobookStudio.Audio\LocalAudiobookStudio.Audio.csproj" />
+    <ProjectReference Include="..\LocalAudiobookStudio.Workers\LocalAudiobookStudio.Workers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+</Project>

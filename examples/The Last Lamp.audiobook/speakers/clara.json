@@ -1,0 +1,13 @@
+{
+  "id": "clara",
+  "displayName": "Clara",
+  "color": "#E06666",
+  "worker": "kokoro",
+  "settings": {
+    "voice": "bf_isabella",
+    "speed": 1.0
+  },
+  "markerAliases": [
+    "Clara"
+  ]
+}

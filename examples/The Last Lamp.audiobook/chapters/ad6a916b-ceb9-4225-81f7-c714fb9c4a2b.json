@@ -1,0 +1,91 @@
+{
+  "id": "ad6a916b-ceb9-4225-81f7-c714fb9c4a2b",
+  "title": "Chapter 2: The Letter",
+  "items": [
+    {
+      "id": "98eed1e9-da32-4368-b3cb-2f3da745465f",
+      "kind": "tts",
+      "text": "Chapter 2: The Letter",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "9a8d393a-d63f-4ca1-bfb8-c124c61a49ae",
+      "kind": "comment",
+      "text": "Chapter 2 is quieter. Leave room for the silences.",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "59bb37b5-ef8c-496e-8c48-e6cce518dfb6",
+      "kind": "tts",
+      "text": "On her next visit, Clara brought a letter with a blue seal. Tobias read it twice at the kitchen table.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "81eec14b-0664-4d0f-b2a0-86f77e496aef",
+      "kind": "pause",
+      "durationMs": 1500,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "fe5343b6-2daa-4d78-9219-22d5ae082fd8",
+      "kind": "tts",
+      "text": "What does it say?",
+      "speaker": "clara",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "82476f9c-d6ba-4065-9fe7-3d14e7d23eb3",
+      "kind": "tts",
+      "text": "It says the lighthouse is getting an electric lamp. It will switch itself on at dusk and off at dawn.",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "232a24b5-a0f5-4c5e-ba1a-1262964b1978",
+      "kind": "tts",
+      "text": "Then who will look after it?",
+      "speaker": "clara",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "390c3b19-cd98-4ae9-b2ba-5ca35c274854",
+      "kind": "tts",
+      "text": "Nobody",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "abf167b1-8fdc-4db6-b3b1-801016661597",
+      "kind": "tts",
+      "text": "little one. That\u0027s rather the point.",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "7ee42537-a21a-45e1-898d-b1f70bfa3d0d",
+      "kind": "pause",
+      "durationMs": 1000,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "293e6f1f-5857-4967-9681-718ea9c8c14c",
+      "kind": "tts",
+      "text": "He folded the letter carefully and put it in his coat pocket. That evening he climbed the stairs more slowly than usual, counting every step, the way he had on his very first night.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    }
+  ]
+}

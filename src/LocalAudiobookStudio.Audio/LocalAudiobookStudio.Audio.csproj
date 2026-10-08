@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Audio without devices: decoding (WAV, Opus, MP3), Opus encoding, the timeline mixer, peaks and loudness (NAudio.Core only). Playback and recording are in the app. -->
+  <PropertyGroup>
+    <RootNamespace>LocalAudiobookStudio.Audio</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LocalAudiobookStudio.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Core\LocalAudiobookStudio.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.Core" />
+    <PackageReference Include="Concentus" />
+    <PackageReference Include="NLayer" />
+  </ItemGroup>
+</Project>

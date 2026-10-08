@@ -1,0 +1,182 @@
+<!-- Jobs panel (non-modal): queue summary, the jobs in the pipeline, the active workers grouped by device, worker log. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
+        x:Class="LocalAudiobookStudio.App.Views.JobsWindow"
+        x:DataType="vm:JobsViewModel"
+        Title="Jobs"
+        Width="1200" Height="760" MinWidth="800" MinHeight="400">
+  <Window.Styles>
+    <!-- State chip on each worker: highlighted while it generates. -->
+    <Style Selector="Border.state">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="6,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+    </Style>
+    <Style Selector="Border.state.failed">
+      <Setter Property="Background" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
+    <Style Selector="Border.state.failed TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+    </Style>
+    <Style Selector="Border.state.busy">
+      <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.state.loading">
+      <Setter Property="Background" Value="{DynamicResource SemiColorWarning}" />
+    </Style>
+    <Style Selector="Border.state TextBlock">
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Border.state.busy TextBlock, Border.state.loading TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,180" RowSpacing="12" Margin="16">
+    <!-- ===== Summary and queue-wide actions -->
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Text="{Binding Summary}" Classes="title" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+        <Button Content="Retry failed" Command="{Binding RetryFailedCommand}" IsVisible="{Binding HasFailed}" />
+        <Button Content="Unload idle" Command="{Binding UnloadIdleCommand}" IsEnabled="{Binding HasIdle}"
+                ToolTip.Tip="Stop every worker that is loaded but idle, freeing its memory. Running jobs are not touched." />
+        <Button Content="Cancel all" Command="{Binding CancelAllCommand}" />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,12,*">
+      <!-- ===== Queue: running jobs, then waiting ones in the order they will run, then recent failures. -->
+      <Border Classes="group">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+            <TextBlock Text="Queue" Classes="groupTitle" />
+            <TextBlock Grid.Column="1" Text="{Binding QueueCount}" Classes="caption" VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock DockPanel.Dock="Top" Text="Nothing queued" Classes="caption" IsVisible="{Binding QueueEmpty}" Margin="12,0,0,0" />
+          <!-- A ListBox for its virtualization: a whole book can queue thousands of jobs. -->
+          <ListBox ItemsSource="{Binding Queue}" Classes="side" Background="Transparent">
+            <ListBox.Styles>
+              <Style Selector="ListBoxItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Margin" Value="0,0,0,4" />
+              </Style>
+            </ListBox.Styles>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:JobRowViewModel">
+                <Border Classes="card" Padding="10,6">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Classes="state" Classes.busy="{Binding IsRunning}" Classes.failed="{Binding IsFailed}" MinWidth="44">
+                      <TextBlock Text="{Binding State}" HorizontalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                      <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                      <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsRunning}" Height="3" MinHeight="3" Margin="0,3,0,2" />
+                      <TextBlock Text="{Binding Detail}" ToolTip.Tip="{Binding Detail}" Classes="caption" Classes.error="{Binding IsFailed}"
+                                 TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                      <Button Classes="tool" Content="Show" Command="{Binding RevealCommand}" IsVisible="{Binding CanReveal}" FontSize="11" ToolTip.Tip="Select the segment" />
+                      <Button Classes="tool" Content="Prioritize" Command="{Binding PrioritizeCommand}" IsVisible="{Binding CanPrioritize}" FontSize="11"
+                              ToolTip.Tip="Move this job to the front of the queue" />
+                      <Button Classes="tool" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding !IsFailed}" FontSize="11" ToolTip.Tip="Cancel this job" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <!-- ===== Active workers, grouped by device. Several can share one GPU (see Settings → Devices). -->
+      <Border Grid.Column="2" Classes="group">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Active workers" Classes="groupTitle" Margin="0,0,0,6" />
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Groups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeviceGroupViewModel">
+                  <StackPanel Margin="0,0,0,10" Spacing="4">
+                    <!-- Device header: name, how full it is, errors. -->
+                    <Grid ColumnDefinitions="*,Auto">
+                      <WrapPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"
+                                   Classes.caption="{Binding IsDeviceDisabled}" />
+                        <TextBlock Text="{Binding Limits}" Classes="caption" VerticalAlignment="Center" />
+                      </WrapPanel>
+                      <Button Grid.Column="1" Content="Re-enable workers" Command="{Binding ReenableCommand}" FontSize="12"
+                              IsVisible="{Binding DisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </Grid>
+                    <TextBlock Text="{Binding DisabledText}" Classes="caption error" TextWrapping="Wrap"
+                               IsVisible="{Binding DisabledText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <!-- Errors clear by themselves when the worker next starts here; Dismiss hides them now. -->
+                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                      <TextBlock Text="{Binding Error}" Classes="caption error" TextWrapping="Wrap" />
+                      <Button Grid.Column="1" Classes="tool" Content="Dismiss" Command="{Binding DismissErrorsCommand}" FontSize="11"
+                              VerticalAlignment="Top" Margin="8,0,0,0"
+                              ToolTip.Tip="Hide these errors. They also clear by themselves once the worker starts fine here." />
+                    </Grid>
+                    <TextBlock Text="No workers running" Classes="caption" IsVisible="{Binding IsEmpty}" Margin="12,0,0,0" />
+
+                    <!-- One card per worker process on this device. -->
+                    <ItemsControl ItemsSource="{Binding Workers}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ActiveWorkerRowViewModel">
+                          <Border Classes="card" Margin="12,0,0,4" Padding="10,6">
+                            <Grid ColumnDefinitions="200,*,Auto">
+                              <!-- A Grid (not a StackPanel) so a long worker name is cut off with "…" instead of
+                                   running into the job column; the full name is in the tooltip. -->
+                              <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                                <Border Classes="state" Classes.busy="{Binding IsBusy}" Classes.loading="{Binding IsLoading}">
+                                  <TextBlock Text="{Binding State}" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,0,0,0" />
+                              </Grid>
+                              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                                <TextBlock Text="{Binding JobLabel}" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasJob}" />
+                                <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsBusy}" Height="3" MinHeight="3" Margin="0,3,0,2" />
+                                <TextBlock Text="{Binding Detail}" Classes="caption" TextTrimming="CharacterEllipsis" />
+                              </StackPanel>
+                              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                <Button Classes="tool" Content="Show" Command="{Binding RevealCommand}" IsVisible="{Binding CanReveal}" FontSize="11" ToolTip.Tip="Select the segment" />
+                                <Button Classes="tool" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding HasJob}" FontSize="11" ToolTip.Tip="Cancel this job" />
+                                <Button Classes="tool" Content="Unload" Command="{Binding UnloadCommand}" IsVisible="{Binding IsIdle}" FontSize="11"
+                                        ToolTip.Tip="Stop this idle worker and free its memory. It starts again when a job needs it." />
+                              </StackPanel>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+    </Grid>
+
+    <!-- ===== Worker log -->
+    <Border Grid.Row="2" Classes="group">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+          <TextBlock Text="Worker log" Classes="groupTitle" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+            <Button Classes="tool" Content="Copy" Click="OnCopyLog" FontSize="11" ToolTip.Tip="Copy the whole log. Select lines and press Ctrl+C to copy only those." />
+            <Button Classes="tool" Content="Clear" Command="{Binding ClearLogCommand}" FontSize="11" />
+          </StackPanel>
+        </Grid>
+        <Border Classes="card" Padding="0">
+          <ctl:LogView x:Name="Log" Lines="{Binding LogLines}" />
+        </Border>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

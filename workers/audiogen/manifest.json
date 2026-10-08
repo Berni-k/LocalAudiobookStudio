@@ -1,0 +1,28 @@
+{
+  "id": "audiogen",
+  "displayName": "AudioGen (sound effects)",
+  "description": "Sound effects from a description: footsteps on gravel, rain on a window, a door slamming. 1 to 30 s, mono 16 kHz. Weights are CC-BY-NC 4.0 (non-commercial).",
+  "experimental": true,
+  "tags": ["SFX"],
+  "runtime": "hartsy",
+  "hartsyModel": "audiogen",
+  "hartsyModality": "music",
+  "modelVersion": "medium",
+  "maxChars": 500,
+  "sampleRate": 16000,
+  "voiceCloning": false,
+  "approxVramGb": 6,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "A 1.5B-parameter language model: slow on the CPU.",
+  "length": { "mode": "required", "min": 1, "max": 30 },
+  "models": ["audiogen-medium"],
+  "settings": [
+    { "key": "cfgScale", "type": "float", "min": 1.0, "max": 10.0, "step": 0.5, "default": 3.0, "label": "Guidance",
+      "description": "How closely the sound follows the description. Higher is more literal, lower more varied." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 2.0, "step": 0.05, "default": 1.0, "label": "Temperature" },
+    { "key": "topK", "type": "int", "min": 0, "max": 1000, "default": 250, "label": "Top-K",
+      "description": "Sampling cutoff. 0 = the model's default." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "id": "de6fe1a5-8a67-4b6f-8597-65977b42f29d",
+  "title": "Chapter 3: The Last Night",
+  "items": [
+    {
+      "id": "bcb93547-a4e1-435a-88e1-08befeebcd5c",
+      "kind": "tts",
+      "text": "Chapter 3: The Last Night",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "5ee8c3b5-be13-4f99-9cdd-c6e93019276c",
+      "kind": "tts",
+      "text": "The workmen were due on Monday. On Sunday night, a storm came in from the north.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "8d6b0ec9-f807-430d-a6d4-772c67322073",
+      "kind": "tts",
+      "text": "Far out on the water, a small fishing boat was fighting its way home. On board, Mack Doyle could see nothing but rain and black waves.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "3db347a2-dd62-49a9-a7e2-46f1390ee425",
+      "kind": "tts",
+      "text": "Come on, old man. Where\u0027s your light?",
+      "speaker": "mack",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "13f4021b-4044-4f14-b953-f0370b98cb31",
+      "kind": "pause",
+      "durationMs": 800,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "08c7bc85-a945-4708-9f8a-73493ee3b76f",
+      "kind": "tts",
+      "text": "Then, through the rain, the beam swept over him, steady and bright, the way it had for forty years.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "b8c2f755-188a-4be5-bd2d-5ca1847fd169",
+      "kind": "tts",
+      "text": "There you are!",
+      "speaker": "mack",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "dc7a619c-5dbf-4cba-a899-2a0c9dc16592",
+      "kind": "comment",
+      "text": "Mack\u0027s second line is relief, almost a whisper.",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "87537b6e-f9a1-478d-83d5-fc1c4b8fdfd3",
+      "kind": "tts",
+      "text": "At dawn, the storm was gone. On the quay, the fishermen were waiting, and Clara was waiting with them.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "a61cf619-4928-42d1-9e5a-9d2eb88ff919",
+      "kind": "tts",
+      "text": "You kept us alive last night, Tobias.",
+      "speaker": "mack",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "6e2da179-7028-4453-a815-46227c630c70",
+      "kind": "tts",
+      "text": "I only lit a lamp.",
+      "speaker": "tobias",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "544df9fd-0921-4322-a5d0-eb23113e77ae",
+      "kind": "tts",
+      "text": "You lit the last lamp.",
+      "speaker": "clara",
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "b5214158-9e76-4095-bcc0-011d25ffdf57",
+      "kind": "pause",
+      "durationMs": 1000,
+      "gainDb": 0,
+      "locked": false
+    },
+    {
+      "id": "8c554da7-5534-4a4f-adc1-7a4574cc27a3",
+      "kind": "tts",
+      "text": "They did not say much after that. They simply took off their caps, one by one, as the old keeper walked past. And for the rest of his life, whenever Tobias looked out to sea at night and saw the new light turning, he would smile, because he knew it was still his.",
+      "speaker": "narrator",
+      "gainDb": 0,
+      "locked": false
+    }
+  ]
+}

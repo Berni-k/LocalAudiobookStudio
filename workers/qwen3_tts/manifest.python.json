@@ -1,0 +1,6 @@
+{
+  "envGroup": "torch2_11-cu128-tx4",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "models": ["qwen3-tts-1.7b-customvoice", "qwen3-tts-0.6b-customvoice", "qwen3-tts-1.7b-base", "qwen3-tts-0.6b-base", "qwen3-tts-1.7b-voicedesign"]
+}

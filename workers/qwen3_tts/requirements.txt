@@ -1,0 +1,5 @@
+# torch and torchaudio come from the shared environment (workers/environments.json). qwen-tts pins
+# transformers 4.57.3 and accelerate 1.12.0 itself, which is why it lives in the tx4 environment.
+qwen-tts==0.1.1
+soundfile
+numpy

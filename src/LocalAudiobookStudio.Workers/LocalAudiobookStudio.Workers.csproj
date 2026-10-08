@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Worker process management, protocol, scheduler and the uv environment manager. -->
+  <PropertyGroup>
+    <RootNamespace>LocalAudiobookStudio.Workers</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LocalAudiobookStudio.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Core\LocalAudiobookStudio.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,23 @@
+{
+  "id": "test_tone",
+  "displayName": "Test tones (debug)",
+  "description": "Renders tones instead of speech. No GPU and only NumPy needed; use it to check the pipeline.",
+  "experimental": true,
+  "tags": ["Debug"],
+  "priority": -20,
+  "modelVersion": "1",
+  "envGroup": "basic",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1500,
+  "sampleRate": 24000,
+  "voiceCloning": false,
+  "approxVramGb": 0,
+  "devices": ["cpu", "cuda"],
+  "length": { "mode": "optional", "min": 0.5, "max": 600 },
+  "settings": [
+    { "key": "msPerChar", "type": "int", "min": 10, "max": 200, "default": 60, "label": "Milliseconds per character" },
+    { "key": "delaySec", "type": "float", "min": 0, "max": 10, "default": 0.2, "label": "Simulated render time (s)" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

@@ -1,0 +1,106 @@
+<!-- Text import preview: options on the left, live preview and speaker mapping on the right. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        x:Class="LocalAudiobookStudio.App.Views.ImportDialog"
+        x:DataType="vm:ImportViewModel"
+        Title="{Binding FileName, StringFormat='Import text — {0}'}"
+        Width="1100" Height="760" MinWidth="820" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <!-- Buttons -->
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{Binding Summary}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="primary" Content="Import" IsEnabled="{Binding CanImport}" Click="OnImport" IsDefault="True" MinWidth="90" HorizontalContentAlignment="Center" />
+        <Button Content="Cancel" Click="OnCancel" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <Grid ColumnDefinitions="330,16,*">
+      <!-- Options -->
+      <ScrollViewer>
+        <StackPanel Spacing="4">
+          <TextBlock Text="IMPORT INTO" Classes="header" />
+          <RadioButton GroupName="target" Content="A new project" IsChecked="{Binding IsNewProject}" />
+          <RadioButton GroupName="target" Content="This project: append as new chapters" IsChecked="{Binding IsAppend}" IsEnabled="{Binding HasProject}" />
+          <RadioButton GroupName="target" Content="This project: replace a chapter's text" IsChecked="{Binding IsReplace}" IsEnabled="{Binding HasProject}"
+                       ToolTip.Tip="Segments whose text didn't change (exact or nearly) keep their takes" />
+          <ComboBox ItemsSource="{Binding Chapters}" SelectedItem="{Binding TargetChapter}" IsVisible="{Binding IsReplace}" HorizontalAlignment="Stretch" Margin="24,0,0,0" />
+
+          <TextBlock Text="Book title" Classes="header" IsVisible="{Binding IsNewProject}" />
+          <TextBox Text="{Binding BookTitle}" IsVisible="{Binding IsNewProject}" />
+
+          <TextBlock Text="SPLITTING" Classes="header" Margin="0,12,0,4" />
+          <CheckBox Content="Treat every line as a paragraph" IsChecked="{Binding EveryLineIsParagraph}"
+                    ToolTip.Tip="For files without blank lines between paragraphs" />
+          <CheckBox Content="Speak chapter headings" IsChecked="{Binding SpeakHeadings}" />
+          <TextBlock Text="Max segment length (characters)" Classes="caption" Margin="0,6,0,0" />
+          <NumericUpDown Value="{Binding MaxSegmentChars}" Minimum="100" Maximum="10000" Increment="100" FormatString="0"
+                         ToolTip.Tip="Longer paragraphs are split at sentence boundaries. Each worker's own limit also applies." />
+          <TextBlock Text="Chapter heading pattern (regex, case-insensitive)" Classes="caption" Margin="0,6,0,0" />
+          <TextBox Text="{Binding ChapterRegex}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12"
+                   ToolTip.Tip="Lines starting with # are always headings." />
+          <TextBlock Text="{Binding Error}" Classes="error" TextWrapping="Wrap" />
+          <TextBlock Text="Known speaker names for 'Name: text' lines (comma separated)" Classes="caption" TextWrapping="Wrap" Margin="0,6,0,0" />
+          <TextBox Text="{Binding KnownNames}" Watermark="Alice, Bob"
+                   ToolTip.Tip="'Name: text' is only treated as a speaker marker for these names (and existing speakers), so 'Note: …' stays text." />
+
+          <TextBlock Text="SUPPORTED MARKERS" Classes="header" Margin="0,12,0,4" />
+          <TextBlock Classes="caption" TextWrapping="Wrap" FontFamily="Cascadia Mono, Consolas, monospace"
+                     Text="Speaker 1: Hello&#x0a;Alice: Hello  (known names)&#x0a;[Alice] Hello&#x0a;[speaker: Alice]  (block)&#x0a;[id: intro]   [length: 4s]  (next segment)&#x0a;[pause 1.5s]   [pause 800ms]&#x0a;[pause -500ms]  (negative: the next line overlaps)&#x0a;[clip: assets/thunder.wav]" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Preview -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto">
+        <TextBlock Text="SPEAKER LABELS" Classes="header" Margin="0,0,0,4" />
+        <Grid Grid.Row="1" ColumnDefinitions="*,12,*" RowDefinitions="*">
+          <Border Classes="card" Padding="0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="No speaker markers found — everything uses the default speaker." Classes="caption" Margin="8"
+                         IsVisible="{Binding !HasMappings}" TextWrapping="Wrap" />
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding Mappings}" Margin="8">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LabelMappingViewModel">
+                      <StackPanel Margin="0,0,0,10" Spacing="4">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}" HorizontalAlignment="Stretch" />
+                        <TextBox Text="{Binding NewName}" IsVisible="{Binding IsNew}" Watermark="Speaker name" />
+                        <ComboBox ItemsSource="{Binding ExistingSpeakers}" SelectedItem="{Binding ExistingSpeaker}" IsVisible="{Binding IsExisting}" HorizontalAlignment="Stretch">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SpeakerViewModel">
+                              <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding OtherLabels}" SelectedItem="{Binding MergeTarget}" IsVisible="{Binding IsMerge}" HorizontalAlignment="Stretch" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="card" Padding="0">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="Chapters" Classes="header" Margin="8,4" />
+              <ListBox ItemsSource="{Binding ChapterPreview}" Classes="side" />
+            </DockPanel>
+          </Border>
+        </Grid>
+        <TextBlock Grid.Row="2" Text="PREVIEW (first 200 segments)" Classes="header" Margin="0,12,0,4" />
+        <Border Grid.Row="3" Classes="card" Height="260" Padding="0">
+          <ListBox ItemsSource="{Binding SegmentPreview}" Classes="side">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>

@@ -1,0 +1,8 @@
+{
+  "envGroup": "onnx1_30-cu13",
+  "requirements": "requirements.onnx.txt",
+  "entry": "worker_onnx.py",
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "The CUDA build also runs on the CPU, as fast as the CPU runtime.",
+  "models": ["kokoro-82m-onnx"]
+}

@@ -1,0 +1,6 @@
+{
+  "envGroup": "torch2_11-cu128-tx4",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "models": ["vibevoice-1.5b", "vibevoice-7b", "vibevoice-voices"]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "narrator",
+  "displayName": "Narrator",
+  "color": "#6FA8DC",
+  "worker": "kokoro",
+  "settings": {
+    "voice": "af_heart",
+    "speed": 1.0
+  },
+  "markerAliases": [
+    "Narrator"
+  ]
+}

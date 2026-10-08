@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    las: the command line. Text to speech with the app's workers, and project steps (import, erase takes,
+    generate, export) for scripted workflows. Built into the app's output folder (the app references it), since
+    it finds workers/, tools/ and hartsy/ next to itself, and uses the app's settings and data folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LocalAudiobookStudio.Cli</RootNamespace>
+    <AssemblyName>las</AssemblyName>
+  </PropertyGroup>
+  <!-- Published as one file by the app's build (see LocalAudiobookStudio.App.csproj). Framework-dependent. -->
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <DebugType>embedded</DebugType>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Engine\LocalAudiobookStudio.Engine.csproj" />
+  </ItemGroup>
+</Project>

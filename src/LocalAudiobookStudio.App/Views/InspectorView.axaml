@@ -1,0 +1,246 @@
+<!-- Inspector: properties of the selected item(s). Shown in the right-hand panel.
+     Grouped like the dialogs (Border.group cards with label-left form rows, see Styles/Controls.axaml).
+     Background and Settings overrides have a checkbox as their title; the group expands when it is on. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+             xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
+             x:Class="LocalAudiobookStudio.App.Views.InspectorView"
+             x:DataType="vm:InspectorViewModel">
+  <UserControl.Styles>
+    <!-- Narrow panel: tighter cards, set off from the panel background. -->
+    <Style Selector="Border.group">
+      <Setter Property="Background" Value="{DynamicResource SemiColorBackground0}" />
+      <Setter Property="Padding" Value="10,8,10,10" />
+    </Style>
+    <Style Selector="TextBlock.formLabel">
+      <Setter Property="Margin" Value="0,7,10,0" />
+    </Style>
+    <Style Selector="CheckBox.groupToggle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="10,8,10,16" Spacing="10">
+      <!-- ========================= what is selected -->
+      <StackPanel Spacing="2">
+        <TextBlock Text="INSPECTOR" Classes="header" Margin="0,0,0,2" />
+        <TextBlock Text="{Binding Header}" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding TimingText}" Classes="caption" IsVisible="{Binding IsSingle}" TextWrapping="Wrap" />
+      </StackPanel>
+
+      <!-- Locked: only the lock and the note can be changed -->
+      <Border Classes="card" IsVisible="{Binding AllLocked}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <PathIcon Data="{StaticResource IconLock}" Width="12" Height="12" />
+          <TextBlock Text="Locked. Unlock (L) to make changes." TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+      </Border>
+
+      <!-- Error -->
+      <Border Classes="card" IsVisible="{Binding HasError}" BorderBrush="{DynamicResource SemiColorDanger}">
+        <SelectableTextBlock Text="{Binding ErrorText}" Classes="error" TextWrapping="Wrap" FontSize="12" />
+      </Border>
+
+      <!-- ========================= Section: what it is and who speaks it -->
+      <Border Classes="group" IsVisible="{Binding !IsEmpty}">
+        <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+          <TextBlock Text="Section" Classes="groupTitle" />
+          <Grid IsVisible="{Binding AnyTts}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Speaker" Classes="formLabel" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding Speakers}" SelectedItem="{Binding Speaker}" HorizontalAlignment="Stretch" PlaceholderText="(mixed)">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:SpeakerViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" />
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding ShortcutText}" Classes="caption" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <!-- Requested length, for workers that take one (manifest "length"). Required lengths are
+               prefilled with a guess; optional ones stay empty until set, and the model decides. -->
+          <Grid IsVisible="{Binding ShowLength}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Length (s)" Classes="formLabel" />
+            <StackPanel Grid.Column="1" Spacing="2">
+              <Grid ColumnDefinitions="*,Auto">
+                <NumericUpDown Value="{Binding LengthSec}" Minimum="{Binding LengthMinimum}" Maximum="{Binding LengthMaximum}"
+                               Increment="0.5" FormatString="0.0" Watermark="{Binding LengthWatermark}" MinWidth="0" />
+                <Button Grid.Column="1" Content="×" Command="{Binding ClearLengthCommand}" IsVisible="{Binding CanClearLength}"
+                        Padding="6,2" Margin="4,0,0,0"
+                        ToolTip.Tip="Clear the length (use the guess, or let the model decide)" />
+              </Grid>
+              <TextBlock Text="{Binding LengthHint}" Classes="caption" TextWrapping="Wrap"
+                         IsVisible="{Binding LengthHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+          </Grid>
+          <Grid IsVisible="{Binding IsSingleWithAudio}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Export ID" Classes="formLabel"
+                       ToolTip.Tip="The file name in a per-segment export ([id: …] in imported text). Empty: the segment is numbered." />
+            <TextBox Grid.Column="1" Text="{Binding ExportId, UpdateSourceTrigger=LostFocus}" Watermark="numbered" />
+          </Grid>
+          <Grid IsVisible="{Binding IsSingleClip}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Label" Classes="formLabel" />
+            <StackPanel Grid.Column="1" Spacing="2">
+              <TextBox Text="{Binding ClipLabel, UpdateSourceTrigger=LostFocus}" />
+              <TextBlock Text="{Binding ClipFile}" Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+          <Grid IsVisible="{Binding IsSinglePause}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Length (ms)" Classes="formLabel"
+                       ToolTip.Tip="Replaces the default gap here. 0 = back to back; negative values make the sections around it overlap." />
+            <StackPanel Grid.Column="1" Spacing="2">
+              <NumericUpDown Value="{Binding PauseMs}" Minimum="-600000" Maximum="600000" Increment="100" FormatString="0" />
+              <TextBlock Text="Negative = the sections before and after overlap by that much." Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+          <CheckBox IsChecked="{Binding Locked}" IsThreeState="False" Content="Locked" Margin="0,2,0,0"
+                    ToolTip.Tip="A locked section can't be edited, moved, deleted or regenerated until it is unlocked (L)." />
+        </StackPanel>
+      </Border>
+
+      <!-- ========================= Audio: waveform, trims, level and fades (not for pauses and comments) -->
+      <Border Classes="group" IsVisible="{Binding AnyWithAudio}">
+        <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+          <TextBlock Text="Audio" Classes="groupTitle" />
+          <StackPanel IsVisible="{Binding IsSingleWithAudio}" Spacing="2">
+            <Border Height="90" CornerRadius="4" Background="{DynamicResource WaveformBackgroundBrush}" Padding="2"
+                    ToolTip.Tip="Trimmed parts are dimmed · drag the lines to trim · Ctrl+wheel to zoom">
+              <ctl:WaveformView Peaks="{Binding Item.Peaks, FallbackValue={x:Null}}" TrimStartMs="{Binding Item.TrimStartMs, FallbackValue=0}"
+                                TrimEndMs="{Binding Item.TrimEndMs, FallbackValue=0}" GainDb="{Binding Item.EffectiveGainDb, FallbackValue=0}"
+                                PlayheadMs="{Binding Item.PlayheadMs, FallbackValue=-1}" Host="{Binding Item, FallbackValue={x:Null}}"
+                                ShowFullRange="True" Fill="{DynamicResource WaveformBrush}" />
+            </Border>
+            <TextBlock Text="{Binding LoudnessText}" Classes="caption" TextWrapping="Wrap" />
+          </StackPanel>
+          <Grid IsVisible="{Binding IsSingleWithAudio}" IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Trim (ms)" Classes="formLabel" ToolTip.Tip="Start and end trims; empty = detected silence" />
+            <Grid Grid.Column="1" ColumnDefinitions="*,6,*,Auto">
+              <NumericUpDown Value="{Binding TrimStartMs}" Minimum="0" Maximum="600000" Increment="10" FormatString="0" Watermark="auto" ToolTip.Tip="Trim start" />
+              <NumericUpDown Grid.Column="2" Value="{Binding TrimEndMs}" Minimum="0" Maximum="600000" Increment="10" FormatString="0" Watermark="auto" ToolTip.Tip="Trim end" />
+              <Button Grid.Column="3" Classes="icon" Command="{Binding ResetTrimsCommand}" ToolTip.Tip="Use detected silence trims" Margin="2,0,0,0">
+                <PathIcon Data="{StaticResource IconRefresh}" />
+              </Button>
+            </Grid>
+          </Grid>
+          <Grid IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Gain (dB)" Classes="formLabel" ToolTip.Tip="Added on top of automatic loudness normalization" />
+            <NumericUpDown Grid.Column="1" Value="{Binding GainDb}" Minimum="-40" Maximum="20" Increment="0.5" FormatString="0.0" Watermark="mixed" />
+          </Grid>
+          <Grid IsEnabled="{Binding CanEdit}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <TextBlock Text="Fades (ms)" Classes="formLabel" />
+            <Grid Grid.Column="1" ColumnDefinitions="*,6,*">
+              <NumericUpDown Value="{Binding FadeInMs}" Minimum="0" Maximum="60000" Increment="50" FormatString="0" Watermark="in" ToolTip.Tip="Fade in" />
+              <NumericUpDown Grid.Column="2" Value="{Binding FadeOutMs}" Minimum="0" Maximum="60000" Increment="50" FormatString="0" Watermark="out" ToolTip.Tip="Fade out" />
+            </Grid>
+          </Grid>
+          <CheckBox IsChecked="{Binding Normalize}" IsEnabled="{Binding CanEdit}" Content="Normalize loudness" Margin="0,2,0,0"
+                    ToolTip.Tip="Turn off for intentionally quiet ambience" />
+        </StackPanel>
+      </Border>
+
+      <!-- ========================= Background: plays under the next section instead of taking its own time -->
+      <Border Classes="group" IsVisible="{Binding AnyWithAudio}" IsEnabled="{Binding CanEdit}">
+        <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+          <CheckBox Classes="groupToggle" IsChecked="{Binding Background}" Content="Background"
+                    ToolTip.Tip="Starts together with the next section and plays underneath it, taking no time of its own. Useful for ambience and music. (B)" />
+          <StackPanel IsVisible="{Binding ShowBackgroundOptions}" Classes="form">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Plays for" Classes="formLabel" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding BackgroundLengthOptions}" SelectedIndex="{Binding BackgroundLengthIndex}"
+                        HorizontalAlignment="Stretch" PlaceholderText="(mixed)" />
+            </Grid>
+            <Grid IsVisible="{Binding ShowBackgroundLimit}">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding BackgroundLimitLabel}" Classes="formLabel" />
+              <NumericUpDown Grid.Column="1" Value="{Binding BackgroundLimit}" Minimum="0.5" Maximum="36000" Increment="{Binding BackgroundLimitIncrement}"
+                             FormatString="0.#" Watermark="mixed" />
+            </Grid>
+            <CheckBox IsChecked="{Binding BackgroundLoop}" IsEnabled="{Binding BackgroundLoopEnabled}" Content="Loop to fill that length"
+                      ToolTip.Tip="Repeats the audio when it is shorter than the chosen length. Without looping it stops at its own end." />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- ========================= Settings overrides (per segment; off = the speaker's settings) -->
+      <Border Classes="group" IsVisible="{Binding Overrides, Converter={x:Static ctl:Converters.NotNull}}" IsEnabled="{Binding CanEdit}">
+        <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+          <CheckBox Classes="groupToggle" IsChecked="{Binding OverridesEnabled}" Content="Override settings"
+                    ToolTip.Tip="Change the model settings for this section only. Turning this off removes the overrides." />
+          <StackPanel IsVisible="{Binding OverridesEnabled}" Spacing="2">
+            <TextBlock Text="Empty fields use the speaker's value." Classes="caption" TextWrapping="Wrap" />
+            <ContentControl Content="{Binding Overrides}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- ========================= Takes -->
+      <Border Classes="group" IsVisible="{Binding IsSingleGenerated}">
+        <StackPanel Spacing="4">
+          <TextBlock Text="Takes" Classes="groupTitle" />
+          <TextBlock Text="No takes yet. Press R to generate." Classes="caption" IsVisible="{Binding !HasTakes}" />
+          <ItemsControl ItemsSource="{Binding Takes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:TakeRowViewModel">
+                <Border Classes="card" Margin="0,0,0,6" Padding="6" Classes.selectedTake="{Binding IsSelected}">
+                  <StackPanel Spacing="3">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="(older input)" Classes="caption warning" IsVisible="{Binding !IsCurrentInput}" VerticalAlignment="Center"
+                                   ToolTip.Tip="This take was generated from different text or settings" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
+                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="1" ToolTip.Tip="Rate 1–5 stars (click stars)" />
+                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="2" />
+                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="3" />
+                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="4" />
+                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="5" />
+                      </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding Stars}" Classes="caption" Foreground="{DynamicResource SemiColorWarning}" />
+                    <TextBlock Text="{Binding Details}" Classes="caption" TextWrapping="Wrap" />
+                    <Border Height="30" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="3">
+                      <ctl:WaveformView Peaks="{Binding Peaks}" Interactive="False" ShowFullRange="True" Fill="{DynamicResource WaveformBrush}" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <Button Classes="icon" Command="{Binding AuditionCommand}" ToolTip.Tip="Play this take">
+                        <PathIcon Data="{StaticResource IconPlay}" />
+                      </Button>
+                      <Button Content="Use this take" Command="{Binding UseCommand}" IsEnabled="{Binding !IsSelected}" FontSize="12" Padding="8,2" />
+                      <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open containing folder">
+                        <PathIcon Data="{StaticResource IconFolder}" />
+                      </Button>
+                      <Button Classes="icon" Command="{Binding ExportWavCommand}" ToolTip.Tip="Export this take as WAV">
+                        <PathIcon Data="{StaticResource IconExport}" />
+                      </Button>
+                      <Button Classes="icon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete this take (asks first; can't be undone)">
+                        <PathIcon Data="{StaticResource IconTrash}" />
+                      </Button>
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

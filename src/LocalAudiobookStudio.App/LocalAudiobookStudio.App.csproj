@@ -1,0 +1,105 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Avalonia desktop application: views, view models, controls and styles. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>LocalAudiobookStudio.App</RootNamespace>
+    <AssemblyName>LocalAudiobookStudio</AssemblyName>
+    <!-- Compiled bindings: XAML bindings are checked at build time (needs x:DataType on each view). -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Published for a platform (build/release.ps1), the app is one exe: every DLL, native libraries included
+       (Skia, HarfBuzz, ANGLE; extracted to %TEMP%\.net at first start). Framework-dependent. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Semi.Avalonia" />
+    <PackageReference Include="Avalonia.Diagnostics" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <!-- Audio devices (Devices/): WASAPI on Windows, ALSA on Linux. -->
+    <PackageReference Include="NAudio.Wasapi" />
+    <PackageReference Include="NAudio.Alsa" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Core\LocalAudiobookStudio.Core.csproj" />
+    <ProjectReference Include="..\LocalAudiobookStudio.Audio\LocalAudiobookStudio.Audio.csproj" />
+    <ProjectReference Include="..\LocalAudiobookStudio.Workers\LocalAudiobookStudio.Workers.csproj" />
+    <ProjectReference Include="..\LocalAudiobookStudio.Engine\LocalAudiobookStudio.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="LocalAudiobookStudio.Engine" />
+    <Using Include="LocalAudiobookStudio.Engine.Export" />
+    <Using Include="LocalAudiobookStudio.Engine.Hosting" />
+    <Using Include="LocalAudiobookStudio.Engine.Projects" />
+  </ItemGroup>
+
+  <!-- Copy the Python worker sources and bundled tools next to the executable (as files, never into a single-file exe). -->
+  <ItemGroup>
+    <None Include="..\..\workers\**\*" Exclude="..\..\workers\**\__pycache__\**" LinkBase="workers" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <None Include="..\..\tools\**\*" LinkBase="tools" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <!-- Example projects: text, project files and their assets. Generated audio, exports and caches stay out
+       (someone may have generated the example in the repo copy). -->
+  <ItemGroup>
+    <None Include="..\..\examples\**\*" LinkBase="examples" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true"
+          Exclude="..\..\examples\**\audio\**;..\..\examples\**\export\**;..\..\examples\**\.cache\**" />
+  </ItemGroup>
+
+  <!-- The examples are copied fresh each build: a chapter file left over from an older version of an example
+       would otherwise be loaded as an extra chapter. Skipped (with a warning) while the app has one open. -->
+  <Target Name="CleanExamplesOutput" BeforeTargets="_CopyOutOfDateSourceItemsToOutputDirectory">
+    <RemoveDir Directories="$(OutDir)examples" ContinueOnError="WarnAndContinue" />
+  </Target>
+
+  <!--
+    The command line (las) and the HartsyInference worker (las-hartsy-worker) are published as single files for
+    the platform being built: the app's RuntimeIdentifier when set, else this machine's. las goes next to the
+    executable (it uses the same workers/, tools/ and hartsy/ folders), the worker into hartsy/.
+    The references below are for restore and build order only: their DLLs must not mix with the app's.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\LocalAudiobookStudio.Cli\LocalAudiobookStudio.Cli.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\LocalAudiobookStudio.HartsyWorker\LocalAudiobookStudio.HartsyWorker.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <CliProject>..\LocalAudiobookStudio.Cli\LocalAudiobookStudio.Cli.csproj</CliProject>
+    <HartsyWorkerProject>..\LocalAudiobookStudio.HartsyWorker\LocalAudiobookStudio.HartsyWorker.csproj</HartsyWorkerProject>
+    <CompanionRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</CompanionRid>
+    <!-- Portable RID: distro-built SDKs (e.g. Ubuntu's) report "ubuntu.24.04-x64" as NETCoreSdkRuntimeIdentifier. -->
+    <CompanionRid Condition="'$(CompanionRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</CompanionRid>
+    <CompanionRid Condition="'$(CompanionRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</CompanionRid>
+  </PropertyGroup>
+
+  <Target Name="PublishCompanionsToOutput" AfterTargets="Build">
+    <MSBuild Projects="$(CliProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)'))\" />
+    <MSBuild Projects="$(HartsyWorkerProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)', 'hartsy'))\" />
+  </Target>
+
+  <Target Name="PublishCompanions" AfterTargets="Publish">
+    <MSBuild Projects="$(CliProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)'))\" />
+    <MSBuild Projects="$(HartsyWorkerProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)', 'hartsy'))\" />
+  </Target>
+</Project>

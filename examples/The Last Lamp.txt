@@ -1,0 +1,77 @@
+[comment: Example project. Lines starting with a [Name] are dialogue for that speaker; plain paragraphs go to the Narrator. Comments like this one are notes for the production and are never spoken.]
+
+Chapter 1: The Keeper
+
+On a rock at the edge of the northern sea stood a lighthouse, and in the lighthouse lived a keeper named Tobias Wren.
+
+Every evening for forty years, Tobias climbed the hundred and twelve steps to the lamp room. He trimmed the wick, polished the great glass lens, and watched the beam sweep out across the water.
+
+[pause 1s]
+
+Once a month, the supply boat came out from the harbour. This month it brought Clara, the harbourmaster's daughter, who was twelve and afraid of nothing.
+
+[Clara] Is it true you've never missed a single night?
+
+[Mack] Yeah yeah i am also talking in the background while the two over there
+
+[comment: Set Mack's line above to Background in the inspector, at -20 dB, so it plays under Clara and Tobias instead of between them. The text format has no marker for background lines.]
+
+[Tobias] Not one. Not in forty years.
+
+[Clara] Not even when you were ill?
+
+[pause -500ms]
+
+[Tobias] Especially not then. The sea doesn't care whether I have a cold.
+
+[comment: Tobias is gruff but fond of her. Keep his lines slow and warm.]
+
+Clara laughed, and the gulls on the railing laughed with her.
+
+Chapter 2: The Letter
+
+[comment: Chapter 2 is quieter. Leave room for the silences.]
+
+On her next visit, Clara brought a letter with a blue seal. Tobias read it twice at the kitchen table.
+
+[pause 1.5s]
+
+[Clara] What does it say?
+
+[Tobias] It says the lighthouse is getting an electric lamp. It will switch itself on at dusk and off at dawn.
+
+[Clara] Then who will look after it?
+
+[Tobias] Nobody, little one. That's rather the point.
+
+[pause 1s]
+
+He folded the letter carefully and put it in his coat pocket. That evening he climbed the stairs more slowly than usual, counting every step, the way he had on his very first night.
+
+Chapter 3: The Last Night
+
+The workmen were due on Monday. On Sunday night, a storm came in from the north.
+
+Far out on the water, a small fishing boat was fighting its way home. On board, Mack Doyle could see nothing but rain and black waves.
+
+[Mack] Come on, old man. Where's your light?
+
+[pause 800ms]
+
+Then, through the rain, the beam swept over him, steady and bright, the way it had for forty years.
+
+[Mack] There you are. There you are.
+
+[comment: Mack's second line is relief, almost a whisper.]
+
+At dawn, the storm was gone. On the quay, the fishermen were waiting, and Clara was waiting with them.
+
+[Mack] You kept us alive last night, Tobias.
+
+[Tobias] I only lit a lamp.
+
+[Clara] You lit the last lamp.
+
+[pause 1s]
+
+They did not say much after that. They simply took off their caps, one by one, as the old keeper walked past. And for the rest of his life, whenever Tobias looked out to sea at night and saw the new light turning, he would smile, because he knew it was still his.

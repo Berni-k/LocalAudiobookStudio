@@ -1,0 +1,50 @@
+<!-- Project title, author, cover and mixing defaults. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        x:Class="LocalAudiobookStudio.App.Views.ProjectPropertiesDialog"
+        x:DataType="vm:ProjectPropertiesViewModel"
+        Title="Project properties"
+        Width="560" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <StackPanel Margin="20" Spacing="6">
+    <TextBlock Text="{Binding Folder}" Classes="caption" TextWrapping="Wrap" />
+    <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" Margin="0,8,0,0">
+      <TextBlock Text="Title" VerticalAlignment="Center" />
+      <TextBox Grid.Column="1" Text="{Binding Title}" />
+      <TextBlock Grid.Row="1" Text="Author" VerticalAlignment="Center" />
+      <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Author}" />
+      <TextBlock Grid.Row="2" Text="Cover image" VerticalAlignment="Center" />
+      <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto">
+        <TextBox Text="{Binding Cover}" IsReadOnly="True" Watermark="none" />
+        <Button Grid.Column="1" Content="…" Command="{Binding BrowseCoverCommand}" Margin="4,0,0,0" />
+      </Grid>
+      <TextBlock Grid.Row="3" Text="Default speaker" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding Speakers}" SelectedItem="{Binding DefaultSpeaker}" HorizontalAlignment="Stretch">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SpeakerViewModel"><TextBlock Text="{Binding Name}" /></DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <TextBlock Grid.Row="4" Text="Target loudness (LUFS)" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding TargetLufs}" Minimum="-30" Maximum="-10" Increment="0.5" FormatString="0.0" Width="140" HorizontalAlignment="Left" />
+      <TextBlock Grid.Row="5" Text="Default gap after items (ms)" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding GapMs}" Minimum="0" Maximum="10000" Increment="50" FormatString="0" Width="140" HorizontalAlignment="Left" />
+      <TextBlock Grid.Row="6" Text="Gap between chapters (ms)" VerticalAlignment="Center" />
+      <NumericUpDown Grid.Row="6" Grid.Column="1" Value="{Binding ChapterGapMs}" Minimum="0" Maximum="30000" Increment="250" FormatString="0" Width="140" HorizontalAlignment="Left" />
+      <TextBlock Grid.Row="7" Text="Sample rate" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding SampleRates}" SelectedItem="{Binding SampleRate}" Width="140"
+                ToolTip.Tip="The rate playback and export run at. Takes keep the rate their model made and are converted when mixed." />
+      <TextBlock Grid.Row="8" Text="Store new audio as" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="8" Grid.Column="1" ItemsSource="{Binding AudioFormats}" SelectedItem="{Binding AudioFormat}" Width="180"
+                ToolTip.Tip="How new takes, recordings and imported WAV files are stored. Opus is 6 to 10 times smaller and very hard to tell apart. Existing takes stay as they are: File → Compress takes to Opus converts them." />
+      <TextBlock Grid.Row="9" Text="Opus quality" VerticalAlignment="Center" />
+      <ComboBox Grid.Row="9" Grid.Column="1" ItemsSource="{Binding OpusQualities}" SelectedItem="{Binding OpusQuality}" Width="260"
+                IsEnabled="{Binding IsOpus}" ToolTip.ShowOnDisabled="True"
+                ToolTip.Tip="Mono speech gets this bit rate, stereo twice. Smaller saves a quarter and suits speech; High suits music and exports at high bit rates. Only affects audio stored from now on." />
+    </Grid>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+      <Button Classes="primary" Content="OK" Click="OnOk" IsDefault="True" MinWidth="90" HorizontalContentAlignment="Center" />
+      <Button Content="Cancel" Click="OnCancel" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</Window>

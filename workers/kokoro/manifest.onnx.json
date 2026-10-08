@@ -1,0 +1,9 @@
+{
+  "envGroup": "onnx1_30-cpu",
+  "requirements": "requirements.onnx.txt",
+  "entry": "worker_onnx.py",
+  "devices": ["cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Made for the CPU: a small environment without torch that starts in a few seconds.",
+  "models": ["kokoro-82m-onnx"]
+}

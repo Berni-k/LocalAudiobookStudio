@@ -1,0 +1,25 @@
+{
+  "id": "stable_audio_open",
+  "displayName": "Stable Audio Open Small",
+  "description": "Short sound effects and music clips from a description, up to 11 s, stereo 44.1 kHz. Fast (8 steps), no Hugging Face login needed. Stability AI Community License.",
+  "experimental": true,
+  "broken": "the audio comes out as screeching noise (HartsyInference's stableaudio model, checked 2026-10-05). Stable Audio 3 works instead.",
+  "tags": ["SFX", "Music"],
+  "runtime": "hartsy",
+  "hartsyModel": "stableaudio",
+  "hartsyModality": "music",
+  "modelVersion": "open-small",
+  "maxChars": 500,
+  "sampleRate": 44100,
+  "voiceCloning": false,
+  "approxVramGb": 3,
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "Small (341M parameters) and only 8 steps: usable on the CPU.",
+  "length": { "mode": "required", "min": 1, "max": 11 },
+  "models": ["stable-audio-open-small"],
+  "settings": [
+    { "key": "steps", "type": "int", "min": 1, "max": 50, "default": 8, "label": "Steps",
+      "description": "Sampling steps. The model is tuned for 8." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

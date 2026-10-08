@@ -1,0 +1,7 @@
+# torch and torchaudio come from the shared environment (workers/environments.json), whose overrides
+# replace the package's torch 2.7.1 pin.
+# Stability-AI/stable-audio-3, pinned to a commit and fetched as an archive (no git needed).
+# It needs transformers >= 5.8 and huggingface-hub >= 1.7.
+stable-audio-3 @ https://github.com/Stability-AI/stable-audio-3/archive/3a82c807b69cf4b7c5c05270011a5d5e47abac18.zip
+soundfile
+numpy

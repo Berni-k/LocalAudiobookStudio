@@ -1,0 +1,220 @@
+<!--
+  App styles on top of the Semi theme. Avalonia styles work like CSS: a selector ("Button.icon")
+  picks controls and setters apply values. ":pointerover" / ":selected" are pseudo-classes (like
+  CSS :hover). Setting "Theme" switches a control to one of Semi's control themes, e.g.
+  BorderlessButton (flat icon button) or SolidButton (filled primary button).
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground0}" />
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText0}" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <!-- Text helpers -->
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+  </Style>
+  <Style Selector="TextBlock.caption">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+  <Style Selector="TextBlock.header">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    <Setter Property="Margin" Value="0,8,0,4" />
+  </Style>
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="TextBlock.warning">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+  </Style>
+  <Style Selector="TextBlock.error">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+  </Style>
+  <!-- A file or folder path: monospace on a faint chip, so it stands apart from the text around it.
+       Use <Border Classes="path"><SelectableTextBlock Text="…" /></Border>. -->
+  <Style Selector="Border.path">
+    <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Border.path > SelectableTextBlock">
+    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText1}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- Panels -->
+  <Style Selector="Border.panel">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+  </Style>
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="8" />
+  </Style>
+  <Style Selector="Border.card.selectedTake">
+    <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+  </Style>
+
+  <!-- Small square icon buttons used in rows, the toolbar and the transport. -->
+  <Style Selector="Button.icon">
+    <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText1}" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.icon PathIcon">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+  <Style Selector="ToggleButton.icon">
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Width" Value="26" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ToggleButton.icon PathIcon">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+  <Style Selector="Button.large">
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="34" />
+  </Style>
+  <Style Selector="Button.large PathIcon">
+    <Setter Property="Width" Value="18" />
+    <Setter Property="Height" Value="18" />
+  </Style>
+
+  <!-- Toolbar / link-like buttons: flat with an icon and a label. -->
+  <Style Selector="Button.tool">
+    <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorText0}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <!-- The main action of a dialog: Semi's filled primary button. -->
+  <Style Selector="Button.primary">
+    <Setter Property="Theme" Value="{DynamicResource SolidButton}" />
+  </Style>
+
+  <!-- Segment stack: square, full-width rows; Semi's item colors are overridden through its resources. -->
+  <Style Selector="ListBox.stack">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground0}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.stack ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <!-- Side lists (chapters, takes, jobs, logs). -->
+  <Style Selector="ListBox.side">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.side ListBoxItem">
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <!-- Badges -->
+  <Style Selector="Border.badge">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="5,0" />
+    <Setter Property="MinWidth" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.badge TextBlock">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Always-visible scrollbars. Set on every templated control, not just ScrollViewer, because
+       ListBox, TextBox, ComboBox etc. pass ScrollViewer.AllowAutoHide into their inner ScrollViewer
+       through a template binding, which outranks a plain ScrollViewer style. -->
+  <Style Selector=":is(TemplatedControl)">
+    <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+  </Style>
+
+  <!-- Dialog groups and forms (Speakers, Settings): a titled card per section; form rows put the label on
+       the left in a column shared per group (Grid.IsSharedSizeScope + SharedSizeGroup="label"). -->
+  <Style Selector="Border.group">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="14,10,14,14" />
+  </Style>
+  <Style Selector="StackPanel.form">
+    <Setter Property="Spacing" Value="6" />
+  </Style>
+  <Style Selector="TextBlock.formLabel">
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Margin" Value="0,7,16,0" />
+  </Style>
+  <Style Selector="TextBlock.groupTitle">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBorder}" />
+    <Setter Property="MinWidth" Value="1" />
+  </Style>
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+  </Style>
+
+  <!-- System check entries (setup window, Help → System check): status icon colours and warning text. -->
+  <Style Selector="PathIcon.status">
+    <Setter Property="Width" Value="13" />
+    <Setter Property="Height" Value="13" />
+    <Setter Property="Margin" Value="0,3,10,0" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+  </Style>
+  <Style Selector="PathIcon.status.ok">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+  </Style>
+  <Style Selector="PathIcon.status.warn">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+  </Style>
+  <Style Selector="PathIcon.status.bad">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+  </Style>
+  <Style Selector="SelectableTextBlock.warnText">
+    <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+  </Style>
+</Styles>

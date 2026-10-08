@@ -1,0 +1,551 @@
+{
+  "models": {
+    "kokoro-82m": {
+      "displayName": "Kokoro 82M",
+      "sources": [
+        { "repo": "hexgrad/Kokoro-82M", "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987" }
+      ],
+      "include": ["config.json", "kokoro-v1_0.pth"],
+      "files": {
+        "config.json": { "size": 2351, "gitSha1": "14a726edd3718279eac426630879ff743955b16a" },
+        "kokoro-v1_0.pth": { "size": 327212226, "sha256": "496dba118d1a58f5f3db2efc88dbdc216e0483fc89fe6e47ee1f2c53f18ad1e4" }
+      }
+    },
+    "kokoro-82m-vocab": {
+      "displayName": "Kokoro 82M vocabulary",
+      "sources": [
+        { "repo": "hexgrad/Kokoro-82M", "revision": "f3ff3571791e39611d31c381e3a41a3af07b4987" }
+      ],
+      "include": ["config.json"],
+      "files": {
+        "config.json": { "size": 2351, "gitSha1": "14a726edd3718279eac426630879ff743955b16a" }
+      }
+    },
+    "kokoro-82m-onnx": {
+      "displayName": "Kokoro 82M (ONNX)",
+      "sources": [
+        { "repo": "onnx-community/Kokoro-82M-v1.0-ONNX", "revision": "1939ad2a8e416c0acfeecc08a694d14ef25f2231" }
+      ],
+      "include": ["config.json", "onnx/model.onnx"],
+      "requires": ["kokoro-82m-vocab"],
+      "files": {
+        "config.json": { "size": 44, "gitSha1": "790faf216e7e3f490e71e8bc80df79ed8941101c" },
+        "onnx/model.onnx": { "size": 325532232, "sha256": "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb" }
+      }
+    },
+    "qwen3-tts-1.7b-customvoice": {
+      "displayName": "Qwen3-TTS 1.7B CustomVoice",
+      "sources": [
+        { "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "revision": "0c0e3051f131929182e2c023b9537f8b1c68adfe" }
+      ],
+      "files": {
+        "config.json": { "size": 4908, "gitSha1": "95d74b20b7485f5dfa09d05988d6c606ec226811" },
+        "generation_config.json": { "size": 245, "gitSha1": "1872b16d4535564abf2db5d6debe6cddd82b7f2e" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors": { "size": 3833402552, "sha256": "38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137" },
+        "preprocessor_config.json": { "size": 127, "gitSha1": "0525dd953bb9241912f7147666f0d535165d5d4f" },
+        "speech_tokenizer/config.json": { "size": 2336, "gitSha1": "06cc8dc4c5ec8a1929086b71b98c313020d9268b" },
+        "speech_tokenizer/configuration.json": { "size": 76, "gitSha1": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd" },
+        "speech_tokenizer/model.safetensors": { "size": 682293092, "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258" },
+        "speech_tokenizer/preprocessor_config.json": { "size": 234, "gitSha1": "ba40914f4f49ab98a8ca545d4892ef7291a39592" },
+        "tokenizer_config.json": { "size": 7344, "gitSha1": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "qwen3-tts-0.6b-customvoice": {
+      "displayName": "Qwen3-TTS 0.6B CustomVoice",
+      "sources": [
+        { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", "revision": "85e237c12c027371202489a0ec509ded67b5e4b5" }
+      ],
+      "files": {
+        "config.json": { "size": 4908, "gitSha1": "5e8d5fc100536984e3a89bd87ef08e59e322b29b" },
+        "generation_config.json": { "size": 245, "gitSha1": "1872b16d4535564abf2db5d6debe6cddd82b7f2e" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors": { "size": 1811626576, "sha256": "bc3c7e785eb961179c25450d1acff03f839e0002f2f3a5aeb67b5735c0fa2adb" },
+        "preprocessor_config.json": { "size": 127, "gitSha1": "0525dd953bb9241912f7147666f0d535165d5d4f" },
+        "speech_tokenizer/config.json": { "size": 2336, "gitSha1": "06cc8dc4c5ec8a1929086b71b98c313020d9268b" },
+        "speech_tokenizer/configuration.json": { "size": 76, "gitSha1": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd" },
+        "speech_tokenizer/model.safetensors": { "size": 682293092, "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258" },
+        "speech_tokenizer/preprocessor_config.json": { "size": 234, "gitSha1": "ba40914f4f49ab98a8ca545d4892ef7291a39592" },
+        "tokenizer_config.json": { "size": 7344, "gitSha1": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "qwen3-tts-1.7b-base": {
+      "displayName": "Qwen3-TTS 1.7B Base",
+      "sources": [
+        { "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-Base", "revision": "fd4b254389122332181a7c3db7f27e918eec64e3" }
+      ],
+      "files": {
+        "config.json": { "size": 4494, "gitSha1": "81b57e8e790c07e8fa7f82d8bdfd7574d485c396" },
+        "generation_config.json": { "size": 245, "gitSha1": "1872b16d4535564abf2db5d6debe6cddd82b7f2e" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors": { "size": 3857413744, "sha256": "38fc7fc51c5e776e840414b6fd443962e9411b9654888fd7913e4da643cb857c" },
+        "preprocessor_config.json": { "size": 127, "gitSha1": "0525dd953bb9241912f7147666f0d535165d5d4f" },
+        "speech_tokenizer/config.json": { "size": 2336, "gitSha1": "06cc8dc4c5ec8a1929086b71b98c313020d9268b" },
+        "speech_tokenizer/configuration.json": { "size": 76, "gitSha1": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd" },
+        "speech_tokenizer/model.safetensors": { "size": 682293092, "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258" },
+        "speech_tokenizer/preprocessor_config.json": { "size": 234, "gitSha1": "ba40914f4f49ab98a8ca545d4892ef7291a39592" },
+        "tokenizer_config.json": { "size": 7344, "gitSha1": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "qwen3-tts-0.6b-base": {
+      "displayName": "Qwen3-TTS 0.6B Base",
+      "sources": [
+        { "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-Base", "revision": "5d83992436eae1d760afd27aff78a71d676296fc" }
+      ],
+      "files": {
+        "config.json": { "size": 4494, "gitSha1": "4e923f500f5c3eeb78d44072e7049b28817c2e04" },
+        "generation_config.json": { "size": 245, "gitSha1": "1872b16d4535564abf2db5d6debe6cddd82b7f2e" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors": { "size": 1829344272, "sha256": "180b3b10eb1c9f1b4db7806d5475bae3071c0243c299d49926bab1da3b6946f6" },
+        "preprocessor_config.json": { "size": 127, "gitSha1": "0525dd953bb9241912f7147666f0d535165d5d4f" },
+        "speech_tokenizer/config.json": { "size": 2336, "gitSha1": "06cc8dc4c5ec8a1929086b71b98c313020d9268b" },
+        "speech_tokenizer/configuration.json": { "size": 76, "gitSha1": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd" },
+        "speech_tokenizer/model.safetensors": { "size": 682293092, "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258" },
+        "speech_tokenizer/preprocessor_config.json": { "size": 234, "gitSha1": "ba40914f4f49ab98a8ca545d4892ef7291a39592" },
+        "tokenizer_config.json": { "size": 7344, "gitSha1": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "qwen3-tts-1.7b-voicedesign": {
+      "displayName": "Qwen3-TTS 1.7B VoiceDesign",
+      "sources": [
+        { "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "revision": "5ecdb67327fd37bb2e042aab12ff7391903235d3" }
+      ],
+      "files": {
+        "config.json": { "size": 4421, "gitSha1": "2c2c027c574a85c0d5a5d48e3cfed1a8a051ff9d" },
+        "generation_config.json": { "size": 245, "gitSha1": "1872b16d4535564abf2db5d6debe6cddd82b7f2e" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors": { "size": 3833402552, "sha256": "391e8db219f292c515297cdceeb43e4eae67cdde35fa57e79a6a8a532fca0522" },
+        "preprocessor_config.json": { "size": 127, "gitSha1": "0525dd953bb9241912f7147666f0d535165d5d4f" },
+        "speech_tokenizer/config.json": { "size": 2336, "gitSha1": "06cc8dc4c5ec8a1929086b71b98c313020d9268b" },
+        "speech_tokenizer/configuration.json": { "size": 76, "gitSha1": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd" },
+        "speech_tokenizer/model.safetensors": { "size": 682293092, "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258" },
+        "speech_tokenizer/preprocessor_config.json": { "size": 234, "gitSha1": "ba40914f4f49ab98a8ca545d4892ef7291a39592" },
+        "tokenizer_config.json": { "size": 7344, "gitSha1": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "vibevoice-1.5b": {
+      "displayName": "VibeVoice 1.5B",
+      "sources": [
+        { "repo": "vibevoice/VibeVoice-1.5B", "revision": "d374386b2a51d8e05277a64d85b296c89ec52376" },
+        { "repo": "microsoft/VibeVoice-1.5B", "revision": "c00898d257e6b46004e3e2866a47534085fb685a" }
+      ],
+      "include": ["*.json", "*.safetensors"],
+      "requires": ["qwen2.5-1.5b-tokenizer"],
+      "files": {
+        "config.json": { "size": 2762, "gitSha1": "17feb5528f948e364cde8640523c5ff3927131ae" },
+        "model-00001-of-00003.safetensors": { "size": 1975317828, "sha256": "c5f0a61ddeaeb028e3af540ba4dee7933ad30f9f30b6e1320dd9c875a2daa033" },
+        "model-00002-of-00003.safetensors": { "size": 1983051688, "sha256": "81c3891f7b2493eb48a9eb6f5be0df48d4f1a4bfd952d84e21683ca6d0bf7969" },
+        "model-00003-of-00003.safetensors": { "size": 1449832938, "sha256": "cb6e7e5e86b4a41fffbe1f3aaf445d0d50b5e21ed47574101b777f77d75fa196" },
+        "model.safetensors.index.json": { "size": 122616, "gitSha1": "e18709430e1002a3a43906f82cc4a5cb0181fdd1" },
+        "preprocessor_config.json": { "size": 351, "gitSha1": "3222200e715275bc2ab78999d046ffba304e4ee9" }
+      }
+    },
+    "vibevoice-7b": {
+      "displayName": "VibeVoice 7B",
+      "sources": [
+        { "repo": "vibevoice/VibeVoice-7B", "revision": "505114ae6ad17be74df98e6939707434ec49c187" }
+      ],
+      "include": ["*.json", "*.safetensors"],
+      "requires": ["qwen2.5-7b-tokenizer"],
+      "files": {
+        "config.json": { "size": 2785, "gitSha1": "5efb7d3b1c9b1eee0cfe37c59245217f22ec4407" },
+        "configuration.json": { "size": 64, "gitSha1": "159097fc100ff04bb89c78e628886d9f49bf1b81" },
+        "model-00001-of-00010.safetensors": { "size": 1886424044, "sha256": "ae28d5c8f3587b518c7e371e96ebb69f74d854a854119acf433952bbc1926325" },
+        "model-00002-of-00010.safetensors": { "size": 1864468520, "sha256": "c56b1ca707e31e435ded8b03baa4938d88275bf0ba7033935a16d8173a99ff85" },
+        "model-00003-of-00010.safetensors": { "size": 1864468520, "sha256": "48bfb4af453d45e488050e90d3f39da0189f1c10a77d75223c2c2ced8b035baa" },
+        "model-00004-of-00010.safetensors": { "size": 1864468544, "sha256": "b4893be477be68e53b8a9616422b99065f3d1431cce9efe0a1653495e9cf4df6" },
+        "model-00005-of-00010.safetensors": { "size": 1864468568, "sha256": "471690e9846e791def400fefa3d2103c9839dc8a3e987b175f6539c7412422d6" },
+        "model-00006-of-00010.safetensors": { "size": 1864468568, "sha256": "a7918d400ba895b15a1126fde242028e5d05b37bab0c0427944de81df80f901f" },
+        "model-00007-of-00010.safetensors": { "size": 1864468568, "sha256": "b4f00ebea5a9f76eea891b3457621955433149ae603d921afa1498e46683ba37" },
+        "model-00008-of-00010.safetensors": { "size": 1972552744, "sha256": "cc4b6fce97b76e847c742b59ab9463fd04b6d9fa69fc33e747ff722c2ab8cc28" },
+        "model-00009-of-00010.safetensors": { "size": 1959739938, "sha256": "824db8970518950117f0d6ed859740d973b9436718c24f29bc78854c4587a4b2" },
+        "model-00010-of-00010.safetensors": { "size": 1681341960, "sha256": "bc76bba7a46a0a748cc169efb6ccfb7617881e0fc3b533f67887d5957e1836e3" },
+        "model.safetensors.index.json": { "size": 122675, "gitSha1": "d08e8d0f301cd9c8190d94962f6eee1c26ba80d2" },
+        "preprocessor_config.json": { "size": 349, "gitSha1": "3458133691d4ecfcd885f4841c8483a0ecf0f460" }
+      }
+    },
+    "qwen2.5-1.5b-tokenizer": {
+      "displayName": "Qwen2.5 1.5B tokenizer",
+      "sources": [
+        { "repo": "Qwen/Qwen2.5-1.5B", "revision": "8faed761d45a263340a0528343f099c05c9a4323" }
+      ],
+      "include": ["*.json", "*.txt"],
+      "files": {
+        "config.json": { "size": 684, "gitSha1": "169d606d5cf502a5628a52381586679a6d0caaab" },
+        "generation_config.json": { "size": 138, "gitSha1": "cbbb3133034e192527e5321b4c679154e4819ab8" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "tokenizer.json": { "size": 7031645, "gitSha1": "443909a61d429dff23010e5bddd28ff530edda00" },
+        "tokenizer_config.json": { "size": 7228, "gitSha1": "ba7e4c5637b9732dadcd66286ce48334e8b31e9e" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "qwen2.5-7b-tokenizer": {
+      "displayName": "Qwen2.5 7B tokenizer",
+      "sources": [
+        { "repo": "Qwen/Qwen2.5-7B", "revision": "d149729398750b98c0af14eb82c78cfe92750796" }
+      ],
+      "include": ["*.json", "*.txt"],
+      "files": {
+        "config.json": { "size": 686, "gitSha1": "1a90713f0e2cf13b8320cd576175ff9f0b587ea4" },
+        "generation_config.json": { "size": 138, "gitSha1": "cbbb3133034e192527e5321b4c679154e4819ab8" },
+        "merges.txt": { "size": 1671839, "gitSha1": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0" },
+        "model.safetensors.index.json": { "size": 27752, "gitSha1": "14d037fdda5a1311dcc0275003a7a370d84114e6" },
+        "tokenizer.json": { "size": 7031645, "gitSha1": "443909a61d429dff23010e5bddd28ff530edda00" },
+        "tokenizer_config.json": { "size": 7228, "gitSha1": "ba7e4c5637b9732dadcd66286ce48334e8b31e9e" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "vibevoice-voices": {
+      "displayName": "VibeVoice preset voices",
+      "sources": [
+        { "url": "https://raw.githubusercontent.com/vibevoice-community/VibeVoice/952326ddb264062466a888cf32a5b2f4e803e16e/demo/voices/{file}" }
+      ],
+      "files": {}
+    },
+    "fish-s2-pro": {
+      "displayName": "Fish Audio S2 Pro",
+      "sources": [
+        { "repo": "fishaudio/s2-pro", "revision": "1de9996b6be38b745688de084d87a5633f714e4e" }
+      ],
+      "files": {
+        "chat_template.jinja": { "size": 4116, "gitSha1": "699ff8df401fe4788525e9c1f9b86a99eadd6230" },
+        "codec.pth": { "size": 1871099728, "sha256": "74fc41c5a7151c6f350af8bd7e5d6e3accfcc7f3dfbfac23afd35af07052bb2f" },
+        "config.json": { "size": 1863, "gitSha1": "5214fbf56c44b20d00b1d5654d68b3b1f9ec9ea5" },
+        "model-00001-of-00002.safetensors": { "size": 4986872984, "sha256": "c4218e8ac93be83b35eee30b4f94cb2e9b5ecff40f3e21611438d2f4f8804aad" },
+        "model-00002-of-00002.safetensors": { "size": 4136876104, "sha256": "76738d23465deaac431433232c0762908cc99a6eddc3d49f67307d92680827be" },
+        "model.safetensors.index.json": { "size": 32686, "gitSha1": "4a355d7d68ae0885db2c3ed3e2d9846420eef9a1" },
+        "special_tokens_map.json": { "size": 101864, "gitSha1": "7989e2cfbbfec23cfe75e17cb5494c2354a1769e" },
+        "tokenizer.json": { "size": 12217872, "sha256": "f24e08099d45a8adf3f52f5f0b03276e433bb9d689bb15fcbcc48ce58744588b" },
+        "tokenizer_config.json": { "size": 860832, "gitSha1": "47a7c4ee0e88f50904020eec33f723cec6933c61" }
+      }
+    },
+    "moss-soundeffect-2.0": {
+      "displayName": "MOSS-SoundEffect v2.0",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-SoundEffect-v2.0", "revision": "e35df4d82fbe87fcd5d14e5d100e349c0c3c076d" }
+      ],
+      "files": {
+        "model_index.json": { "size": 504, "gitSha1": "936d7fb5d4e492b6ac64bcce94c33fbfd3a56978" },
+        "scheduler/scheduler_config.json": { "size": 134, "gitSha1": "63d930b308ad1b05dd71b91a747d7f87ff903a11" },
+        "text_encoder/config.json": { "size": 726, "gitSha1": "044a86ecf7cb32238f3fae4184e55d354787edec" },
+        "text_encoder/generation_config.json": { "size": 239, "gitSha1": "20a8a9156fc8c3f25295ca067f61fdf120d517c5" },
+        "text_encoder/model-00001-of-00002.safetensors": { "size": 3441185608, "sha256": "169ad53ec313c3a34b06c0809216e4fc072cce444a5d4ff2b59690d064130ed5" },
+        "text_encoder/model-00002-of-00002.safetensors": { "size": 622329984, "sha256": "912becff8d60672aa8628ef08c05898d9adf17c2ad4ae3caf99b065622fdeff9" },
+        "text_encoder/model.safetensors.index.json": { "size": 25605, "gitSha1": "986d7db875b47d21f68530f6baac038f1b297b39" },
+        "tokenizer/merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "tokenizer/tokenizer.json": { "size": 11422654, "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4" },
+        "tokenizer/tokenizer_config.json": { "size": 9732, "gitSha1": "417d038a63fa3de29cfde265caedae14d1a58d92" },
+        "tokenizer/vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" },
+        "transformer/config.json": { "size": 311, "gitSha1": "8828d73f1202f94ef006db4655a6340659147f6e" },
+        "transformer/diffusion_pytorch_model.safetensors": { "size": 5664274560, "sha256": "bda86e4d6730ff47cea47851d219880191e9d21d4d264b21a6ffe7cb2db9dfb0" },
+        "vae/config.json": { "size": 169, "gitSha1": "cb812e0f17f290b47131f3c6fb49d3e7af57d636" },
+        "vae/vae_128d_48k.pth": { "size": 1486465965, "sha256": "07e6139ff33bd21ba8a7a7f40ed24aab13ac0d100cd686f8a9f3e03dc5251cb1" }
+      }
+    },
+    "ace-step-1.5-xl-turbo": {
+      "displayName": "ACE-Step 1.5 XL turbo",
+      "sources": [
+        { "repo": "ACE-Step/acestep-v15-xl-turbo-diffusers", "revision": "200ba991ae448051e14b0183157e35c2d27c9fb0" }
+      ],
+      "files": {
+        "condition_encoder/config.json": { "size": 502, "gitSha1": "a3aa92ca0bc07284c414f49410fe73a05475fb5b" },
+        "condition_encoder/diffusion_pytorch_model.safetensors": { "size": 1218676312, "sha256": "ca111ca95858c8d3c3678c986dda03df20778c0de009f57109c1052866d522b2" },
+        "model_index.json": { "size": 491, "gitSha1": "1584edb67215f03766f52714d6690078f221a399" },
+        "scheduler/scheduler_config.json": { "size": 484, "gitSha1": "6388308406bce6efa0227939c3a21a3c182a184a" },
+        "silence_latent.pt": { "size": 3841215, "sha256": "a778e9dd942f5e8b2c09c55370782d318834432b03dabbcdf70e6ed49ad6358b" },
+        "text_encoder/config.json": { "size": 1354, "gitSha1": "ad1599646b9b2412d7f86fa5177714c9eaeb872d" },
+        "text_encoder/model.safetensors": { "size": 1191586416, "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd" },
+        "tokenizer/added_tokens.json": { "size": 707, "gitSha1": "b54f9135e44c1e81047e8d05cb027af8bc039eed" },
+        "tokenizer/chat_template.jinja": { "size": 4116, "gitSha1": "699ff8df401fe4788525e9c1f9b86a99eadd6230" },
+        "tokenizer/merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "tokenizer/special_tokens_map.json": { "size": 613, "gitSha1": "ac23c0aaa2434523c494330aeb79c58395378103" },
+        "tokenizer/tokenizer.json": { "size": 11423705, "sha256": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a" },
+        "tokenizer/tokenizer_config.json": { "size": 5404, "gitSha1": "ddaf69808214a44fdd26d3785b66c1367c78277a" },
+        "tokenizer/vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" },
+        "transformer/config.json": { "size": 1303, "gitSha1": "481320d978d933df68cf45615dbad478a26c92df" },
+        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors": { "size": 4986971904, "sha256": "814723a63ba0b11dc4a7e8a5d43b8107c947fcdb5ab1e30c65469252272b35d7" },
+        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors": { "size": 3350889672, "sha256": "38ab6a8443be10b3c4bb0b784a5b78d471358d1b4982c139cb7893c455670b67" },
+        "transformer/diffusion_pytorch_model.safetensors.index.json": { "size": 58395, "gitSha1": "68c522ddcdb2e0e25b2e8735934ca94fc4bc380b" },
+        "vae/config.json": { "size": 438, "gitSha1": "63ff4ac952a0949f2ca8b4c28e02995f1f460fdc" },
+        "vae/diffusion_pytorch_model.safetensors": { "size": 337431388, "sha256": "da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0" }
+      }
+    },
+    "ace-step-1.5-xl-sft": {
+      "displayName": "ACE-Step 1.5 XL sft",
+      "sources": [
+        { "repo": "ACE-Step/acestep-v15-xl-sft-diffusers", "revision": "4bf7b60a63b27144f539f980927eeb89f5f912b0" }
+      ],
+      "files": {
+        "audio_token_detokenizer/config.json": { "size": 522, "gitSha1": "79fb0a1fc467f4007cc34f40af18e079efdbdfd3" },
+        "audio_token_detokenizer/diffusion_pytorch_model.safetensors": { "size": 210026424, "sha256": "744612a9406114fc5b3661e3682f9bd835dc737538b9777124c874303bbbb837" },
+        "audio_tokenizer/config.json": { "size": 637, "gitSha1": "380ca73bdf95c279ce2ac4c593a781146a8705c1" },
+        "audio_tokenizer/diffusion_pytorch_model.safetensors": { "size": 210068124, "sha256": "f8f46814109ba8bb451fef2122cb7ff58093856a9f2e5464e32f06b71404973b" },
+        "condition_encoder/config.json": { "size": 502, "gitSha1": "a3aa92ca0bc07284c414f49410fe73a05475fb5b" },
+        "condition_encoder/diffusion_pytorch_model.safetensors": { "size": 1218676312, "sha256": "ca111ca95858c8d3c3678c986dda03df20778c0de009f57109c1052866d522b2" },
+        "model_index.json": { "size": 650, "gitSha1": "9b6e0c11effe1b81de0d90fe376b68f6e84b8f4c" },
+        "scheduler/scheduler_config.json": { "size": 484, "gitSha1": "6388308406bce6efa0227939c3a21a3c182a184a" },
+        "silence_latent.pt": { "size": 3841215, "sha256": "a778e9dd942f5e8b2c09c55370782d318834432b03dabbcdf70e6ed49ad6358b" },
+        "text_encoder/config.json": { "size": 1354, "gitSha1": "ad1599646b9b2412d7f86fa5177714c9eaeb872d" },
+        "text_encoder/model.safetensors": { "size": 1191586416, "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd" },
+        "tokenizer/added_tokens.json": { "size": 707, "gitSha1": "b54f9135e44c1e81047e8d05cb027af8bc039eed" },
+        "tokenizer/chat_template.jinja": { "size": 4116, "gitSha1": "699ff8df401fe4788525e9c1f9b86a99eadd6230" },
+        "tokenizer/merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "tokenizer/special_tokens_map.json": { "size": 613, "gitSha1": "ac23c0aaa2434523c494330aeb79c58395378103" },
+        "tokenizer/tokenizer.json": { "size": 11423705, "sha256": "def76fb086971c7867b829c23a26261e38d9d74e02139253b38aeb9df8b4b50a" },
+        "tokenizer/tokenizer_config.json": { "size": 5404, "gitSha1": "ddaf69808214a44fdd26d3785b66c1367c78277a" },
+        "tokenizer/vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" },
+        "transformer/config.json": { "size": 1303, "gitSha1": "adaa3d4664d190dcc4af5b7bc2406f0609de3ca4" },
+        "transformer/diffusion_pytorch_model-00001-of-00002.safetensors": { "size": 4986971904, "sha256": "ff703cdc1db9d1db0883347ba906f4eb28f23f6bd8d9bc63c9471072dfb39f24" },
+        "transformer/diffusion_pytorch_model-00002-of-00002.safetensors": { "size": 3350889672, "sha256": "2b9c9d3bc5f63cd24b862fe76ed93f21b6848df0c8969615e5c86c0115669465" },
+        "transformer/diffusion_pytorch_model.safetensors.index.json": { "size": 58395, "gitSha1": "68c522ddcdb2e0e25b2e8735934ca94fc4bc380b" },
+        "vae/config.json": { "size": 438, "gitSha1": "63ff4ac952a0949f2ca8b4c28e02995f1f460fdc" },
+        "vae/diffusion_pytorch_model.safetensors": { "size": 337431388, "sha256": "da17edb604c40deaf09e9b24974e590d1ca83a374070e5d0884cfa4bed9a99b0" }
+      }
+    },
+    "stable-audio-3-small-sfx": {
+      "displayName": "Stable Audio 3 Small SFX",
+      "gated": true,
+      "sources": [
+        { "repo": "stabilityai/stable-audio-3-small-sfx", "revision": "ae12755283df9d62ca39a9b050a39a0b607b8c20" }
+      ],
+      "files": {
+        "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
+        "model.safetensors": {
+          "size": 2270384940,
+          "sha256": "****************************************************************"
+        },
+        "model_config.json": { "size": 10454, "gitSha1": "0321320a34e3e0ceda48e47c2c36b70234df746f" },
+        "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
+        "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
+        "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
+        "t5gemma-b-b-ul2/model.safetensors": {
+          "size": 1183022944,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
+        "t5gemma-b-b-ul2/tokenizer.json": {
+          "size": 34362429,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer.model": {
+          "size": 4241003,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
+      }
+    },
+    "stable-audio-3-small-music": {
+      "displayName": "Stable Audio 3 Small Music",
+      "gated": true,
+      "sources": [
+        { "repo": "stabilityai/stable-audio-3-small-music", "revision": "0fef1392cd842149a2b6d445e181c97608faac06" }
+      ],
+      "files": {
+        "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
+        "model.safetensors": {
+          "size": 2270384940,
+          "sha256": "****************************************************************"
+        },
+        "model_config.json": { "size": 10341, "gitSha1": "29ba617d6556c9e3c94bea19f07ea66d0c895e9e" },
+        "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
+        "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
+        "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
+        "t5gemma-b-b-ul2/model.safetensors": {
+          "size": 1183022944,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
+        "t5gemma-b-b-ul2/tokenizer.json": {
+          "size": 34362429,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer.model": {
+          "size": 4241003,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
+      }
+    },
+    "stable-audio-3-medium": {
+      "displayName": "Stable Audio 3 Medium",
+      "gated": true,
+      "sources": [
+        { "repo": "stabilityai/stable-audio-3-medium", "revision": "27b5a21b791b1b033d193a9e1e3ce78493f102f9" }
+      ],
+      "files": {
+        "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
+        "model.safetensors": {
+          "size": 9222116660,
+          "sha256": "****************************************************************"
+        },
+        "model_config.json": { "size": 10360, "gitSha1": "331bfb7e610b15000c930a38f0543f75f3b132be" },
+        "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
+        "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
+        "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
+        "t5gemma-b-b-ul2/model.safetensors": {
+          "size": 1183022944,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
+        "t5gemma-b-b-ul2/tokenizer.json": {
+          "size": 34362429,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer.model": {
+          "size": 4241003,
+          "sha256": "****************************************************************"
+        },
+        "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
+      }
+    },
+    "chatterbox": {
+      "displayName": "Chatterbox",
+      "sources": [
+        { "repo": "ResembleAI/chatterbox", "revision": "5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18" }
+      ],
+      "include": ["conds.pt", "s3gen.safetensors", "t3_cfg.safetensors", "tokenizer.json", "ve.safetensors"],
+      "files": {
+        "conds.pt": { "size": 107374, "sha256": "6552d70568833628ba019c6b03459e77fe71ca197d5c560cef9411bee9d87f4e" },
+        "s3gen.safetensors": { "size": 1056484620, "sha256": "2b78103c654207393955e4900aac14a12de8ef25f4b09424f1ef91941f161d4e" },
+        "t3_cfg.safetensors": { "size": 2129653744, "sha256": "914cb1696f47527fe8852ca8f1fe1fa63cb34f76f9c715e84e067b744dd0da81" },
+        "tokenizer.json": { "size": 25470, "gitSha1": "abd07c710243ba89bf1b21780e7c37ddde92334e" },
+        "ve.safetensors": { "size": 5695784, "sha256": "f0921cab452fa278bc25cd23ffd59d36f816d7dc5181dd1bef9751a7fb61f63c" }
+      }
+    },
+    "cosyvoice2-0.5b": {
+      "displayName": "CosyVoice 2 0.5B",
+      "sources": [
+        { "repo": "FunAudioLLM/CosyVoice2-0.5B", "revision": "eec1ae6c79877dbd9379285cf8789c9e0879293d" }
+      ],
+      "include": ["llm.pt", "flow.pt", "hift.pt"],
+      "requires": ["chatterbox"],
+      "files": {
+        "flow.pt": { "size": 450575567, "sha256": "ff4c2f867674411e0a08cee702996df13fa67c1cd864c06108da88d16d088541" },
+        "hift.pt": { "size": 83390254, "sha256": "3386cc880324d4e98e05987b99107f49e40ed925b8ecc87c1f4939432d429879" },
+        "llm.pt": { "size": 2023316821, "sha256": "b144ef55b51ce8cfb79a73c90dbba0bdaba4e451c0ebcfab20f769264f84a608" }
+      }
+    },
+    "audiogen-medium": {
+      "displayName": "AudioGen medium",
+      "sources": [
+        { "repo": "facebook/audiogen-medium", "revision": "1277dd7dfd8fa57a205a70acc5de0ee90804502f" }
+      ],
+      "include": ["state_dict.bin", "compression_state_dict.bin"],
+      "requires": ["t5-large"],
+      "files": {
+        "compression_state_dict.bin": { "size": 235740815, "sha256": "5a520e64ca99226a9956f83b06df0617b713183fcdc384779883a6bb46dc1095" },
+        "state_dict.bin": { "size": 3678455287, "sha256": "f3b20997834de1ca47d6a31d00a5dc37019b279c7c8f250fd482d56def04faaa" }
+      }
+    },
+    "t5-large": {
+      "displayName": "T5 large (text encoder)",
+      "sources": [
+        { "repo": "google-t5/t5-large", "revision": "150ebc2c4b72291e770f58e6057481c8d2ed331a" }
+      ],
+      "include": ["pytorch_model.bin"],
+      "files": {
+        "pytorch_model.bin": { "size": 2950825948, "sha256": "c4d6bbca0f16985807fbe5089ac5be9643e4493c2b8a1772a6e15de1219989ba" }
+      }
+    },
+    "t5-base": {
+      "displayName": "T5 base (text encoder)",
+      "sources": [
+        { "repo": "google-t5/t5-base", "revision": "a9723ea7f1b39c1eae772870f3b547bf6ef7e6c1" }
+      ],
+      "include": ["model.safetensors"],
+      "files": {
+        "model.safetensors": { "size": 891646390, "sha256": "a90903540cc02cbeb7ff9f823f1a80eb778c7e22426a0e620b01c77a5ec8f5b4" }
+      }
+    },
+    "stable-audio-open-small": {
+      "displayName": "Stable Audio Open Small",
+      "sources": [
+        { "repo": "FastVideo/stable-audio-open-small-Diffusers", "revision": "30cd0429408d82161cc275e08748ffe25a234893" }
+      ],
+      "include": ["conditioner/diffusion_pytorch_model.safetensors", "transformer/diffusion_pytorch_model.safetensors", "vae/diffusion_pytorch_model.safetensors"],
+      "requires": ["t5-base"],
+      "files": {
+        "conditioner/diffusion_pytorch_model.safetensors": { "size": 793440, "sha256": "ad2433cfd09378c04b1f9208cdb181f731ff245303d5ac61de7cfe096f79274d" },
+        "transformer/diffusion_pytorch_model.safetensors": { "size": 1363757944, "sha256": "ab05de76714f37cd664d653094ce4b985deddfb6916b76090aa18a030f2829fb" },
+        "vae/diffusion_pytorch_model.safetensors": { "size": 624490240, "sha256": "2131cdb52020b2473707465449d8bdb4f6cca61c93150a947baca02bc58ffd7b" }
+      }
+    },
+    "ace-step-1.5-xl-turbo-comfy": {
+      "displayName": "ACE-Step 1.5 XL turbo (single file)",
+      "sources": [
+        { "repo": "Comfy-Org/ace_step_1.5_ComfyUI_files", "revision": "6707deb277e9e0907fd9c14ce6b6f1d695c6a3fc" }
+      ],
+      "include": ["split_files/diffusion_models/acestep_v1.5_xl_turbo_bf16.safetensors"],
+      "requires": ["ace-step-1.5-xl-turbo-config", "ace-step-1.5-silence-latent", "ace-step-1.5-vae", "qwen3-embedding-0.6b"],
+      "files": {
+        "split_files/diffusion_models/acestep_v1.5_xl_turbo_bf16.safetensors": { "size": 9974719892, "sha256": "86a1afb0a1f711f0e3304ff65d874df3ae6783db683dcf982513fb9b6d14ae71" }
+      }
+    },
+    "ace-step-1.5-xl-turbo-config": {
+      "displayName": "ACE-Step 1.5 XL turbo config",
+      "sources": [
+        { "repo": "ACE-Step/acestep-v15-xl-turbo", "revision": "d4a0b288b83ebb7e25a8c0b32c573c22e134e8ee" }
+      ],
+      "include": ["config.json"],
+      "files": {
+        "config.json": { "size": 2407, "gitSha1": "0b360602d32112044b2c6f761b07ed8c06f2fba6" }
+      }
+    },
+    "ace-step-1.5-xl-sft-comfy": {
+      "displayName": "ACE-Step 1.5 XL sft (single file)",
+      "sources": [
+        { "repo": "Comfy-Org/ace_step_1.5_ComfyUI_files", "revision": "6707deb277e9e0907fd9c14ce6b6f1d695c6a3fc" }
+      ],
+      "include": ["split_files/diffusion_models/acestep_v1.5_xl_sft_bf16.safetensors"],
+      "requires": ["ace-step-1.5-xl-sft-config", "ace-step-1.5-silence-latent", "ace-step-1.5-vae", "qwen3-embedding-0.6b"],
+      "files": {
+        "split_files/diffusion_models/acestep_v1.5_xl_sft_bf16.safetensors": { "size": 9974719930, "sha256": "3c05ae268353b3540fb1fd7db4fd77ffbda9802ec641b624e15648e030ecf3ce" }
+      }
+    },
+    "ace-step-1.5-xl-sft-config": {
+      "displayName": "ACE-Step 1.5 XL sft config",
+      "sources": [
+        { "repo": "ACE-Step/acestep-v15-xl-sft", "revision": "d06de46b4622f781cf07f4a013a67d591ca52819" }
+      ],
+      "include": ["config.json"],
+      "files": {
+        "config.json": { "size": 2525, "gitSha1": "bfab8d221eae38793fbcfa06679d105d31d645bf" }
+      }
+    },
+    "ace-step-1.5-silence-latent": {
+      "displayName": "ACE-Step 1.5 silence latent",
+      "sources": [
+        { "repo": "ACE-Step/acestep-v15-base", "revision": "e432212fec32b8965a14ffa57ae653438d6abd14" }
+      ],
+      "include": ["silence_latent.pt"],
+      "files": {
+        "silence_latent.pt": { "size": 3841215, "sha256": "a778e9dd942f5e8b2c09c55370782d318834432b03dabbcdf70e6ed49ad6358b" }
+      }
+    },
+    "ace-step-1.5-vae": {
+      "displayName": "ACE-Step 1.5 VAE",
+      "sources": [
+        { "repo": "Comfy-Org/ace_step_1.5_ComfyUI_files", "revision": "6707deb277e9e0907fd9c14ce6b6f1d695c6a3fc" }
+      ],
+      "include": ["split_files/vae/ace_1.5_vae.safetensors"],
+      "files": {
+        "split_files/vae/ace_1.5_vae.safetensors": { "size": 337431732, "sha256": "6de92e3a862acd287e08b024ac90f0783a8635451b728721a33ff03565bcb2bb" }
+      }
+    },
+    "qwen3-embedding-0.6b": {
+      "displayName": "Qwen3 Embedding 0.6B",
+      "sources": [
+        { "repo": "Qwen/Qwen3-Embedding-0.6B", "revision": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3" }
+      ],
+      "include": ["model.safetensors"],
+      "files": {
+        "model.safetensors": { "size": 1191586416, "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd" }
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+<!--
+  Application-level resources and styles. SemiTheme provides the base look for all built-in
+  controls; RequestedThemeVariant="Dark" selects its dark variant and our "Dark" theme dictionary.
+-->
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+             xmlns:views="using:LocalAudiobookStudio.App.Views"
+             xmlns:host="using:LocalAudiobookStudio.Engine.Hosting"
+             xmlns:semi="https://irihi.tech/semi"
+             x:Class="LocalAudiobookStudio.App.App"
+             Name="Local Audiobook Studio"
+             RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LocalAudiobookStudio/Styles/Theme.axaml" />
+        <ResourceInclude Source="avares://LocalAudiobookStudio/Styles/Icons.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <!-- DataTemplates map a view model type to the view that displays it (used by ContentControl). -->
+  <Application.DataTemplates>
+    <DataTemplate DataType="vm:InspectorViewModel">
+      <views:InspectorView />
+    </DataTemplate>
+    <DataTemplate DataType="vm:SettingsEditorViewModel">
+      <views:SettingsEditorView />
+    </DataTemplate>
+    <!-- One check: status icon, title and what was found. -->
+    <DataTemplate DataType="host:SystemCheck">
+      <Grid ColumnDefinitions="Auto,170,*">
+        <!-- Info (optional, not found / not checked) has no icon. -->
+        <Panel Width="23">
+          <PathIcon Data="{StaticResource IconCheck}" Classes="status ok" IsVisible="{Binding IsOk}" />
+          <PathIcon Data="{StaticResource IconCheck}" Classes="status warn" IsVisible="{Binding IsPartial}" />
+          <PathIcon Data="{StaticResource IconWarning}" Classes="status warn" IsVisible="{Binding IsWarning}" />
+          <PathIcon Data="{StaticResource IconClose}" Classes="status bad" IsVisible="{Binding IsMissing}" />
+        </Panel>
+        <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,10,0" />
+        <ItemsControl Grid.Column="2" ItemsSource="{Binding Lines}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="3" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+      </Grid>
+    </DataTemplate>
+    <!-- One line of a check: text, or a path chip with an optional label ("cuBLAS") in front. -->
+    <!-- A check with its fix: a download button with progress, or a command to copy. Indented under the details. -->
+    <DataTemplate DataType="vm:SystemCheckRow">
+      <StackPanel Spacing="4">
+        <ContentControl Content="{Binding Check}" />
+        <StackPanel Margin="193,0,0,0" Spacing="4" IsVisible="{Binding Fix, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasDownload}">
+            <Button Classes="primary" Content="{Binding Fix.Label, FallbackValue=''}" Command="{Binding DownloadCommand}" IsEnabled="{Binding CanDownload}" />
+            <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Progress}" Classes="caption" VerticalAlignment="Center" />
+          </StackPanel>
+          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasCommand}">
+            <Border Classes="path" VerticalAlignment="Center"><SelectableTextBlock Text="{Binding Command}" /></Border>
+            <Button Grid.Column="1" Content="Copy" Command="{Binding CopyCommand}" Margin="6,0,0,0" />
+          </Grid>
+          <TextBlock Text="{Binding Error}" Classes="caption" Foreground="{DynamicResource SemiColorDanger}" TextWrapping="Wrap"
+                     IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+    <DataTemplate DataType="host:CheckLine">
+      <Grid ColumnDefinitions="Auto,*">
+        <TextBlock Text="{Binding Label, StringFormat='{}{0}:'}" IsVisible="{Binding HasLabel}" Margin="0,0,6,0" VerticalAlignment="Top" />
+        <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" IsVisible="{Binding IsText}" TextWrapping="Wrap"
+                             Classes.warnText="{Binding IsWarning}" />
+        <Border Grid.Column="1" Classes="path" IsVisible="{Binding IsPath}"><SelectableTextBlock Text="{Binding Text}" /></Border>
+      </Grid>
+    </DataTemplate>
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <!-- Semi design theme (https://github.com/irihitech/Semi.Avalonia) for all built-in controls. -->
+    <semi:SemiTheme Locale="en-US" />
+    <StyleInclude Source="avares://LocalAudiobookStudio/Styles/Controls.axaml" />
+  </Application.Styles>
+</Application>

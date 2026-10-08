@@ -1,0 +1,6 @@
+# torch and torchaudio come from the shared environment (workers/environments.json), whose overrides
+# replace the package's own pins (torch 2.9, numpy 1.26, transformers 4.57.1, diffusers 0.37.1).
+# The package lives in a subfolder of the MOSS-TTS repository. Pinned to a commit and fetched as an
+# archive, so installing needs no git on the system.
+moss-soundeffect-v2 @ https://github.com/OpenMOSS/MOSS-TTS/archive/4cf2dab88fc8711aef93089b3b75c0ae07373e47.zip#subdirectory=moss_soundeffect_v2
+huggingface_hub

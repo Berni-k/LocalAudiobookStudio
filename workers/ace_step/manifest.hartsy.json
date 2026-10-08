@@ -1,0 +1,5 @@
+{
+  "hartsyModel": "acestep",
+  "hartsyModality": "music",
+  "models": ["ace-step-1.5-xl-turbo-comfy", "ace-step-1.5-xl-sft-comfy"]
+}

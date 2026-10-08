@@ -1,0 +1,21 @@
+{
+  "id": "kokoro",
+  "displayName": "Kokoro 82M",
+  "description": "Small, fast English TTS with built-in voices. Good default narrator; no voice cloning.",
+  "tags": ["Voice"],
+  "priority": 100,
+  "runtimeOrder": ["hartsy", "onnx", "onnx-cuda", "python"],
+  "modelVersion": "v1.0",
+  "maxChars": 1000,
+  "sampleRate": 24000,
+  "voiceCloning": false,
+  "approxVramGb": 2,
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "Runs well on the CPU: the model is small (82M parameters).",
+  "settings": [
+    { "key": "voice", "type": "enum", "label": "Voice", "default": "af_heart",
+      "options": ["af_heart", "af_bella", "af_nicole", "af_sarah", "af_sky", "af_nova", "af_river", "af_kore", "af_aoede", "af_alloy", "af_jessica", "am_michael", "am_fenrir", "am_puck", "am_adam", "am_echo", "am_eric", "am_liam", "am_onyx", "am_santa", "bf_emma", "bf_isabella", "bf_alice", "bf_lily", "bm_george", "bm_fable", "bm_lewis", "bm_daniel"],
+      "optionLabels": ["Heart (US, female)", "Bella (US, female)", "Nicole (US, female)", "Sarah (US, female)", "Sky (US, female)", "Nova (US, female)", "River (US, female)", "Kore (US, female)", "Aoede (US, female)", "Alloy (US, female)", "Jessica (US, female)", "Michael (US, male)", "Fenrir (US, male)", "Puck (US, male)", "Adam (US, male)", "Echo (US, male)", "Eric (US, male)", "Liam (US, male)", "Onyx (US, male)", "Santa (US, male)", "Emma (UK, female)", "Isabella (UK, female)", "Alice (UK, female)", "Lily (UK, female)", "George (UK, male)", "Fable (UK, male)", "Lewis (UK, male)", "Daniel (UK, male)"] },
+    { "key": "speed", "type": "float", "min": 0.5, "max": 2.0, "step": 0.05, "default": 1.0, "label": "Speed" }
+  ]
+}

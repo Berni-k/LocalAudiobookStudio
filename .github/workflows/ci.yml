@@ -1,0 +1,29 @@
+# Build and unit tests on every push and pull request, on Windows and Linux.
+# The tests need no GPU, workers or network. Releases are built by release.yml (on tags).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test
+        run: dotnet test -c Release --no-build

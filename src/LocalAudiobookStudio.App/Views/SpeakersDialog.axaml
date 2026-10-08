@@ -1,0 +1,196 @@
+<!-- Speakers: list on the left, editor on the right. Changes apply immediately. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
+        x:Class="LocalAudiobookStudio.App.Views.SpeakersDialog"
+        x:DataType="vm:SpeakersDialogViewModel"
+        Title="Speakers"
+        Width="920" Height="700" MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="Changing a speaker's worker, voice or settings marks its segments stale." Classes="caption" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Content="Close" Click="OnClose" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+    </Grid>
+
+    <Grid ColumnDefinitions="240,16,*">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
+          <Button Content="Add…" Command="{Binding AddCommand}" />
+          <Button Content="Delete…" Command="{Binding DeleteCommand}" IsEnabled="{Binding HasSelection}" />
+        </StackPanel>
+        <Border Classes="card" Padding="2">
+          <ListBox ItemsSource="{Binding Speakers}" SelectedItem="{Binding Selected}" Classes="side">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SpeakerViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Ellipse Width="12" Height="12" Fill="{Binding ColorBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding WorkerName}" Classes="caption" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="2" Text="{Binding ShortcutText}" Classes="caption" VerticalAlignment="Center" ToolTip.Tip="Shortcut key" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </DockPanel>
+
+      <!-- Editor in three groups: the speaker itself, its model (with everything model-specific), and a preview.
+           Each group is a form: labels on the left share one width per group (SharedSizeGroup "label"). -->
+      <ScrollViewer Grid.Column="2" IsVisible="{Binding HasSelection}">
+        <StackPanel Spacing="12" Margin="0,0,12,0">
+          <!-- ===== Speaker -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Speaker" Classes="groupTitle" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="Default speaker" Classes="caption warning" IsVisible="{Binding IsDefault}" VerticalAlignment="Center" />
+                  <Button Content="Make default" Command="{Binding MakeDefaultCommand}" IsVisible="{Binding !IsDefault}" FontSize="12" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Classes="caption" Margin="0,-4,0,4">
+                <Run Text="{Binding SpeakerId, StringFormat='Id: {0}'}" />
+                <Run Text=" · " />
+                <Run Text="{Binding SegmentCount, StringFormat='{}{0} segment(s) use this speaker'}" />
+              </TextBlock>
+
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Name" Classes="formLabel" />
+                <TextBox Grid.Column="1" Text="{Binding DisplayName, UpdateSourceTrigger=LostFocus}" />
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Color" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                  <!-- Current color; opens the custom picker. The dots after it are quick picks. -->
+                  <Button Padding="4" MinHeight="0" ToolTip.Tip="Pick a custom color" Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Border Width="22" Height="22" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource SemiColorBorder}"
+                              Background="{Binding Color, Converter={x:Static ctl:Converters.ColorToBrush}}" />
+                      <TextBlock Text="{Binding Color}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas, monospace" Margin="0,0,4,0" />
+                    </StackPanel>
+                    <Button.Flyout>
+                      <Flyout Placement="BottomEdgeAlignedLeft">
+                        <ctl:ColorPickerPanel Color="{Binding Color}" />
+                      </Flyout>
+                    </Button.Flyout>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding Palette}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <Button Width="22" Height="22" Padding="0" CornerRadius="11" Background="{Binding Converter={x:Static ctl:Converters.ColorToBrush}}"
+                                Command="{Binding $parent[Window].((vm:SpeakersDialogViewModel)DataContext).PickColorCommand}" CommandParameter="{Binding}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Marker aliases" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <TextBox Text="{Binding Aliases, UpdateSourceTrigger=LostFocus}" />
+                  <TextBlock Text="Labels in imported text that mean this speaker, comma separated." Classes="caption" TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Model -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Model" Classes="groupTitle" Margin="0,0,0,4" />
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Worker" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <ComboBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Worker}" HorizontalAlignment="Stretch"
+                            Classes.missing="{Binding IsWorkerMissing}" PlaceholderText="Choose a worker" />
+                  <!-- The project uses a worker this machine doesn't have. -->
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsWorkerMissing}">
+                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding MissingWorkerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    <Button Classes="link" Content="clear" Command="{Binding ClearMissingWorkerCommand}" VerticalAlignment="Center"
+                            ToolTip.Tip="Clear it so you can pick one of your installed workers" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding WorkerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding !IsWorkerMissing}" />
+                </StackPanel>
+              </Grid>
+              <Grid IsVisible="{Binding SupportsCloning}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Reference clip" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip" />
+                    <!-- The menu (file, project assets, none) is built in code-behind when clicked. -->
+                    <Button Grid.Column="1" Content="Choose ▾" Click="OnChooseVoice" Margin="4,0,0,0" />
+                    <Button Grid.Column="2" Classes="icon" Command="{Binding PlayVoiceFileCommand}" ToolTip.Tip="Play reference clip" Margin="4,0,0,0">
+                      <PathIcon Data="{StaticResource IconPlay}" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Text="Voice cloning: 5–30 s of clean speech, from a file or the project's assets." Classes="caption" />
+                </StackPanel>
+              </Grid>
+              <!-- Model settings: rows from the settings form, aligned to the same label column. -->
+              <ContentControl Content="{Binding Settings}" />
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Preview (not for recorded speakers: they have no model) -->
+          <Border Classes="group" IsVisible="{Binding CanPreview}">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Preview" Classes="groupTitle" Margin="0,0,0,4" />
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Text" Classes="formLabel" />
+                <TextBox Grid.Column="1" Text="{Binding PreviewText}" TextWrapping="Wrap" AcceptsReturn="False" />
+              </Grid>
+              <!-- Only for workers that take a length. Empty: the guess shown greyed (needed) or "auto" (optional). -->
+              <Grid IsVisible="{Binding ShowPreviewLength}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Length (s)" Classes="formLabel" />
+                <NumericUpDown Grid.Column="1" Value="{Binding PreviewLength}" Minimum="{Binding PreviewLengthMinimum}" Maximum="{Binding PreviewLengthMaximum}"
+                               Increment="0.1" FormatString="0.0" Watermark="{Binding PreviewLengthWatermark}" Width="130" HorizontalAlignment="Left" />
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="primary" Content="Generate preview" Command="{Binding PreviewCommand}" IsEnabled="{Binding !IsPreviewing}" />
+                  <Button Command="{Binding StopPreviewCommand}" IsVisible="{Binding IsPlayingPreview}" ToolTip.Tip="Stop playing the preview">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource IconStop}" Width="10" Height="10" />
+                      <TextBlock Text="Stop" />
+                    </StackPanel>
+                  </Button>
+                  <TextBlock Text="{Binding PreviewStatus}" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+
+  <Window.Styles>
+    <!-- A worker that isn't installed: red in the dropdown. -->
+    <Style Selector="ComboBox.missing">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
+    <!-- Tiny text-only button. -->
+    <Style Selector="Button.link">
+      <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+      <Setter Property="Padding" Value="2,0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorLink}" />
+    </Style>
+  </Window.Styles>
+</Window>

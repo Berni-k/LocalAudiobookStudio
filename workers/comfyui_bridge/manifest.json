@@ -1,0 +1,28 @@
+{
+  "id": "comfyui_bridge",
+  "displayName": "ComfyUI bridge",
+  "description": "Runs your own ComfyUI workflow for each segment, on one or more ComfyUI servers. Add the workflow to the project's assets (exported with Export (API)); its {{tags}} become the speaker's settings.",
+  "tags": ["Bridge"],
+  "priority": -10,
+  "modelVersion": "1",
+  "envGroup": "basic",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 2000,
+  "sampleRate": 44100,
+  "voiceCloning": false,
+  "approxVramGb": 0,
+  "external": true,
+  "length": { "mode": "optional", "min": 0.5, "max": 600 },
+  "workerSettings": [
+    { "key": "servers", "type": "string", "multiline": true, "default": "127.0.0.1:8188", "label": "Servers",
+      "description": "ComfyUI addresses (host:port), one per line. With Parallel workers above 1, the workers take turns over the servers (worker 1 the first server, worker 2 the second, and so on)." },
+    { "key": "timeoutSec", "type": "int", "min": 10, "max": 7200, "default": 600, "label": "Timeout (s)",
+      "description": "How long to wait for one generation on a server, including time in ComfyUI's queue." }
+  ],
+  "settings": [
+    { "key": "workflow", "type": "asset", "extensions": [".comfy.json"], "addsSettings": "comfyWorkflow", "label": "Workflow",
+      "description": "A ComfyUI workflow from the project's assets (exported with Workflow > Export (API)). Its {{tags}} appear below as settings; {{text}}, {{seed}} and {{duration}} are filled in from the segment." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

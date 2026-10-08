@@ -1,0 +1,6 @@
+{
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "models": ["kokoro-82m"]
+}

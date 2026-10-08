@@ -1,0 +1,74 @@
+# Release build: tests, then a zip per platform (build/release.ps1).
+# Pushing a tag like v0.1.0 creates a draft GitHub release with the zips and a <zip>.sha256 for each (the convention
+# ToolInstaller's verified downloads use) attached; review and publish it there.
+# Running the workflow by hand (Actions → Release → Run workflow) only uploads the zips as workflow artifacts.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test -c Release
+
+      # uv isn't in the repository; fetch the version pinned in tools/uv/VERSION so the build bundles it.
+      - name: Fetch uv
+        shell: bash
+        run: sh tools/uv/fetch-uv.sh
+
+      - name: Build release zip
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "" }
+          ./build/release.ps1 -Rid ${{ matrix.rid }} -Version $version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.zip.sha256
+          # Already compressed.
+          compression-level: 0
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Check checksums
+        run: sha256sum -c *.zip.sha256
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}" *.zip *.zip.sha256
+          --repo "${{ github.repository }}" --draft --generate-notes
+          --title "Local Audiobook Studio ${{ github.ref_name }}"

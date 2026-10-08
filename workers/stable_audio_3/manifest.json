@@ -1,0 +1,27 @@
+{
+  "id": "stable_audio_3",
+  "displayName": "Stable Audio 3",
+  "description": "Stability AI's sound effects (Small-SFX) and music beds (Small-Music), stereo 44.1 kHz. The Small models are fast and also run on the CPU. The models are gated: accept their terms on Hugging Face and put your access token in Settings.",
+  "tags": ["SFX", "Music"],
+  "priority": 70,
+  "modelVersion": "3.0",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1000,
+  "sampleRate": 44100,
+  "voiceCloning": false,
+  "approxVramGb": 3,
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "The Small models are made to run without a GPU; Medium needs a GPU.",
+  "length": { "mode": "required", "min": 0.5, "max": 120, "maxBy": { "setting": "model", "values": { "medium": 380 } } },
+  "models": ["stable-audio-3-small-sfx", "stable-audio-3-small-music", "stable-audio-3-medium"],
+  "settings": [
+    { "key": "model", "type": "enum", "label": "Model", "default": "small-sfx",
+      "options": ["small-sfx", "small-music", "medium"],
+      "optionLabels": ["Small SFX (sound effects)", "Small Music (music beds)", "Medium (sfx and music, needs flash-attention)"] },
+    { "key": "steps", "type": "int", "min": 1, "max": 50, "default": 8, "label": "Steps",
+      "description": "Sampling steps. 8 is the upstream default; more doesn't necessarily sound better." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

@@ -1,0 +1,10 @@
+# Kokoro on ONNX Runtime (the onnx1_30-* environments bring onnxruntime itself, CPU or CUDA build).
+# kokoro-onnx runs the onnx-community export; misaki turns text into phonemes exactly as the torch
+# worker's pipeline does, so the two runtimes sound the same.
+kokoro-onnx==0.6.1
+misaki[en]>=0.9.4
+# misaki needs the spaCy English model; installing it here avoids a runtime download.
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+huggingface_hub
+soundfile
+numpy

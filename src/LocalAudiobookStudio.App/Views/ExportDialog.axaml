@@ -1,0 +1,86 @@
+<!-- Export: readiness check, format, metadata, progress. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        x:Class="LocalAudiobookStudio.App.Views.ExportDialog"
+        x:DataType="vm:ExportViewModel"
+        Title="{Binding Heading}"
+        Width="760" Height="720" MinWidth="620" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <Button Content="Open folder" Command="{Binding OpenOutputCommand}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="primary" Content="Export" Command="{Binding ExportCommand}" IsEnabled="{Binding !IsRunning}" MinWidth="90" HorizontalContentAlignment="Center" />
+        <Button Content="Cancel export" Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+        <Button Content="Close" Click="OnClose" IsEnabled="{Binding !IsRunning}" MinWidth="90" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <ScrollViewer>
+      <StackPanel Spacing="4">
+        <TextBlock Text="READINESS" Classes="header" />
+        <TextBlock Text="{Binding ReadinessSummary}" TextWrapping="Wrap" />
+        <Border Classes="card" IsVisible="{Binding HasProblems}" MaxHeight="120">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Problems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="caption warning" /></DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+        <StackPanel IsVisible="{Binding HasProblems}" Spacing="2">
+          <RadioButton GroupName="ready" Content="Export anyway (missing items become silence of their estimated length)" IsChecked="{Binding ExportAnyway}" />
+          <RadioButton GroupName="ready" Content="Export only complete chapters" IsChecked="{Binding OnlyComplete}" />
+        </StackPanel>
+
+        <TextBlock Text="FORMAT" Classes="header" Margin="0,12,0,4" />
+        <ComboBox ItemsSource="{Binding Formats}" SelectedItem="{Binding Format}" MinWidth="220" />
+        <TextBlock Text="{Binding FormatHelp}" Classes="caption" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsLossy}" Margin="0,4,0,0">
+          <TextBlock Text="Bitrate (kbps)" VerticalAlignment="Center" />
+          <NumericUpDown Value="{Binding Bitrate}" Minimum="32" Maximum="320" Increment="16" FormatString="0" Width="130" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <CheckBox Content="Mono" IsChecked="{Binding Mono}" ToolTip.Tip="Halves the size; fine for narration" />
+          <CheckBox Content="Gentle final limiter" IsChecked="{Binding FinalLimiter}" ToolTip.Tip="Loudness is already handled per item; this only catches peaks" />
+        </StackPanel>
+
+        <TextBlock Text="METADATA" Classes="header" Margin="0,12,0,4" />
+        <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+          <TextBlock Text="Title" VerticalAlignment="Center" />
+          <TextBox Grid.Column="1" Text="{Binding Title}" />
+          <TextBlock Grid.Row="1" Text="Author" VerticalAlignment="Center" />
+          <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Author}" />
+          <TextBlock Grid.Row="2" Text="Cover image" VerticalAlignment="Center" />
+          <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto">
+            <TextBox Text="{Binding CoverImage}" Watermark="optional (JPEG or PNG)" />
+            <Button Grid.Column="1" Content="…" Command="{Binding BrowseCoverCommand}" Margin="4,0,0,0" />
+          </Grid>
+        </Grid>
+
+        <TextBlock Text="OUTPUT FOLDER" Classes="header" Margin="0,12,0,4" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding OutputFolder}" />
+          <Button Grid.Column="1" Content="…" Command="{Binding BrowseOutputCommand}" Margin="4,0,0,0" />
+        </Grid>
+
+        <TextBlock Text="PROGRESS" Classes="header" Margin="0,12,0,4" />
+        <ProgressBar Value="{Binding Progress}" Maximum="100" Height="6" />
+        <TextBlock Text="{Binding Stage}" Classes="caption" />
+        <SelectableTextBlock Text="{Binding ResultText}" TextWrapping="Wrap" Foreground="{DynamicResource SemiColorPrimary}" />
+        <SelectableTextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Classes="error" />
+        <Border Classes="card" MaxHeight="140" Margin="0,4,0,0">
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Log}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" FontSize="11" FontFamily="Cascadia Mono, Consolas, monospace" TextWrapping="Wrap" /></DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

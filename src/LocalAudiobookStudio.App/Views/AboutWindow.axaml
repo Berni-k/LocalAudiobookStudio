@@ -1,0 +1,61 @@
+<!-- Help → About: version, components and where the app keeps its things. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        x:Class="LocalAudiobookStudio.App.Views.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Title="About Local Audiobook Studio"
+        Width="640" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <StackPanel Margin="20" Spacing="6">
+    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+      <Image Source="avares://LocalAudiobookStudio/Assets/app.png" Width="64" Height="64" Margin="0,0,16,0" VerticalAlignment="Top" />
+      <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="Local Audiobook Studio" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Version}" Classes="secondary" />
+        <TextBlock Text="Turns books into audiobooks with AI voices that run on your own machine."
+                   Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0" />
+        <TextBlock Text="{Binding Copyright}" Classes="caption" />
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Text="COMPONENTS" Classes="header" Margin="0,8,0,2" />
+    <ItemsControl ItemsSource="{Binding Components}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:AboutRow">
+          <Grid ColumnDefinitions="170,*" Margin="0,2">
+            <TextBlock Text="{Binding Label}" Classes="secondary" />
+            <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Grid ColumnDefinitions="170,*" Margin="0,2">
+      <TextBlock Text="uv" Classes="secondary" />
+      <SelectableTextBlock Grid.Column="1" Text="{Binding UvVersion}" TextWrapping="Wrap" />
+    </Grid>
+    <Grid ColumnDefinitions="170,*" Margin="0,2">
+      <TextBlock Text="HartsyInference" Classes="secondary" />
+      <SelectableTextBlock Grid.Column="1" Text="{Binding HartsyVersion}" TextWrapping="Wrap" />
+    </Grid>
+
+    <TextBlock Text="LOCATIONS" Classes="header" Margin="0,12,0,2" />
+    <ItemsControl ItemsSource="{Binding Locations}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:AboutLocation">
+          <Grid ColumnDefinitions="170,*,Auto" Margin="0,2">
+            <TextBlock Text="{Binding Label}" Classes="secondary" VerticalAlignment="Center" />
+            <Border Grid.Column="1" Classes="path" VerticalAlignment="Center"><SelectableTextBlock Text="{Binding Path}" /></Border>
+            <Button Grid.Column="2" Content="Open" Command="{Binding OpenCommand}" Margin="8,0,0,0" />
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+      <Button Content="System check…" Command="{Binding SystemCheckCommand}" MinWidth="90" />
+      <Button Content="Copy info" Command="{Binding CopyInfoCommand}" MinWidth="90" ToolTip.Tip="Copy the versions and locations as text (for a bug report)" />
+      <Button Classes="primary" Content="Close" Click="OnClose" IsDefault="True" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</Window>

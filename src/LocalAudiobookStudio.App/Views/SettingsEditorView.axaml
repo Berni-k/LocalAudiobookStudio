@@ -1,0 +1,70 @@
+<!-- A settings form generated from a worker manifest (float, int, bool, string, enum, seed, file). -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+             x:Class="LocalAudiobookStudio.App.Views.SettingsEditorView"
+             x:DataType="vm:SettingsEditorViewModel">
+  <ItemsControl ItemsSource="{Binding Fields}">
+    <ItemsControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:SettingFieldViewModel">
+        <!-- Label above the editor, or (Inline) to its left in a column shared with the surrounding form. -->
+        <Grid RowDefinitions="Auto,Auto,Auto" Margin="0,4,0,2" ToolTip.Tip="{Binding Tooltip}" ToolTip.ShowOnDisabled="True" Classes.unsupported="{Binding !IsSupported}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" SharedSizeGroup="label" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="{Binding Label}" Classes="settingLabel"
+                     Classes.inline="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).Inline}"
+                     Grid.ColumnSpan="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).Span}" />
+          <!-- Only the editor matching the setting's type is visible. -->
+          <!-- A setting the worker's runtime ignores keeps its value but can't be edited. -->
+          <Grid ColumnDefinitions="*,Auto,Auto" IsEnabled="{Binding IsSupported}"
+                Grid.Row="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).EditorRow}"
+                Grid.Column="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).EditorColumn}"
+                Grid.ColumnSpan="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).Span}">
+            <NumericUpDown IsVisible="{Binding IsNumber}" Value="{Binding NumberValue}" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                           Increment="{Binding Increment}" FormatString="{Binding FormatString}" Watermark="{Binding Placeholder}" MinWidth="0" />
+            <CheckBox IsVisible="{Binding IsBool}" IsChecked="{Binding BoolValue}" IsThreeState="{Binding AllowInherit}" Content="On" />
+            <TextBox IsVisible="{Binding IsText}" Text="{Binding TextValue, UpdateSourceTrigger=LostFocus}" Watermark="{Binding Placeholder}"
+                     TextWrapping="Wrap" MaxHeight="120" AcceptsReturn="{Binding IsMultiline}" />
+            <ComboBox IsVisible="{Binding IsEnum}" ItemsSource="{Binding Options}" SelectedItem="{Binding EnumValue}" PlaceholderText="{Binding Placeholder}" HorizontalAlignment="Stretch">
+              <!-- Options the worker's runtime can't do are listed but can't be picked. -->
+              <ComboBox.Styles>
+                <Style Selector="ComboBoxItem">
+                  <Setter Property="IsEnabled" Value="{ReflectionBinding IsSupported}" />
+                </Style>
+              </ComboBox.Styles>
+            </ComboBox>
+            <Button Grid.Column="1" IsVisible="{Binding IsSeed}" Content="Random" Command="{Binding RandomizeSeedCommand}" FontSize="11" Padding="6,2" Margin="4,0,0,0" />
+            <Button Grid.Column="1" IsVisible="{Binding CanBrowse}" Content="…" Command="{Binding BrowseFileCommand}" Padding="8,2" Margin="4,0,0,0"
+                    ToolTip.Tip="Choose a file" />
+            <Button Grid.Column="2" IsVisible="{Binding AllowInherit}" Content="×" Command="{Binding ClearCommand}" Padding="6,2" Margin="4,0,0,0"
+                    ToolTip.Tip="Clear (inherit)" />
+          </Grid>
+          <TextBlock Grid.Row="2" IsVisible="{Binding HasNote}" Text="{Binding Note}" Classes="caption" TextWrapping="Wrap" Margin="0,3,0,0"
+                     Grid.Column="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).EditorColumn}"
+                     Grid.ColumnSpan="{Binding $parent[ItemsControl].((vm:SettingsEditorViewModel)DataContext).Span}" />
+        </Grid>
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+
+  <UserControl.Styles>
+    <!-- Greyed out: the worker's runtime ignores the setting (the tooltip says so). -->
+    <Style Selector="Grid.unsupported > TextBlock.settingLabel">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+    <Style Selector="TextBlock.settingLabel">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+      <Setter Property="Margin" Value="0,0,0,2" />
+    </Style>
+    <!-- Inline labels match the Speakers dialog's form labels. -->
+    <Style Selector="TextBlock.settingLabel.inline">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText0}" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,7,16,0" />
+    </Style>
+  </UserControl.Styles>
+</UserControl>

@@ -1,0 +1,32 @@
+<!-- Help → System check: what the machine has (the same checks as the setup window). -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:host="using:LocalAudiobookStudio.Engine.Hosting"
+        x:Class="LocalAudiobookStudio.App.Views.SystemCheckWindow"
+        x:DataType="vm:SystemCheckViewModel"
+        Title="System check"
+        Width="720" SizeToContent="Height" MaxHeight="800" CanResize="False"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="20">
+    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+      <Button Content="Check again" Command="{Binding RunChecksCommand}" IsEnabled="{Binding !IsChecking}" MinWidth="90" />
+      <Button Content="Copy report" Command="{Binding CopyReportCommand}" IsEnabled="{Binding !IsChecking}" MinWidth="90"
+              ToolTip.Tip="Copy the results as text (for a bug report)" />
+      <Button Classes="primary" Content="Close" Click="OnClose" IsDefault="True" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <TextBlock Text="{Binding Summary}" VerticalAlignment="Center" TextWrapping="Wrap" />
+      <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="100" IsVisible="{Binding IsChecking}" VerticalAlignment="Center" />
+    </Grid>
+    <ScrollViewer>
+      <ItemsControl ItemsSource="{Binding Checks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:SystemCheckRow">
+            <ContentControl Content="{Binding}" Margin="0,4" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

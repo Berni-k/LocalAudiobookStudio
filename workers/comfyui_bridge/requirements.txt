@@ -1,0 +1,4 @@
+# Decoding ComfyUI's FLAC output, and its websocket for progress.
+soundfile>=0.13
+numpy>=2.2
+websocket-client>=1.8

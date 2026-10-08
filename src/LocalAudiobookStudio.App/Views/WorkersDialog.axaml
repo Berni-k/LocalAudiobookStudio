@@ -1,0 +1,354 @@
+<!-- Workers: list of workers with a status icon on the left, details/actions/settings of the selected
+     one on the right (like the Speakers window), and the install log below. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
+        x:Class="LocalAudiobookStudio.App.Views.WorkersDialog"
+        x:DataType="vm:WorkersDialogViewModel"
+        Title="Workers"
+        Width="1000" Height="800" MinWidth="760" MinHeight="540"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <Window.Resources>
+    <!-- One capability tag: a small rounded bubble, tinted by the styles below. -->
+    <DataTemplate x:Key="TagTemplate" x:DataType="vm:WorkerTag">
+      <Border Classes="tag" Classes.voice="{Binding IsVoice}" Classes.clone="{Binding IsVoiceClone}" Classes.design="{Binding IsVoiceDesign}"
+              Classes.music="{Binding IsMusic}" Classes.sfx="{Binding IsSfx}" Classes.experimental="{Binding IsExperimental}" Classes.broken="{Binding IsBroken}">
+        <TextBlock Text="{Binding Text}" FontSize="10" LineHeight="13" Foreground="{DynamicResource SemiColorText0}" />
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Window.Styles>
+    <!-- Capability tags: a faint fill and border in the tag's colour; grey for tags without one. Related tags get
+         neighbouring colours: voices blue to teal, generated audio yellow to orange, experimental purple. -->
+    <Style Selector="Border.tag">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Margin" Value="0,1,3,0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="#1A9CA3AF" />
+      <Setter Property="BorderBrush" Value="#409CA3AF" />
+    </Style>
+    <Style Selector="Border.tag.voice">
+      <Setter Property="Background" Value="#1F3B82F6" />
+      <Setter Property="BorderBrush" Value="#4D3B82F6" />
+    </Style>
+    <Style Selector="Border.tag.clone">
+      <Setter Property="Background" Value="#1F06B6D4" />
+      <Setter Property="BorderBrush" Value="#4D06B6D4" />
+    </Style>
+    <Style Selector="Border.tag.design">
+      <Setter Property="Background" Value="#1F14B8A6" />
+      <Setter Property="BorderBrush" Value="#4D14B8A6" />
+    </Style>
+    <Style Selector="Border.tag.music">
+      <Setter Property="Background" Value="#1FEAB308" />
+      <Setter Property="BorderBrush" Value="#4DEAB308" />
+    </Style>
+    <Style Selector="Border.tag.sfx">
+      <Setter Property="Background" Value="#1FF97316" />
+      <Setter Property="BorderBrush" Value="#4DF97316" />
+    </Style>
+    <Style Selector="Border.tag.broken">
+      <Setter Property="Background" Value="#33EF4444" />
+      <Setter Property="BorderBrush" Value="#80EF4444" />
+    </Style>
+    <Style Selector="Border.tag.experimental">
+      <Setter Property="Background" Value="#1FA855F7" />
+      <Setter Property="BorderBrush" Value="#4DA855F7" />
+    </Style>
+    <!-- Status colours: green ready, orange update available, red broken; grey otherwise. -->
+    <Style Selector="PathIcon.status">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    </Style>
+    <Style Selector="TextBlock.runtimeReady">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+    </Style>
+    <!-- The status line of a model that is downloaded (or set to the user's own folder). -->
+    <Style Selector="TextBlock.caption.modelReady">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+    </Style>
+    <Style Selector="TextBlock.caption.envReady">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+    </Style>
+    <Style Selector="TextBlock.statusLine.ok">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+    </Style>
+    <Style Selector="PathIcon.status.ok">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorSuccess}" />
+    </Style>
+    <Style Selector="TextBlock.statusLine.warn">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+    </Style>
+    <Style Selector="PathIcon.status.warn">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+    </Style>
+    <Style Selector="TextBlock.statusLine.bad">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
+    <Style Selector="PathIcon.status.bad">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
+    <!-- Size breakdown: a faint tint per category (environment blue, models violet, files grey). -->
+    <Style Selector="Grid.sizeLine">
+      <Setter Property="Margin" Value="0,0,0,2" />
+    </Style>
+    <Style Selector="Grid.sizeLine.env">
+      <Setter Property="Background" Value="#263B82F6" />
+    </Style>
+    <Style Selector="Grid.sizeLine.model">
+      <Setter Property="Background" Value="#26A855F7" />
+    </Style>
+    <Style Selector="Grid.sizeLine.files">
+      <Setter Property="Background" Value="#1F9CA3AF" />
+    </Style>
+    <!-- Not installed: greyed-out name in the list. -->
+    <Style Selector="TextBlock.workerName.notInstalled">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    </Style>
+    <!-- Experimental workers (shown with "Show all workers"): a purple tint on name and caption. -->
+    <Style Selector="StackPanel.experimental > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ExperimentalTextBrush}" />
+    </Style>
+    <Style Selector="StackPanel.experimental > TextBlock.notInstalled">
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,12,0,0">
+      <Button Content="Clear cache…" Command="{Binding ClearCacheCommand}" IsEnabled="{Binding !IsBusy}" ToolTip.Tip="Empty uv's package cache" />
+      <Button Grid.Column="1" Content="Open data folder" Command="{Binding OpenDataRootCommand}" Margin="8,0,0,0" />
+      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+        <Button Content="Cancel install" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" />
+        <Button Content="Close" Click="OnClose" MinWidth="90" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Log -->
+    <Border DockPanel.Dock="Bottom" Classes="group" Height="200" Margin="0,12,0,0">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+          <TextBlock Text="Log" Classes="groupTitle" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="160" VerticalAlignment="Center" />
+            <Button Classes="tool" Content="Copy log" Click="OnCopyLog" FontSize="11" ToolTip.Tip="Copy the whole log. Select lines and press Ctrl+C to copy only those." />
+          </StackPanel>
+        </Grid>
+        <Border Classes="card" Padding="0">
+          <ctl:LogView x:Name="Log" Lines="{Binding LogLines}" />
+        </Border>
+      </DockPanel>
+    </Border>
+
+    <!-- Problems that affect every worker -->
+    <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,8">
+      <TextBlock Classes="error" IsVisible="{Binding UvMissing}" TextWrapping="Wrap"
+                 Text="The bundled uv binary is missing. Run tools/uv/fetch-uv.ps1 (Windows) or tools/uv/fetch-uv.sh (Linux) next to the app, then restart." />
+      <ItemsControl ItemsSource="{Binding ManifestErrors}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="error" TextWrapping="Wrap" /></DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <!-- Environments left behind when workers moved to another environment (workers/environments.json) -->
+      <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasUnusedEnvironments}">
+        <TextBlock Text="{Binding UnusedEnvironmentsText}" Classes="caption warning" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Remove unused environments…" Command="{Binding RemoveUnusedEnvironmentsCommand}"
+                IsEnabled="{Binding !IsBusy}" Margin="12,0,0,0" VerticalAlignment="Center" />
+      </Grid>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="250,16,*">
+      <!-- ===== Worker list -->
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="1" Margin="2,8,0,0">
+          <CheckBox Content="Show all workers" IsChecked="{Binding ShowAllWorkers}" Margin="0,0,0,6"
+                    ToolTip.Tip="Also list experimental workers: ones whose runtimes are all new and not well tested yet" />
+          <TextBlock Text="{Binding DataRoot, StringFormat='Data root: {0}'}" Classes="caption" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DataRoot}" />
+          <TextBlock Text="{Binding UvVersion, StringFormat='uv: {0}'}" Classes="caption" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Border Classes="card" Padding="2">
+          <ListBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Selected}" Classes="side">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorkerItemViewModel">
+                <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding StatusText}">
+                  <PathIcon Data="{Binding StatusIcon}" Classes="status" Classes.ok="{Binding IsOk}" Classes.warn="{Binding IsWarn}"
+                            Classes.bad="{Binding IsBad}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Classes.experimental="{Binding IsExperimental}">
+                    <TextBlock Text="{Binding Name}" Classes="workerName" Classes.notInstalled="{Binding !IsInstalled}" TextTrimming="CharacterEllipsis" />
+                    <ItemsControl ItemsSource="{Binding Tags}" ItemTemplate="{StaticResource TagTemplate}">
+                      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+      </DockPanel>
+
+      <!-- ===== Selected worker -->
+      <ScrollViewer Grid.Column="2" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Spacing="12" Margin="0,0,12,0" DataContext="{Binding Selected}" x:DataType="vm:WorkerItemViewModel">
+          <!-- Overview -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <!-- Title with the actions on the right. -->
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Name}" Classes="groupTitle" TextWrapping="Wrap" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top" Margin="12,0,0,0"
+                            IsEnabled="{Binding !$parent[Window].((vm:WorkersDialogViewModel)DataContext).IsBusy}">
+                  <Button Classes="primary" Content="Install" Command="{Binding InstallCommand}" IsVisible="{Binding CanInstall}" />
+                  <Button Content="Repair" Command="{Binding RepairCommand}" IsVisible="{Binding CanRepair}"
+                          ToolTip.Tip="Rebuild the environment with the workers installed in it (fast: packages come from the cache)" />
+                  <Button Content="Uninstall" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}"
+                          ToolTip.Tip="Make this worker unavailable. Its environment is deleted when no other installed worker uses it. Models stay in the models folder." />
+                  <Button Content="Self-test log" Command="{Binding ShowSelfTestCommand}" IsVisible="{Binding CanRemove}"
+                          ToolTip.Tip="Show the last self-test output in the log below" />
+                </StackPanel>
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Tags}" ItemTemplate="{StaticResource TagTemplate}" Margin="0,-4,0,0">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+              <!-- What runs the model (Python, HartsyInference). Workers with one runtime show it greyed out. -->
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Runtime" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                  <Panel ToolTip.Tip="{Binding RuntimeHelp}" ToolTip.ShowOnDisabled="True" IsEnabled="{Binding HasRuntimeChoice}">
+                    <ComboBox ItemsSource="{Binding RuntimeOptions}" SelectedItem="{Binding Runtime}" Width="220"
+                              IsEnabled="{Binding !$parent[Window].((vm:WorkersDialogViewModel)DataContext).IsBusy}">
+                      <!-- Installed and ready runtimes in green. -->
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RuntimeOption">
+                          <TextBlock Text="{Binding Label}" Classes.runtimeReady="{Binding IsReady}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </Panel>
+                  <TextBlock Text="Experimental: not well tested yet" Foreground="{DynamicResource ExperimentalTextBrush}"
+                             VerticalAlignment="Center" IsVisible="{Binding IsRuntimeExperimental}" />
+                </StackPanel>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Status" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2" Margin="0,7,0,0">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="{Binding StatusIcon}" Classes="status" Classes.ok="{Binding IsOk}" Classes.warn="{Binding IsWarn}" Classes.bad="{Binding IsBad}" />
+                    <TextBlock Text="{Binding StatusText}" Classes="statusLine" Classes.ok="{Binding IsOk}" Classes.warn="{Binding IsWarn}"
+                               Classes.bad="{Binding IsBad}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <!-- Installed: Python version and self-test. Not installed: whether its environment is prepared (green). -->
+                  <TextBlock Text="{Binding InstalledText}" Classes="caption" Classes.envReady="{Binding EnvReady}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Worker folder" Classes="formLabel" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding Folder, Mode=OneWay}" IsReadOnly="True" />
+                  <Button Grid.Column="1" Content="Open" Command="{Binding OpenFolderCommand}" Margin="4,0,0,0" />
+                </Grid>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding EnvLabel}" Classes="formLabel" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding EnvFolder, Mode=OneWay}" IsReadOnly="True" />
+                  <Button Grid.Column="1" Content="Open" Command="{Binding OpenEnvFolderCommand}" Margin="4,0,0,0" />
+                </Grid>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Size on disk" Classes="formLabel" />
+                <!-- The button is replaced by the breakdown once measured: size first, one line per part, total last. -->
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <Button Content="Check size" Command="{Binding CheckSizeCommand}" IsVisible="{Binding CanCheckSize}" HorizontalAlignment="Left"
+                          ToolTip.Tip="Adds up the environment, each downloaded model and the worker's files" />
+                  <TextBlock Text="Measuring…" Classes="caption" IsVisible="{Binding IsMeasuring}" Margin="0,7,0,0" />
+                  <TextBlock Text="{Binding SizeError}" Classes="caption error" TextWrapping="Wrap"
+                             IsVisible="{Binding SizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  <ItemsControl ItemsSource="{Binding SizeLines}" IsVisible="{Binding HasSize}" Margin="0,7,0,0" Grid.IsSharedSizeScope="True">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SizeLine">
+                        <Grid Classes="sizeLine" Classes.env="{Binding IsEnvironment}" Classes.model="{Binding IsModel}" Classes.files="{Binding IsFiles}">
+                          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="size" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                          <Rectangle Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Fill="{DynamicResource SemiColorBorder}" IsVisible="{Binding IsTotal}" />
+                          <TextBlock Text="{Binding Size}" TextAlignment="Right" Margin="6,2,12,2" FontFamily="Cascadia Mono, Consolas, monospace"
+                                     FontWeight="{Binding IsTotal, Converter={x:Static ctl:Converters.BoolToBold}}" />
+                          <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" Margin="0,2"
+                                     FontWeight="{Binding IsTotal, Converter={x:Static ctl:Converters.BoolToBold}}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Worker settings (machine-specific): where it runs, then its own (e.g. ComfyUI server addresses) -->
+          <Border Classes="group" IsVisible="{Binding HasAnySettings}">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Worker settings" Classes="groupTitle" />
+              <!-- Device, parallel workers and GPU ids on one line; GPU ids only when the device is the GPU. -->
+              <WrapPanel IsVisible="{Binding HasHosting}" Orientation="Horizontal" Margin="0,2,0,4">
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,20,4" ToolTip.Tip="{Binding DeviceHelp}" IsVisible="{Binding ShowDevice}">
+                  <TextBlock Text="Device" VerticalAlignment="Center" />
+                  <ComboBox ItemsSource="{Binding DeviceOptions}" SelectedItem="{Binding Device}" IsEnabled="{Binding CanChooseDevice}"
+                            Width="190" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,20,4" ToolTip.Tip="{Binding ParallelHelp}">
+                  <TextBlock Text="Parallel" VerticalAlignment="Center" />
+                  <NumericUpDown Value="{Binding Parallel}" Minimum="1" Maximum="16" Increment="1" FormatString="0" Width="72" MinWidth="0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4" IsVisible="{Binding ShowGpuIds}"
+                            ToolTip.Tip="{Binding GpuIdsHelp}">
+                  <TextBlock Text="GPU ids" VerticalAlignment="Center" />
+                  <TextBox Text="{Binding GpuIds, UpdateSourceTrigger=LostFocus}" Watermark="All" Width="110" />
+                </StackPanel>
+              </WrapPanel>
+              <ContentControl Content="{Binding Settings}" IsVisible="{Binding HasSettings}" />
+            </StackPanel>
+          </Border>
+
+          <!-- Models: downloaded into the app's models folder the first time the worker needs one -->
+          <Border Classes="group" IsVisible="{Binding HasModels}">
+            <StackPanel Classes="form">
+              <TextBlock Text="Models" Classes="groupTitle" />
+              <TextBlock Text="Downloaded the first time the worker needs them, and shared with the other workers that use them."
+                         Classes="caption" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding Models}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ModelItemViewModel">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Detail}" Classes="caption" Classes.modelReady="{Binding IsReady}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Button Content="Open" Command="{Binding OpenFolderCommand}" IsVisible="{Binding CanOpen}" />
+                        <Button Content="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding IsDownloaded}"
+                                ToolTip.Tip="Delete the downloaded files (and HartsyInference's copies made from them). Workers download it again when they need it." />
+                        <Button Content="Download" Command="{Binding DownloadCommand}" IsVisible="{Binding CanDownload}"
+                                ToolTip.Tip="Download it now instead of when a worker first needs it" />
+                        <Button Content="Use own folder…" Command="{Binding UseOwnFolderCommand}" IsVisible="{Binding !IsOverride}"
+                                ToolTip.Tip="Advanced: load this model from a folder of your own (a finetune) instead of the download. Its files aren't checked." />
+                        <Button Content="Use download" Command="{Binding UseDownloadedCommand}" IsVisible="{Binding IsOverride}" />
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</Window>

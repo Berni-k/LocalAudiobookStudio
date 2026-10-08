@@ -1,0 +1,9 @@
+# torch comes from the shared environment (workers/environments.json).
+# ACE-Step 1.5 runs through diffusers' AceStepPipeline (added in diffusers 0.40). The upstream
+# ace-step package isn't used: it depends on a bundled nano-vllm that only installs from a checkout.
+diffusers==0.40.0
+transformers>=4.51
+accelerate
+safetensors
+soundfile
+numpy

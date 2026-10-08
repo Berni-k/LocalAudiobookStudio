@@ -1,0 +1,99 @@
+{
+  "11": {
+    "inputs": {
+      "model_name": "VibeVoice-1.5B",
+      "text": [
+        "40",
+        0
+      ],
+      "quantize_llm_4bit": false,
+      "attention_mode": "sdpa",
+      "cfg_scale": [
+        "42",
+        0
+      ],
+      "inference_steps": [
+        "44",
+        0
+      ],
+      "seed": [
+        "43",
+        0
+      ],
+      "do_sample": true,
+      "temperature": 0.95,
+      "top_p": 0.95,
+      "top_k": 0,
+      "max_new_tokens": false,
+      "force_offload": false,
+      "device": "auto",
+      "dtype": "auto",
+      "voice_preset": "jp-Spk1_woman",
+      "speaker_1_voice": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VibeVoiceTTS",
+    "_meta": {
+      "title": "VibeVoice TTS"
+    }
+  },
+  "39": {
+    "inputs": {
+      "audio": "VibeVoice Generic Narator.mp3"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "{{voice}}"
+    }
+  },
+  "40": {
+    "inputs": {
+      "value": "Text goes here"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "{{text}}"
+    }
+  },
+  "42": {
+    "inputs": {
+      "value": 1.3
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "{{cfg}}"
+    }
+  },
+  "43": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "{{seed}}"
+    }
+  },
+  "44": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "{{steps}}"
+    }
+  },
+  "45": {
+    "inputs": {
+      "audio": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "PreviewAudio",
+    "_meta": {
+      "title": "Preview Audio"
+    }
+  }
+}

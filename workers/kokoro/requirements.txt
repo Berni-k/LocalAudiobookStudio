@@ -1,0 +1,12 @@
+# torch comes from the shared environment (workers/environments.json).
+kokoro>=0.9.4
+misaki[en]>=0.9.4
+# Without a floor, the resolver can fall back to an ancient transformers whose tokenizers
+# release has no wheels (and then needs a Rust compiler to build).
+transformers>=4.44
+soundfile
+numpy
+# misaki needs the spaCy English model; installing it here avoids a runtime pip download
+# (uv venvs don't include pip).
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+pip

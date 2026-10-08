@@ -1,0 +1,32 @@
+{
+  "id": "qwen3_tts",
+  "displayName": "Qwen3-TTS",
+  "description": "Multilingual TTS (10 languages). Preset voices with a style instruction, a voice designed from a description, or voice cloning from a reference clip (a 3 s clip is enough).",
+  "tags": ["Voice", "Voice clone", "Voice design"],
+  "priority": 90,
+  "modelVersion": "12Hz",
+  "maxChars": 1500,
+  "sampleRate": 24000,
+  "voiceCloning": true,
+  "approxVramGb": 6,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Slow on the CPU (float32). Upstream documents GPU use only; the 0.6B models are the practical choice.",
+  "settings": [
+    { "key": "voice", "type": "enum", "label": "Voice", "default": "Ryan",
+      "description": "Ignored when the speaker has a reference clip (cloning).",
+      "options": ["Ryan", "Aiden", "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee", "design"],
+      "optionLabels": ["Ryan (EN, male)", "Aiden (EN, male)", "Vivian (ZH, female)", "Serena (ZH, female)", "Uncle Fu (ZH, male)", "Dylan (ZH Beijing, male)", "Eric (ZH Sichuan, male)", "Ono Anna (JA, female)", "Sohee (KO, female)", "Designed from the instruction"] },
+    { "key": "instruct", "type": "string", "label": "Instruction", "default": "",
+      "description": "Preset voice: speaking style, e.g. \"Calm, warm storytelling.\" (1.7B only). Designed voice: describes the voice, e.g. \"Elderly man, deep gravelly voice, slow pace.\" Not used for cloning." },
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "",
+      "description": "Cloning: the exact words spoken in the reference clip. Improves similarity; leave empty to clone from the voice timbre only." },
+    { "key": "language", "type": "enum", "label": "Language", "default": "Auto",
+      "options": ["Auto", "English", "Chinese", "Japanese", "Korean", "German", "French", "Russian", "Portuguese", "Spanish", "Italian"] },
+    { "key": "size", "type": "enum", "label": "Model size", "default": "1.7B",
+      "description": "0.6B is faster but has no style instructions. Designed voices always use 1.7B.",
+      "options": ["1.7B", "0.6B"] },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 1.5, "step": 0.05, "default": 0.9, "label": "Temperature" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

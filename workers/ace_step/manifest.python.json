@@ -1,0 +1,6 @@
+{
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "models": ["ace-step-1.5-xl-turbo", "ace-step-1.5-xl-sft"]
+}

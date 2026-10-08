@@ -1,0 +1,28 @@
+<!-- A log: dense monospace lines in a virtualized list. Click, Shift-click and Ctrl-click select lines;
+     Ctrl+A selects all, Ctrl+C copies; the context menu also copies everything. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LocalAudiobookStudio.App.Controls.LogView">
+  <ListBox x:Name="List" Classes="side" SelectionMode="Multiple" KeyDown="OnKeyDown">
+    <ListBox.ItemTemplate>
+      <DataTemplate x:DataType="x:String">
+        <TextBlock Text="{Binding}" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" FontSize="11" TextWrapping="Wrap" />
+      </DataTemplate>
+    </ListBox.ItemTemplate>
+    <ListBox.Styles>
+      <!-- Dense: the theme's list items are 32 px tall with padding, far too much for log lines. -->
+      <Style Selector="ListBoxItem">
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Margin" Value="0" />
+      </Style>
+    </ListBox.Styles>
+    <ListBox.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="OnCopy" />
+        <MenuItem Header="Copy all" Click="OnCopyAll" />
+        <MenuItem Header="Select all" InputGesture="Ctrl+A" Click="OnSelectAll" />
+      </ContextMenu>
+    </ListBox.ContextMenu>
+  </ListBox>
+</UserControl>

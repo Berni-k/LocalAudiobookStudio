@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for something new, or a model you'd like supported.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe what you want to do and why. For a new model, please link its Hugging Face page and license.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you do it today?
+      description: Optional. A workaround you use, or what you tried.

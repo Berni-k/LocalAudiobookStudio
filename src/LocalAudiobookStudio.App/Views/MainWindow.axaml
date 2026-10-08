@@ -1,0 +1,901 @@
+<!--
+  Main window: chapters (left), segment stack (center), inspector (right), transport (bottom).
+
+  Avalonia notes for WinForms developers:
+  - x:DataType tells the compiler what the DataContext is, so {Binding ...} is checked at build time.
+  - {DynamicResource X} looks up a resource (colors, icons) and follows theme changes.
+  - Grid rows/columns use "Auto" (size to content), "*" (fill remaining) or pixel values.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
+        x:Class="LocalAudiobookStudio.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding WindowTitle}"
+        Icon="/Assets/app.ico"
+        Width="1400" Height="880" MinWidth="960" MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+
+  <!-- Shortcuts with modifiers. Plain keys (Space, R, G, 1-9 …) are handled in code-behind so they
+       don't fire while typing in a text box. -->
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+N" Command="{Binding NewProjectCommand}" />
+    <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenProjectCommand}" />
+    <KeyBinding Gesture="Ctrl+I" Command="{Binding ImportTextCommand}" />
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand}" />
+    <KeyBinding Gesture="Ctrl+E" Command="{Binding ExportAudiobookCommand}" />
+    <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+    <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoCommand}" />
+    <KeyBinding Gesture="Ctrl+F" Command="{Binding FindCommand}" />
+    <KeyBinding Gesture="Ctrl+J" Command="{Binding ShowJobsCommand}" />
+    <KeyBinding Gesture="Ctrl+M" Command="{Binding MergeCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+G" Command="{Binding GenerateStaleBookCommand}" />
+    <KeyBinding Gesture="F3" Command="{Binding FindNextCommand}" />
+  </Window.KeyBindings>
+
+  <Panel>
+  <DockPanel>
+    <!-- ============================================================ menu -->
+    <!-- The menu, with the read-only badge at its right end (example projects). -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
+    <Menu x:Name="MainMenu">
+      <MenuItem Header="_File">
+        <MenuItem Header="_New project…" Command="{Binding NewProjectCommand}" InputGesture="Ctrl+N" />
+        <MenuItem Header="_Open project…" Command="{Binding OpenProjectCommand}" InputGesture="Ctrl+O" />
+        <MenuItem Header="Open _recent" x:Name="RecentMenu" />
+        <MenuItem Header="_Close project" Command="{Binding CloseProjectCommand}" />
+        <Separator />
+        <MenuItem Header="_Import text…" Command="{Binding ImportTextCommand}" InputGesture="Ctrl+I" />
+        <MenuItem Header="Export _script…" Command="{Binding ExportScriptCommand}" />
+        <Separator />
+        <MenuItem Header="_Save" Command="{Binding SaveCommand}" InputGesture="Ctrl+S" />
+        <MenuItem Header="Project _properties…" Command="{Binding ProjectPropertiesCommand}" />
+        <MenuItem Header="Open project _folder" Command="{Binding OpenProjectFolderCommand}" />
+        <Separator />
+        <MenuItem Header="_Export audiobook…" Command="{Binding ExportAudiobookCommand}" InputGesture="Ctrl+E" />
+        <MenuItem Header="Pac_k project (.abproj)…" Command="{Binding PackProjectCommand}" />
+        <MenuItem Header="_Unpack project…" Command="{Binding UnpackProjectCommand}" />
+        <Separator />
+        <MenuItem Header="Clean up unused _takes…" Command="{Binding CleanUpTakesCommand}" />
+        <MenuItem Header="Co_mpress takes to Opus…" Command="{Binding CompressTakesCommand}" />
+        <MenuItem Header="Se_ttings…" Command="{Binding ShowSettingsCommand}" />
+        <Separator />
+        <MenuItem Header="E_xit" Command="{Binding ExitCommand}" InputGesture="Alt+F4" />
+      </MenuItem>
+      <MenuItem Header="_Edit">
+        <MenuItem Header="{Binding UndoText}" Command="{Binding UndoCommand}" InputGesture="Ctrl+Z" />
+        <MenuItem Header="{Binding RedoText}" Command="{Binding RedoCommand}" InputGesture="Ctrl+Y" />
+        <Separator />
+        <MenuItem Header="_Edit text" Command="{Binding EditTextCommand}" InputGesture="Enter" />
+        <MenuItem Header="_Copy text" Command="{Binding CopyTextCommand}" InputGesture="Ctrl+C" />
+        <MenuItem Header="Select _all in chapter" Command="{Binding SelectAllCommand}" InputGesture="Ctrl+A" />
+        <MenuItem Header="_Delete" Command="{Binding DeleteCommand}" InputGesture="Delete" />
+        <Separator />
+        <MenuItem Header="Assign _speaker" x:Name="AssignSpeakerMenu" />
+        <MenuItem Header="Set _gain…" Command="{Binding SetGainCommand}" />
+        <MenuItem Header="_Reset gain" Command="{Binding ResetGainCommand}" />
+        <MenuItem Header="Toggle _background" Command="{Binding ToggleBackgroundCommand}" InputGesture="B" />
+        <MenuItem Header="Toggle _lock" Command="{Binding ToggleLockCommand}" InputGesture="L" />
+        <Separator />
+        <MenuItem Header="_Merge segments" Command="{Binding MergeCommand}" InputGesture="Ctrl+M" />
+        <MenuItem Header="Spl_it at cursor (while editing)" InputGesture="Ctrl+Shift+Enter" IsEnabled="False" />
+        <MenuItem Header="Insert _below">
+          <MenuItem Header="Text segment" Command="{Binding InsertTextBelowCommand}" InputGesture="Ctrl+Enter" />
+          <MenuItem Header="Pause" Command="{Binding InsertPauseBelowCommand}" />
+          <MenuItem Header="Overlap (negative pause)" Command="{Binding InsertOverlapBelowCommand}" />
+          <MenuItem Header="Comment" Command="{Binding InsertCommentBelowCommand}" />
+          <MenuItem Header="Clip from file…" Command="{Binding InsertClipBelowCommand}" />
+        </MenuItem>
+        <MenuItem Header="Insert _above">
+          <MenuItem Header="Text segment" Command="{Binding InsertTextAboveCommand}" />
+          <MenuItem Header="Pause" Command="{Binding InsertPauseAboveCommand}" />
+          <MenuItem Header="Overlap (negative pause)" Command="{Binding InsertOverlapAboveCommand}" />
+          <MenuItem Header="Comment" Command="{Binding InsertCommentAboveCommand}" />
+          <MenuItem Header="Clip from file…" Command="{Binding InsertClipAboveCommand}" />
+        </MenuItem>
+        <Separator />
+        <MenuItem Header="_Find…" Command="{Binding FindCommand}" InputGesture="Ctrl+F" />
+        <MenuItem Header="Find _next" Command="{Binding FindNextCommand}" InputGesture="F3" />
+      </MenuItem>
+      <MenuItem Header="_Generate">
+        <MenuItem Header="_Generate / regenerate selection" Command="{Binding RegenerateCommand}" InputGesture="R" />
+        <MenuItem Header="Generate stale in _chapter" Command="{Binding GenerateStaleChapterCommand}" InputGesture="G" />
+        <MenuItem Header="Generate stale in _book" Command="{Binding GenerateStaleBookCommand}" InputGesture="Ctrl+Shift+G" />
+        <Separator />
+        <MenuItem Header="_Stop all generation" Command="{Binding StopGenerationCommand}" />
+        <MenuItem Header="_Retry failed" Command="{Binding RetryFailedCommand}" />
+        <MenuItem Header="_Jobs panel" Command="{Binding ShowJobsCommand}" InputGesture="Ctrl+J" />
+      </MenuItem>
+      <MenuItem Header="_Playback">
+        <MenuItem Header="_Play / pause" Command="{Binding PlayPauseCommand}" InputGesture="Space" />
+        <MenuItem Header="Play _selected item only" Command="{Binding PlaySelectedOnlyCommand}" InputGesture="Ctrl+Space" />
+        <MenuItem Header="S_top" Command="{Binding StopPlaybackCommand}" />
+        <MenuItem Header="P_revious item" Command="{Binding PreviousItemCommand}" InputGesture="Alt+Left" />
+        <MenuItem Header="_Next item" Command="{Binding NextItemCommand}" InputGesture="Alt+Right" />
+        <Separator />
+        <MenuItem Header="Previous take" Command="{Binding PreviousTakeCommand}" InputGesture="OemOpenBrackets" />
+        <MenuItem Header="Next take" Command="{Binding NextTakeCommand}" InputGesture="OemCloseBrackets" />
+      </MenuItem>
+      <MenuItem Header="_View">
+        <MenuItem Header="S_peakers panel">
+          <MenuItem.Icon><CheckBox IsChecked="{Binding ShowSpeakersPanel}" /></MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="_Chapters panel">
+          <MenuItem.Icon><CheckBox IsChecked="{Binding ShowChapters}" /></MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="_Assets panel">
+          <MenuItem.Icon><CheckBox IsChecked="{Binding ShowAssets}" /></MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="_Inspector panel">
+          <MenuItem.Icon><CheckBox IsChecked="{Binding ShowInspector}" /></MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem Header="_Speakers…" Command="{Binding ShowSpeakersCommand}" />
+        <MenuItem Header="_Jobs…" Command="{Binding ShowJobsCommand}" InputGesture="Ctrl+J" />
+      </MenuItem>
+      <MenuItem Header="_Workers">
+        <MenuItem Header="_Manage workers…" Command="{Binding ShowWorkersCommand}" />
+        <MenuItem Header="_Devices and settings…" Command="{Binding ShowSettingsCommand}" />
+      </MenuItem>
+      <MenuItem Header="_Help">
+        <MenuItem Header="Keyboard _shortcuts" Click="OnShortcutsClick" />
+        <MenuItem Header="System _check…" Command="{Binding SystemCheckCommand}" />
+        <MenuItem Header="Open _log folder" Command="{Binding OpenLogFolderCommand}" />
+        <MenuItem Header="Open _data folder" Command="{Binding OpenDataFolderCommand}" />
+        <Separator />
+        <MenuItem Header="_About Local Audiobook Studio…" Command="{Binding AboutCommand}" />
+      </MenuItem>
+    </Menu>
+    <Border Grid.Column="1" Classes="readOnlyBadge" IsVisible="{Binding IsReadOnlyProject}" VerticalAlignment="Center" Margin="0,0,10,0"
+            ToolTip.Tip="This is an example project. Explore it freely: edit text, change speakers, generate and play audio. Nothing is saved, and generated audio is deleted when the project closes. To keep your work, create a new project or import the text into one.">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <PathIcon Data="{StaticResource IconLock}" Width="12" Height="12" />
+        <TextBlock Text="READ ONLY" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+    </Grid>
+
+    <!-- ============================================================ status bar -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" BorderThickness="0,1,0,0" Padding="10,3">
+      <TextBlock Text="{Binding StatusText}" Classes="caption" TextTrimming="CharacterEllipsis" />
+    </Border>
+
+    <!-- ============================================================ transport -->
+    <Border DockPanel.Dock="Bottom" Classes="panel" BorderThickness="0,1,0,0" Padding="10,6" IsEnabled="{Binding HasProject}" x:Name="TransportBar">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <Button Classes="icon large" Command="{Binding PreviousItemCommand}" ToolTip.Tip="Previous item (Alt+Left)">
+            <PathIcon Data="{StaticResource IconSkipPrev}" />
+          </Button>
+          <Button Classes="icon large" Command="{Binding PlayPauseCommand}" ToolTip.Tip="Play / pause from the selected item (Space)">
+            <Panel>
+              <PathIcon Data="{StaticResource IconPlay}" IsVisible="{Binding !IsPlaying}" />
+              <PathIcon Data="{StaticResource IconPause}" IsVisible="{Binding IsPlaying}" />
+            </Panel>
+          </Button>
+          <Button Classes="icon large" Command="{Binding NextItemCommand}" ToolTip.Tip="Next item (Alt+Right)">
+            <PathIcon Data="{StaticResource IconSkipNext}" />
+          </Button>
+          <Button Classes="icon large" Command="{Binding StopPlaybackCommand}" ToolTip.Tip="Stop">
+            <PathIcon Data="{StaticResource IconStop}" />
+          </Button>
+        </StackPanel>
+        <!-- Fixed width so the scrub bar never moves; the status note sits just under the time
+             (slightly overlapping) instead of taking horizontal space. -->
+        <Panel Grid.Column="1" Width="148" Margin="8,0" VerticalAlignment="Center" ClipToBounds="False">
+          <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="{Binding PositionText}" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+            <TextBlock Text="/" Classes="secondary" />
+            <TextBlock Text="{Binding TotalText}" Classes="secondary" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Bottom" Margin="0,0,0,-14" IsHitTestVisible="False">
+            <TextBlock Text="{Binding PlaybackNote}" Classes="caption" FontSize="10"
+                       Classes.warning="{Binding PlaybackNoteIsWarning}" Classes.error="{Binding PlaybackNoteIsError}"
+                       Classes.playingNote="{Binding PlaybackNoteIsPlaying}" />
+            <!-- Speaker of the segment at the playhead; long names are cut off. -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="8,0,0,0">
+              <Ellipse Width="7" Height="7" Fill="{Binding CurrentSpeakerBrush}" VerticalAlignment="Center"
+                       IsVisible="{Binding CurrentSpeakerBrush, Converter={x:Static ctl:Converters.NotNull}}" />
+              <TextBlock Text="{Binding CurrentSpeakerName}" Classes="caption" FontSize="10" MaxWidth="72"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Grid>
+        </Panel>
+        <!-- Scrub bar: the current chapter with a tick per segment, or the whole book (toggle on the right). -->
+        <!-- One-line tooltip at the pointer, but above it (see the TransportBar tooltip style). -->
+        <ctl:TimelineBar Grid.Column="2" x:Name="Scrubber" VerticalAlignment="Center" Margin="4,0"
+                         ToolTip.Placement="Pointer" ToolTip.VerticalOffset="-38"
+                         RangeStartMs="{Binding TimelineStartMs}" RangeEndMs="{Binding TimelineEndMs}"
+                         PositionMs="{Binding PositionMs}"
+                         Marks="{Binding TimelineMarks}" MarkTitles="{Binding TimelineMarkTitles}"
+                         Segments="{Binding TimelineSegments}"
+                         ShowSpeakers="{Binding !ShowWholeBook}" />
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" Margin="12,0" VerticalAlignment="Center">
+          <ToggleButton IsChecked="{Binding ShowWholeBook}" Content="{Binding TimelineModeText}" MinWidth="70" HorizontalContentAlignment="Center" Padding="10,3" MinHeight="0"
+                        ToolTip.Tip="{Binding TimelineTooltip}" />
+        </StackPanel>
+        <!-- Queue, with a small square per device (GPU0, GPU1, CPU) underneath. -->
+        <StackPanel Grid.Column="4" Width="190" Spacing="2" VerticalAlignment="Center">
+          <Button Classes="tool" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Command="{Binding ShowJobsCommand}" ToolTip.Tip="Open the Jobs panel (Ctrl+J)">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <PathIcon Data="{StaticResource IconQueue}" Width="14" Height="14" />
+              <TextBlock Text="{Binding QueueText}" Classes.warning="{Binding QueueBusy}" />
+            </StackPanel>
+          </Button>
+          <ItemsControl ItemsSource="{Binding Devices}" Margin="8,0,0,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeviceIndicatorViewModel">
+                <Border Classes="slot" Classes.busy="{Binding IsBusy}" Classes.loading="{Binding IsLoading}"
+                        Classes.failed="{Binding IsFailed}" Classes.loaded="{Binding IsIdleLoaded}" Classes.disabled="{Binding IsDisabled}"
+                        ToolTip.Tip="{Binding Tooltip}">
+                  <TextBlock Text="{Binding Label}" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ============================================================ main area -->
+    <Grid x:Name="MainGrid" ColumnDefinitions="230,4,*,4,340">
+      <!-- Left panel: Speakers, Chapters and Assets sections. Rows and splitters are arranged in code
+           (MainWindow.ApplyPanels) because each section can be hidden from the View menu. -->
+      <Border Grid.Column="0" Classes="panel" x:Name="LeftPanel">
+        <Grid x:Name="LeftGrid">
+        <!-- Speakers -->
+        <DockPanel x:Name="SpeakersSection">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="10,6,6,2">
+            <TextBlock Text="SPEAKERS" Classes="header" Margin="0" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="icon" Command="{Binding ShowSpeakersCommand}" ToolTip.Tip="Manage speakers: voices and settings">
+              <PathIcon Data="{StaticResource IconCog}" />
+            </Button>
+          </Grid>
+          <ListBox x:Name="SpeakerList" Classes="side" ItemsSource="{Binding Speakers}" Margin="4,0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:SpeakerViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto" Background="Transparent"
+                      ToolTip.Tip="{Binding WorkerName, StringFormat='Voice: {0}&#10;Double-click to edit · right-click for more'}">
+                  <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" VerticalAlignment="Center" Margin="2,0,8,0" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding ShortcutText}" Classes="caption" VerticalAlignment="Center" Margin="4,0" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+        <GridSplitter x:Name="SectionSplitter1" ResizeDirection="Rows" />
+
+        <!-- Chapters -->
+        <DockPanel x:Name="ChaptersSection">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="10,6,6,2">
+            <TextBlock Text="CHAPTERS" Classes="header" Margin="0" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="icon" Command="{Binding AddChapterCommand}" ToolTip.Tip="Add chapter after the current one">
+              <PathIcon Data="{StaticResource IconPlus}" />
+            </Button>
+          </Grid>
+          <ListBox x:Name="ChapterList" Classes="side" ItemsSource="{Binding Chapters}" SelectedItem="{Binding SelectedChapter}"
+                   DragDrop.AllowDrop="True" Margin="4,0">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ChapterViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding BadgeTooltip}" Background="Transparent">
+                  <TextBlock Text="{Binding Number}" Classes="secondary" Width="24" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                             Classes.playingTime="{Binding IsPlaying}" />
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="3" Margin="4,0">
+                    <Border Classes="badge" Background="{DynamicResource SemiColorWarning}" IsVisible="{Binding HasStale}">
+                      <TextBlock Text="{Binding StaleCount}" />
+                    </Border>
+                    <Border Classes="badge" Background="{DynamicResource SemiColorDanger}" IsVisible="{Binding HasFailed}">
+                      <TextBlock Text="{Binding FailedCount}" />
+                    </Border>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+        <GridSplitter x:Name="SectionSplitter2" ResizeDirection="Rows" />
+
+        <!-- Assets: audio files and ComfyUI workflows in the project's assets folder and its subfolders (folder rows
+             expand and collapse; contents are indented). Drop files here, or on a folder, to add them. -->
+        <DockPanel x:Name="AssetsSection" DragDrop.AllowDrop="True" Background="Transparent">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="10,6,6,2">
+            <TextBlock Text="ASSETS" Classes="header" Margin="0" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="icon" Command="{Binding ImportAssetsCommand}" ToolTip.Tip="Add audio files or ComfyUI workflows to the project">
+              <PathIcon Data="{StaticResource IconPlus}" />
+            </Button>
+          </Grid>
+          <Panel>
+            <ListBox x:Name="AssetList" Classes="side" ItemsSource="{Binding Assets}" Margin="4,0">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:AssetViewModel">
+                  <Grid ColumnDefinitions="Auto,Auto,*,Auto" Background="Transparent" ToolTip.Tip="{Binding Tooltip}">
+                    <Border Width="{Binding IndentWidth}" />
+                    <Panel Grid.Column="1" Margin="1,0,8,0" VerticalAlignment="Center">
+                      <PathIcon Data="{StaticResource IconChevronRight}" Width="11" Height="11" IsVisible="{Binding IsFolder}">
+                        <PathIcon.RenderTransform>
+                          <RotateTransform Angle="{Binding IsExpanded, Converter={x:Static ctl:Converters.ExpandedAngle}}" />
+                        </PathIcon.RenderTransform>
+                      </PathIcon>
+                      <PathIcon Data="{StaticResource IconClip}" Width="11" Height="11" IsVisible="{Binding IsAudio}" />
+                      <PathIcon Data="{StaticResource IconWorkflow}" Width="11" Height="11" IsVisible="{Binding IsWorkflow}" />
+                    </Panel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                      <PathIcon Data="{StaticResource IconFolder}" Width="11" Height="11" IsVisible="{Binding IsFolder}" />
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Classes.secondary="{Binding IsUnused}" />
+                    </StackPanel>
+                    <!-- Own play context: plays just this file; turns into a stop button while playing. -->
+                    <Button Grid.Column="3" Classes="icon" Width="22" Height="22" MinHeight="0" Padding="0" Margin="4,0,0,0" VerticalAlignment="Center"
+                            IsVisible="{Binding IsAudio}"
+                            Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ToggleAssetPlaybackCommand}" CommandParameter="{Binding}"
+                            ToolTip.Tip="{Binding PlayTooltip}">
+                      <Panel>
+                        <PathIcon Data="{StaticResource IconPlay}" Width="11" Height="11" IsVisible="{Binding !IsPlaying}" />
+                        <PathIcon Data="{StaticResource IconStop}" Width="11" Height="11" IsVisible="{Binding IsPlaying}"
+                                  Foreground="{DynamicResource PlayingAccentBrush}" />
+                      </Panel>
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Text="Drop audio files or ComfyUI workflows here, or click + to add them." Classes="caption" TextWrapping="Wrap" Margin="12,4"
+                       IsVisible="{Binding !HasAssets}" IsHitTestVisible="False" />
+          </Panel>
+        </DockPanel>
+        </Grid>
+      </Border>
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns" x:Name="LeftSplitter" />
+
+      <!-- Segment stack -->
+      <Panel Grid.Column="2">
+      <DockPanel>
+        <!-- Action strip: insert buttons on the left, the filter toggle on the right. -->
+        <Border DockPanel.Dock="Top" Padding="12,6" Background="{DynamicResource SemiColorBackground0}" IsVisible="{Binding HasProject}"
+                BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SemiColorBorder}">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <!-- "+ Speaker" with a dot per speaker: the main part uses the selected segment's speaker,
+                   a dot inserts a segment for that speaker. -->
+              <Border Classes="addGroup">
+                <StackPanel Orientation="Horizontal">
+                  <Button Classes="add" Command="{Binding InsertTextBelowCommand}" ToolTip.Tip="Insert a text segment below the selection (Ctrl+Enter)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <PathIcon Data="{StaticResource IconPlus}" />
+                      <TextBlock Text="Speaker" />
+                    </StackPanel>
+                  </Button>
+                  <ItemsControl ItemsSource="{Binding Speakers}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SpeakerViewModel">
+                        <Border BorderThickness="1,0,0,0" BorderBrush="{DynamicResource SemiColorBorder}">
+                          <Button Classes="add dot" ToolTip.Tip="{Binding Name, StringFormat='Insert a segment for {0}'}"
+                                  Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).InsertSpeakerBelowCommand}" CommandParameter="{Binding}">
+                            <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" />
+                          </Button>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+              <Border Classes="addGroup">
+                <Button Classes="add" Command="{Binding InsertPauseBelowCommand}" ToolTip.Tip="Insert a pause below the selection">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Pause" />
+                  </StackPanel>
+                </Button>
+              </Border>
+              <Border Classes="addGroup">
+                <Button Classes="add" Command="{Binding InsertOverlapBelowCommand}" ToolTip.Tip="Insert an overlap (negative pause) below the selection">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Overlap" />
+                  </StackPanel>
+                </Button>
+              </Border>
+              <Border Classes="addGroup">
+                <Button Classes="add" Command="{Binding InsertCommentBelowCommand}" ToolTip.Tip="Insert a comment below the selection: a note in the book that is never spoken and takes no time">
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <PathIcon Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Comment" />
+                  </StackPanel>
+                </Button>
+              </Border>
+            </StackPanel>
+            <ToggleButton Grid.Column="1" x:Name="FilterToggle" Classes="icon" IsChecked="{Binding IsFilterPanelOpen}"
+                          ToolTip.Tip="Search and filter (Ctrl+F). Closing it shows all segments again.">
+              <PathIcon Data="{StaticResource IconSearch}" />
+            </ToggleButton>
+          </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Padding="16,8" Background="{DynamicResource SemiColorBackground0}" IsVisible="{Binding HasProject}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding CurrentChapterTitle}" Classes="title" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding SelectedChapter.DurationText, FallbackValue=''}" Classes="secondary" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+
+        <!-- Column header: drag the dividers to resize the speaker and audio columns of every row. -->
+        <Border DockPanel.Dock="Top" IsVisible="{Binding HasProject}" Background="{DynamicResource SemiColorBackground0}"
+                BorderThickness="0,0,0,1" BorderBrush="{DynamicResource SemiColorBorder}">
+          <Grid ColumnDefinitions="Auto,*,Auto" Height="22">
+            <Panel Width="{Binding Columns.SpeakerWidth}">
+              <TextBlock Text="Speaker" Classes="caption" Margin="12,0,0,0" VerticalAlignment="Center" />
+              <Border x:Name="SpeakerGrip" Classes="colGrip" HorizontalAlignment="Right" ToolTip.Tip="Drag to resize">
+                <Rectangle />
+              </Border>
+            </Panel>
+            <TextBlock Grid.Column="1" Text="Text" Classes="caption" Margin="10,0" VerticalAlignment="Center" />
+            <Panel Grid.Column="2" Width="{Binding Columns.AudioWidth}">
+              <Border x:Name="AudioGrip" Classes="colGrip" HorizontalAlignment="Left" ToolTip.Tip="Drag to resize">
+                <Rectangle />
+              </Border>
+              <TextBlock Text="Audio" Classes="caption" Margin="12,0,0,0" VerticalAlignment="Center" />
+            </Panel>
+          </Grid>
+        </Border>
+
+        <Panel>
+          <!-- Empty state -->
+          <StackPanel IsVisible="{Binding !HasProject}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" MaxWidth="460">
+            <TextBlock Text="Local Audiobook Studio" Classes="title" HorizontalAlignment="Center" FontSize="22" />
+            <TextBlock Text="Turn a text file into an audiobook with local text-to-speech models." Classes="secondary" TextWrapping="Wrap" HorizontalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,8">
+              <Button Classes="primary" Content="Import text…" Command="{Binding ImportTextCommand}" />
+              <Button Content="New project…" Command="{Binding NewProjectCommand}" />
+              <Button Content="Open project…" Command="{Binding OpenProjectCommand}" />
+            </StackPanel>
+            <TextBlock Text="Recent projects" Classes="header" IsVisible="{Binding HasRecent}" HorizontalAlignment="Center" />
+            <ItemsControl ItemsSource="{Binding RecentProjects}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <Button Classes="tool" Content="{Binding}" HorizontalAlignment="Center"
+                          Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenRecentCommand}" CommandParameter="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <!--
+            The virtualized segment stack. ListBox uses a VirtualizingStackPanel by default, so only
+            rows on screen exist as controls; thousands of segments scroll smoothly.
+            SelectionMode="Multiple" gives Ctrl+click (toggle) and Shift+click (range) selection.
+          -->
+          <ListBox x:Name="Stack" Classes="stack" IsVisible="{Binding HasProject}" ItemsSource="{Binding StackItems}"
+                   SelectionMode="Multiple" DragDrop.AllowDrop="True"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <!-- Semi's ListBoxItem colors come from these resources; overriding them here only affects the stack. -->
+            <ListBox.Resources>
+              <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                  <!-- Values match Semi's dark/light Background1, Background2, PrimaryLight and Text0. -->
+                  <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ListBoxItemDefaultBackground" Color="#232429" />
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground" Color="#2C2D33" />
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground" Color="#35363C" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedBackground" Color="#2A3A4F" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedPointeroverBackground" Color="#30445C" />
+                    <SolidColorBrush x:Key="ListBoxItemDefaultForeground" Color="#F9F9F9" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground" Color="#F9F9F9" />
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground" Color="#F9F9F9" />
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground" Color="#F9F9F9" />
+                  </ResourceDictionary>
+                  <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ListBoxItemDefaultBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground" Color="#F5F6F7" />
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground" Color="#EBECEE" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedBackground" Color="#EAF5FF" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedPointeroverBackground" Color="#DDEEFF" />
+                    <SolidColorBrush x:Key="ListBoxItemDefaultForeground" Color="#1C1F23" />
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground" Color="#1C1F23" />
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground" Color="#1C1F23" />
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground" Color="#1C1F23" />
+                  </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+                <CornerRadius x:Key="ListBoxItemCornerRadius">0</CornerRadius>
+                <!-- The row text boxes read like plain text until hovered or focused. -->
+                <SolidColorBrush x:Key="TextBoxDefaultBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="TextBoxPointeroverBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="TextBoxPressedBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="TextBoxDefaultBorderBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush" Color="#40808080" />
+              </ResourceDictionary>
+            </ListBox.Resources>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ItemViewModel">
+                <Grid RowDefinitions="*,Auto" ColumnDefinitions="Auto,*,Auto" Classes="row" Classes.muted="{Binding IsNonSpeech}" Classes.comment="{Binding IsComment}" Classes.playing="{Binding IsPlaying}">
+                  <!-- Left accent while playing -->
+                  <Rectangle Grid.RowSpan="2" Width="4" HorizontalAlignment="Left" Fill="{DynamicResource PlayingAccentBrush}" IsVisible="{Binding IsPlaying}" />
+
+                  <!-- Speaker column: speaker on top, length and end time at the bottom. Also the drag handle for reordering. -->
+                  <Border Grid.Column="0" x:Name="DragHandle" Width="{Binding Columns.SpeakerWidth}" Background="Transparent" Cursor="SizeAll"
+                          Padding="12,9,6,6" ToolTip.Tip="{Binding StartTooltip}">
+                    <DockPanel>
+                      <!-- The segment's number in the chapter on the left (as a per-segment export numbers it), the speaker or kind on the right. -->
+                      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*">
+                        <TextBlock Text="{Binding SegmentNumberText}" Classes="caption" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" ToolTip.Tip="{Binding SegmentNumberTooltip}">
+                          <TextBlock.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                              <Binding Path="SegmentNumber" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                              <Binding Path="Columns.ShowNumbers" />
+                            </MultiBinding>
+                          </TextBlock.IsVisible>
+                        </TextBlock>
+                        <Border Grid.Column="1" x:Name="SpeakerChip" CornerRadius="3" Padding="6,1" HorizontalAlignment="Right" Background="{Binding SpeakerBrush}"
+                                IsVisible="{Binding IsTts}" Cursor="Hand" ToolTip.Tip="{Binding SpeakerName, StringFormat='{}{0} · click to change speaker'}">
+                          <TextBlock Text="{Binding SpeakerName}" FontSize="11" Foreground="{DynamicResource ChipForegroundBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <Border Grid.Column="1" CornerRadius="3" Padding="5,1" HorizontalAlignment="Right" Background="{DynamicResource SemiColorBackground2}"
+                                IsVisible="{Binding IsNonSpeech}">
+                          <StackPanel Orientation="Horizontal" Spacing="4">
+                            <PathIcon Data="{Binding KindIcon}" Width="10" Height="10" />
+                            <TextBlock Text="{Binding KindLabel}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                        </Border>
+                      </Grid>
+                      <TextBlock DockPanel.Dock="Top" Text="{Binding BackgroundText}" IsVisible="{Binding IsBackground}" Classes="caption"
+                                 HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="Wrap" Margin="0,4,0,0" FontStyle="Italic"
+                                 ToolTip.Tip="Background: starts together with the next section and plays underneath it (B toggles)" />
+                      <PathIcon DockPanel.Dock="Top" Data="{StaticResource IconLock}" Width="10" Height="10" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                Foreground="{DynamicResource SemiColorText2}" IsVisible="{Binding IsLocked}" ToolTip.Tip="Locked: can't be edited, moved, deleted or regenerated (L to unlock)" />
+                      <!-- Pauses, overlaps and comments skip the timing lines to keep their rows compact. -->
+                      <!-- Length and end time, for sections with timing, unless turned off (Settings → Text). -->
+                      <StackPanel DockPanel.Dock="Bottom">
+                        <StackPanel.IsVisible>
+                          <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="ShowTiming" />
+                            <Binding Path="Columns.ShowTimes" />
+                          </MultiBinding>
+                        </StackPanel.IsVisible>
+                        <TextBlock Text="{Binding DurationText}" Classes="caption" Margin="0,8,0,1" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+                        <TextBlock Text="{Binding EndText}" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" FontSize="12"
+                                   Classes.playingTime="{Binding IsPlaying}" />
+                      </StackPanel>
+                      <Panel />
+                    </DockPanel>
+                  </Border>
+
+                  <!-- Text column: edit directly. Ctrl+Enter saves, Escape discards, clicking away asks. -->
+                  <DockPanel Grid.Column="1" Margin="2,4,8,4">
+                    <TextBlock DockPanel.Dock="Bottom" IsVisible="{Binding IsDirty}" Classes="caption" Margin="8,2,0,0"
+                               Foreground="{DynamicResource SemiColorWarning}"
+                               Text="Unsaved · Ctrl+Enter save · Esc discard · Ctrl+Shift+Enter split at cursor" />
+                    <!-- Pauses and clips have no text to edit: plain text, so clicks select the row instead of placing a caret. -->
+                    <Panel>
+                    <TextBlock Text="{Binding EditText}" IsVisible="{Binding !CanEditText}" Classes="secondary" TextWrapping="Wrap" Margin="12,6" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource SegmentFontFamily}" FontSize="{DynamicResource SegmentFontSize}" />
+                    <TextBox x:Name="RowEditor" Text="{Binding EditText}" IsReadOnly="{Binding IsTextReadOnly}" IsVisible="{Binding CanEditText}"
+                             TextWrapping="Wrap" AcceptsReturn="True" MinHeight="0" VerticalAlignment="Stretch" VerticalContentAlignment="Top"
+                             FontFamily="{DynamicResource SegmentFontFamily}" FontSize="{DynamicResource SegmentFontSize}"
+                             LineHeight="{Binding $self.FontSize, Converter={x:Static ctl:Converters.LineHeight}}" />
+                    </Panel>
+                  </DockPanel>
+
+                  <!-- Audio column: waveform across the full width, controls and takes below. -->
+                  <Border Grid.Column="2" Width="{Binding Columns.AudioWidth}" Padding="8,8,10,4" Classes="audio" Classes.stale="{Binding IsStale}">
+                    <StackPanel Spacing="2">
+                      <!-- While recording: timer and VU meter in place of the waveform; clicking it stops. -->
+                      <Button Height="46" Classes="recordPanel" IsVisible="{Binding IsRecording}" Command="{Binding RecordCommand}"
+                              ToolTip.Tip="Recording. Click to stop and save the take.">
+                        <StackPanel Spacing="5" VerticalAlignment="Center">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconRecord}" Width="10" Height="10" Foreground="#F04B4B" />
+                            <TextBlock Text="{Binding RecordElapsedText}" FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" FontSize="12" />
+                            <TextBlock Text="click to stop" Classes="caption" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <ctl:LevelMeter Level="{Binding RecordLevel}" Height="8" />
+                        </StackPanel>
+                      </Button>
+                      <Border Height="46" CornerRadius="4" Classes="wave"
+                              Classes.stale="{Binding IsStale}" Classes.failed="{Binding IsFailed}" IsVisible="{Binding ShowWaveformArea}"
+                              ToolTip.Tip="{Binding StatusTooltip}">
+                        <Panel>
+                          <ctl:WaveformView Peaks="{Binding Peaks}" TrimStartMs="{Binding TrimStartMs}" TrimEndMs="{Binding TrimEndMs}"
+                                            GainDb="{Binding EffectiveGainDb}" PlayheadMs="{Binding PlayheadMs}" Host="{Binding}"
+                                            PlaceholderDurationMs="{Binding PlaceholderDurationMs}"
+                                            Fill="{DynamicResource WaveformBrush}" Margin="2,2" />
+                          <TextBlock Text="{Binding StatusText}" IsVisible="{Binding ShowStatusOverlay}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     Classes="caption" Classes.error="{Binding IsFailed}" IsHitTestVisible="False" />
+                          <ProgressBar IsVisible="{Binding IsGenerating}" Value="{Binding Progress}" Maximum="1" IsIndeterminate="{Binding Progress, Converter={x:Static ctl:Converters.IsZero}}"
+                                       VerticalAlignment="Bottom" Height="3" MinHeight="3" Margin="2" />
+                        </Panel>
+                      </Border>
+                      <!-- Pauses and clips have no controls: a pause's column stays empty, a clip shows just its waveform. -->
+                      <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding ShowAudioControls}">
+                        <StackPanel Orientation="Horizontal">
+                          <!-- Play turns into stop while this segment is playing. -->
+                          <Button Classes="icon" Command="{Binding PlayCommand}" ToolTip.Tip="Play from here, or stop while it plays (Space plays from the selection; Ctrl+Space plays only this item)">
+                            <Panel>
+                              <PathIcon Data="{StaticResource IconPlay}" IsVisible="{Binding !IsPlaying}" />
+                              <PathIcon Data="{StaticResource IconStop}" IsVisible="{Binding IsPlaying}" Foreground="{DynamicResource PlayingAccentBrush}" />
+                            </Panel>
+                          </Button>
+                          <Button Classes="icon" Command="{Binding RegenerateCommand}" IsVisible="{Binding ShowGenerate}" ToolTip.Tip="Generate a new take (R)">
+                            <PathIcon Data="{StaticResource IconRefresh}" />
+                          </Button>
+                          <!-- Speakers without a worker: record (a new take), turning into stop while recording. -->
+                          <Button Classes="icon" Command="{Binding RecordCommand}" IsVisible="{Binding IsRecordable}"
+                                  ToolTip.Tip="Record a new take with the microphone (R); click again to stop">
+                            <Panel>
+                              <PathIcon Data="{StaticResource IconRecord}" IsVisible="{Binding !IsRecording}" Foreground="#F04B4B" />
+                              <PathIcon Data="{StaticResource IconStop}" IsVisible="{Binding IsRecording}" Foreground="#F04B4B" />
+                            </Panel>
+                          </Button>
+                          <Button Classes="icon" Command="{Binding DeleteTakeCommand}" IsVisible="{Binding HasTakes}" ToolTip.Tip="Delete the current take">
+                            <PathIcon Data="{StaticResource IconTrash}" />
+                          </Button>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" IsVisible="{Binding HasTakes}">
+                          <Button Classes="icon" Width="20" Command="{Binding PreviousTakeCommand}" IsEnabled="{Binding HasMultipleTakes}" ToolTip.Tip="Previous take ([)">
+                            <PathIcon Data="{StaticResource IconChevronLeft}" />
+                          </Button>
+                          <TextBlock Text="{Binding TakeCounterText}" Classes="caption" VerticalAlignment="Center" MinWidth="36" TextAlignment="Center" />
+                          <Button Classes="icon" Width="20" Command="{Binding NextTakeCommand}" IsEnabled="{Binding HasMultipleTakes}" ToolTip.Tip="Next take (])">
+                            <PathIcon Data="{StaticResource IconChevronRight}" />
+                          </Button>
+                        </StackPanel>
+                      </Grid>
+                    </StackPanel>
+                  </Border>
+
+                  <!-- Light divider between sections -->
+                  <Rectangle Grid.Row="1" Grid.ColumnSpan="3" Height="1" Fill="{DynamicResource SemiColorBorder}" Opacity="0.6" IsHitTestVisible="False" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- Drop indicator line for drag-and-drop reordering -->
+          <Canvas IsHitTestVisible="False">
+            <Rectangle x:Name="DropIndicator" Height="2" Fill="{DynamicResource SemiColorPrimary}" IsVisible="False" />
+          </Canvas>
+        </Panel>
+      </DockPanel>
+
+        <!-- Filter box, opened by the magnifier button. Floats just under it, over the top right of the stack. -->
+        <Panel IsVisible="{Binding HasProject}">
+          <Border Classes="filterBox" IsVisible="{Binding IsFilterPanelOpen}">
+            <StackPanel Spacing="8" Width="260">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="SEARCH AND FILTER" Classes="header" Margin="0" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="icon" Command="{Binding ClearFiltersCommand}" IsVisible="{Binding IsFiltering}" ToolTip.Tip="Clear filters">
+                  <PathIcon Data="{StaticResource IconClose}" />
+                </Button>
+              </Grid>
+              <TextBox x:Name="SearchBox" Text="{Binding SearchText}" Watermark="Search…"
+                       ToolTip.Tip="Search text. Enter jumps to the next match, Shift+Enter to the previous." />
+              <!-- "All speakers" (a string) followed by the speakers. -->
+              <ComboBox ItemsSource="{Binding SpeakerFilterOptions}" SelectedItem="{Binding SpeakerFilterChoice}"
+                        HorizontalAlignment="Stretch" ToolTip.Tip="Show only this speaker's segments">
+                <ComboBox.DataTemplates>
+                  <DataTemplate DataType="vm:SpeakerViewModel">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" />
+                      <TextBlock Text="{Binding Name}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ComboBox.DataTemplates>
+              </ComboBox>
+              <ComboBox ItemsSource="{x:Static vm:MainWindowViewModel.StatusFilters}" SelectedItem="{Binding StatusFilterValue}"
+                        HorizontalAlignment="Stretch" ToolTip.Tip="Filter by status">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatusFilter">
+                    <TextBlock Text="{Binding Converter={x:Static ctl:Converters.StatusFilterLabel}}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </Border>
+        </Panel>
+      </Panel>
+
+      <GridSplitter Grid.Column="3" ResizeDirection="Columns" x:Name="RightSplitter" />
+
+      <!-- Inspector -->
+      <Border Grid.Column="4" Classes="panel" x:Name="InspectorPanel">
+        <ContentControl Content="{Binding Inspector}" />
+      </Border>
+    </Grid>
+  </DockPanel>
+
+    <!-- ============================================================ loading overlay
+         Covers (and blocks) the window while a project opens or is created from an import. -->
+    <Border IsVisible="{Binding IsBusy}" Background="#99000000">
+      <Border Classes="group" HorizontalAlignment="Center" VerticalAlignment="Center" Width="380" Padding="20,16,20,20"
+              BoxShadow="0 8 24 0 #66000000">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding BusyText}" Classes="groupTitle" />
+          <TextBlock Text="{Binding BusyDetail}" Classes="caption" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding BusyDetail}" />
+          <ProgressBar IsIndeterminate="True" Margin="0,6,0,0" />
+          <TextBlock Text="Large books can take a few seconds." Classes="caption" />
+        </StackPanel>
+      </Border>
+    </Border>
+  </Panel>
+
+  <Window.Styles>
+    <!-- Row backgrounds: speech on Surface, other kinds muted. -->
+    <Style Selector="Grid.row">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.row.muted">
+      <Setter Property="Background" Value="{DynamicResource MutedSurfaceBrush}" />
+    </Style>
+    <!-- Comments: a slight purple so they stand out (before the hover rule, so hover and selection still show). -->
+    <Style Selector="Grid.row.comment">
+      <Setter Property="Background" Value="{DynamicResource CommentRowBrush}" />
+    </Style>
+    <!-- The muted tint would hide the list's hover and selection colours; let them show through. -->
+    <Style Selector="ListBoxItem:pointerover Grid.row.muted, ListBoxItem:selected Grid.row.muted,
+                     ListBoxItem:pointerover Grid.row.comment, ListBoxItem:selected Grid.row.comment">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <!-- Comments read as notes: italic, in the secondary text colour. -->
+    <Style Selector="Grid.row.comment TextBox#RowEditor">
+      <Setter Property="FontStyle" Value="Italic" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText1}" />
+    </Style>
+    <!-- The playing segment glows green (declared after .muted so it wins for clip rows too). -->
+    <Style Selector="Grid.row.playing">
+      <Setter Property="Background" Value="{DynamicResource PlayingRowBrush}" />
+    </Style>
+    <!-- Row under a speaker being dragged from the Speakers panel. -->
+    <Style Selector="ListBoxItem.speakerDrop Grid.row">
+      <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+    </Style>
+    <Style Selector="TextBlock.playingNote">
+      <Setter Property="Foreground" Value="{DynamicResource PlayingAccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.playingTime">
+      <Setter Property="Foreground" Value="{DynamicResource PlayingAccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <!-- The recording panel looks like the waveform box (it takes its place) but is clickable. -->
+    <Style Selector="Button.recordPanel">
+      <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Background" Value="{DynamicResource WaveformBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="#F04B4B" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+    </Style>
+    <Style Selector="Border.wave">
+      <Setter Property="Background" Value="{DynamicResource WaveformBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+    </Style>
+    <!-- Stale take: the whole audio area turns orange (the waveform box lets it show through). -->
+    <Style Selector="Border.audio.stale">
+      <Setter Property="Background" Value="{DynamicResource StaleAudioBrush}" />
+    </Style>
+    <Style Selector="Border.wave.stale">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.wave.failed">
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorDanger}" />
+      <Setter Property="Background" Value="{DynamicResource SemiColorDangerLight}" />
+    </Style>
+    <!-- The transport sits at the screen's bottom edge. Tooltips placed at the pointer don't fit below
+         it, so they would be pushed up over the cursor and swallow the next click. Open them above the
+         control instead. -->
+    <Style Selector="Border#TransportBar Control">
+      <Setter Property="ToolTip.Placement" Value="Top" />
+      <Setter Property="ToolTip.VerticalOffset" Value="-4" />
+    </Style>
+
+    <!-- Insert buttons above the stack; the speaker dots are divided segments of the "+ Speaker" button. -->
+    <!-- Same fill as Semi's default buttons; the borderless buttons inside add their hover/pressed fill on top. -->
+    <Style Selector="Border.addGroup">
+      <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Button.add">
+      <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText0}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.add PathIcon">
+      <Setter Property="Width" Value="11" />
+      <Setter Property="Height" Value="11" />
+    </Style>
+    <Style Selector="Button.add.dot">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Width" Value="24" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- Search and filter box under the magnifier button -->
+    <Style Selector="Border.filterBox">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+      <Setter Property="Margin" Value="0,38,10,0" />
+      <Setter Property="Padding" Value="12,10,12,12" />
+      <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="BoxShadow" Value="0 4 14 0 #40000000" />
+    </Style>
+
+    <!-- Column dividers in the stack header -->
+    <Style Selector="Border.colGrip">
+      <Setter Property="Width" Value="9" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="SizeWestEast" />
+    </Style>
+    <Style Selector="Border.colGrip > Rectangle">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Margin" Value="0,3" />
+      <Setter Property="Fill" Value="{DynamicResource SemiColorBorder}" />
+    </Style>
+    <Style Selector="Border.colGrip:pointerover > Rectangle">
+      <Setter Property="Width" Value="3" />
+      <Setter Property="Fill" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.slot">
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Padding" Value="3,0" />
+      <Setter Property="Margin" Value="0,0,3,0" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.slot TextBlock">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    </Style>
+    <Style Selector="Border.slot.loaded">
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.slot.busy">
+      <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.slot.busy TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+    </Style>
+    <Style Selector="Border.slot.busy PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource ChipForegroundBrush}" />
+    </Style>
+    <Style Selector="Border.slot.loading">
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorWarning}" />
+    </Style>
+    <Style Selector="Border.slot.failed">
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
+    <Style Selector="Border.slot.disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+    <!-- Read-only badge in the menu bar: a solid warning-coloured pill, readable in both themes. -->
+    <Style Selector="Border.readOnlyBadge">
+      <Setter Property="Background" Value="{DynamicResource SemiColorWarning}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="10,3" />
+      <!-- Inherited by the text and the lock icon. -->
+      <Setter Property="TextElement.Foreground" Value="White" />
+    </Style>
+  </Window.Styles>
+</Window>

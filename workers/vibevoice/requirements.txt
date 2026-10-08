@@ -1,0 +1,8 @@
+# torch comes from the shared environment (workers/environments.json), whose overrides replace the
+# fork's transformers 4.51.3 / accelerate 1.6.0 pins (worker.py patches the two differences it hits).
+# Microsoft removed the VibeVoice code from its repository; the community fork keeps it maintained.
+# Pinned to a commit and fetched as an archive, so installing needs no git on the system.
+vibevoice @ https://github.com/vibevoice-community/VibeVoice/archive/952326ddb264062466a888cf32a5b2f4e803e16e.zip
+librosa
+soundfile
+numpy

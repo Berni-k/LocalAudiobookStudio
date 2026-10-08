@@ -1,0 +1,25 @@
+{
+  "id": "chatterbox",
+  "displayName": "Chatterbox",
+  "description": "Expressive English TTS. Clones the speaker's reference clip, or uses its built-in voice when there is none. An exaggeration control sets how dramatic the delivery is. MIT license.",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone"],
+  "runtime": "hartsy",
+  "hartsyModel": "chatterbox",
+  "modelVersion": "v1",
+  "maxChars": 500,
+  "sampleRate": 24000,
+  "voiceCloning": true,
+  "approxVramGb": 5,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Works on the CPU, but slowly.",
+  "models": ["chatterbox"],
+  "settings": [
+    { "key": "exaggeration", "type": "float", "min": 0.25, "max": 2.0, "step": 0.05, "default": 0.5, "label": "Exaggeration",
+      "description": "How expressive the delivery is. 0.5 is neutral; higher is more dramatic (and tends to speed up)." },
+    { "key": "cfgScale", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5, "label": "CFG weight",
+      "description": "How closely it follows the reference voice. Lower it (about 0.3) with high exaggeration for a calmer pace." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

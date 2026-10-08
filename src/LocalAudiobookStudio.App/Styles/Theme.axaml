@@ -1,0 +1,68 @@
+<!--
+  App-specific design tokens. General colors (backgrounds, text, borders, accent, warning, danger)
+  come from the Semi theme: use {DynamicResource SemiColorBackground0..4}, SemiColorText0..3,
+  SemiColorBorder, SemiColorPrimary, SemiColorWarning, SemiColorDanger, SemiColorFill0..2.
+
+  Only what Semi doesn't have is defined here, per theme variant, so a light theme can be added
+  later by filling the "Light" dictionary with the same keys.
+
+  Avalonia note: ThemeDictionaries are picked by the active ThemeVariant (Dark is requested in App.axaml).
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="WaveformBrush" Color="#7FA7C9" />
+      <SolidColorBrush x:Key="WaveformBackgroundBrush" Color="#121215" />
+      <SolidColorBrush x:Key="MutedSurfaceBrush" Color="#1B1C20" />
+      <SolidColorBrush x:Key="ChipForegroundBrush" Color="#10161D" />
+
+      <!-- The segment that is playing right now: a green tint, accent bar and timestamp. -->
+      <SolidColorBrush x:Key="PlayingRowBrush" Color="#2E5DC264" />
+      <SolidColorBrush x:Key="PlayingAccentBrush" Color="#5DC264" />
+
+      <!-- Audio area of a row whose take is stale. -->
+      <SolidColorBrush x:Key="StaleAudioBrush" Color="#59E8862A" />
+
+      <!-- Text of experimental workers in the Workers window: a slight purple tint. -->
+      <SolidColorBrush x:Key="ExperimentalTextBrush" Color="#C8B4F0" />
+
+      <!-- Comment rows in the segment stack: a slight purple, easy to spot while scrolling. -->
+      <SolidColorBrush x:Key="CommentRowBrush" Color="#2B2340" />
+
+      <!-- Semi overrides: white text on default/borderless/outline buttons (Semi uses primary blue). -->
+      <SolidColorBrush x:Key="ButtonDefaultPrimaryForeground" Color="#F9F9F9" />
+      <!-- Menu separators: clearly visible lines (Semi's are very faint). -->
+      <SolidColorBrush x:Key="MenuItemSeparatorBackground" Color="#5C606B" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="WaveformBrush" Color="#3D6E99" />
+      <SolidColorBrush x:Key="WaveformBackgroundBrush" Color="#F1F2F4" />
+      <SolidColorBrush x:Key="MutedSurfaceBrush" Color="#F7F8FA" />
+      <SolidColorBrush x:Key="ChipForegroundBrush" Color="#10161D" />
+      <SolidColorBrush x:Key="PlayingRowBrush" Color="#263BB346" />
+      <SolidColorBrush x:Key="PlayingAccentBrush" Color="#3BB346" />
+      <SolidColorBrush x:Key="StaleAudioBrush" Color="#4DFF962E" />
+      <SolidColorBrush x:Key="ExperimentalTextBrush" Color="#7A52C7" />
+      <SolidColorBrush x:Key="CommentRowBrush" Color="#F1EBFB" />
+      <SolidColorBrush x:Key="MenuItemSeparatorBackground" Color="#C3C6CE" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!-- Semi caps menu height and scrolls; let menus grow (the OS still keeps them on screen). -->
+  <x:Double x:Key="MenuFlyoutMaxHeight">2000</x:Double>
+
+  <!-- Compact menus (the menu bar's drop-downs and context menus): Semi's items are tall and widely spaced. -->
+  <x:Double x:Key="MenuItemMinHeight">26</x:Double>
+  <Thickness x:Key="MenuItemPadding">10,3</Thickness>
+  <Thickness x:Key="MenuFlyoutPadding">0,3</Thickness>
+  <x:Double x:Key="MenuItemSeparatorHeight">1</x:Double>
+  <Thickness x:Key="MenuItemSeparatorMargin">6,3</Thickness>
+
+  <!-- Layout tokens: 4 px radius, 8 px grid, 1 px borders. -->
+  <CornerRadius x:Key="Radius">4</CornerRadius>
+  <Thickness x:Key="Border1">1</Thickness>
+  <x:Double x:Key="Space">8</x:Double>
+  <x:Double x:Key="WaveformColumnWidth">300</x:Double>
+  <x:Double x:Key="TextColumnMaxWidth">720</x:Double>
+</ResourceDictionary>

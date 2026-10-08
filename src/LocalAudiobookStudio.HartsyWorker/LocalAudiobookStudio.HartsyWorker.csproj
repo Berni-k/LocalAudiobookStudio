@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Worker process for models that run on HartsyInference (pure C#/.NET inference) instead of Python.
+    Speaks the same newline-delimited JSON protocol as workers/common/protocol.py. The app starts one
+    process per device, like a Python worker; this exe is shared by every Hartsy-backed worker and is
+    told which model to run on the command line.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LocalAudiobookStudio.HartsyWorker</RootNamespace>
+    <AssemblyName>las-hartsy-worker</AssemblyName>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    Published as one file (the app's build does this, see LocalAudiobookStudio.App.csproj): the exe holds
+    every DLL plus HartsyInference's kernel folders (Ptx/, Spirv/), which it loads from AppContext.BaseDirectory.
+    Self-extract puts them all in a folder at first start (DOTNET_BUNDLE_EXTRACT_BASE_DIR, else %TEMP%\.net);
+    BaseDirectory then points there. Framework-dependent: it runs on the .NET the app runs on.
+  -->
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <DebugType>embedded</DebugType>
+    <!-- Restore for every platform the app builds the worker for (see LocalAudiobookStudio.App.csproj). -->
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HartsyInference.Engine" />
+  </ItemGroup>
+</Project>

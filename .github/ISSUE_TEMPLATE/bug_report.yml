@@ -1,0 +1,41 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. …
+  - type: textarea
+    id: about
+    attributes:
+      label: Version and setup
+      description: In the app, open *Help → About* and press **Copy info**, then paste it here.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: system
+    attributes:
+      label: System check
+      description: Open *Help → System check* and press **Copy report** (or run `las doctor`), then paste it here.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        If a worker failed, the worker log from the Jobs window or the session log (*Help → Open log folder*) helps a lot.
+        Please remove anything private first.
+      render: text

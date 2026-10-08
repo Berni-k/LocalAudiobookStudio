@@ -1,0 +1,23 @@
+{
+  "id": "cosyvoice2",
+  "displayName": "CosyVoice 2",
+  "description": "Zero-shot voice cloning: needs a reference clip on the speaker, ideally with its transcript. Natural, stable narration. Apache 2.0 license.",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone"],
+  "runtime": "hartsy",
+  "hartsyModel": "cosyvoice",
+  "modelVersion": "0.5B",
+  "maxChars": 1000,
+  "sampleRate": 24000,
+  "voiceCloning": true,
+  "approxVramGb": 4,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Works on the CPU, but slowly.",
+  "models": ["cosyvoice2-0.5b"],
+  "settings": [
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "",
+      "description": "The exact words spoken in the reference clip. Strongly recommended: without it the voice match is weaker." },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}
