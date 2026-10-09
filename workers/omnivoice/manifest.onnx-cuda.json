@@ -1,0 +1,8 @@
+{
+  "envGroup": "onnx1_30-cu13",
+  "requirements": "requirements.onnx.txt",
+  "entry": "worker_onnx.py",
+  "cpuRecommended": false,
+  "cpuNote": "The CUDA build also runs on the CPU, as slowly as the CPU runtime.",
+  "models": ["omnivoice-onnx"]
+}

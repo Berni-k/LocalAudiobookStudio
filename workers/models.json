@@ -510,6 +510,59 @@
       "files": {
         "model.safetensors": { "size": 1191586416, "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd" }
       }
+    },
+    "omnivoice": {
+      "displayName": "OmniVoice",
+      "sources": [
+        { "repo": "k2-fsa/OmniVoice", "revision": "c5fdb5ccb189668d56333f77ba2629f4cd7535f4" }
+      ],
+      "files": {
+        "audio_tokenizer/.gitattributes": { "size": 1519, "gitSha1": "a6344aac8c09253b3b630fb776ae94478aa0275b" },
+        "audio_tokenizer/LICENSE": { "size": 9171, "gitSha1": "000139f87ffdc03106fc422a3bd3cebebb9808b3" },
+        "audio_tokenizer/config.json": { "size": 2531, "gitSha1": "3f9e5ee43d2134dfdc1e38055fbcb24a18af1635" },
+        "audio_tokenizer/model.safetensors": { "size": 805665628, "sha256": "fe7c5e8785e0a05833e1bfc3e002ec7f55af21e306b2e7154a448c1f54ccfb0d" },
+        "audio_tokenizer/preprocessor_config.json": { "size": 206, "gitSha1": "aa7431e986f9e13157c60e04be8f52501b718254" },
+        "chat_template.jinja": { "size": 4168, "gitSha1": "01be9b307daa2d425f7c168c9fb145a286e0afb4" },
+        "config.json": { "size": 2238, "gitSha1": "dd518e816a5c4c8eba90820bb7efa49ceafbe223" },
+        "model.safetensors": { "size": 2450344112, "sha256": "730839316de585f4c8298ec0e1712efc10fb19c6fa4e36eb741cb8d51ebcf6aa" },
+        "tokenizer.json": { "size": 11423986, "sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1" },
+        "tokenizer_config.json": { "size": 533, "gitSha1": "a7fb6f8558cce2a23d4cbb186a4a740bd2d9d481" }
+      }
+    },
+    "omnivoice-onnx": {
+      "displayName": "OmniVoice (ONNX)",
+      "sources": [
+        { "repo": "OpenVoiceOS/phoonnx-omnivoice", "revision": "4a9057874d1af03416385146089e81066588bff6" }
+      ],
+      "include": ["*.onnx", "*.onnx_data", "tokenizer.json"],
+      "files": {
+        "acoustic_encoder.onnx": { "size": 205546480, "sha256": "431a5e58528f33c1f001baa64f979572667ff69f26bc727701e3529932065401" },
+        "higgs_decoder.onnx": { "size": 86500102, "sha256": "b28b3317a6cbf0d0f4a71b476ecb5c767612a31702da6561154783c94b6fa806" },
+        "omnivoice_backbone.onnx": { "size": 1375493, "sha256": "a34e137224b78d1870ccf375784ee101fb79d11e4094c93e82e11f721a948011" },
+        "omnivoice_backbone.onnx_data": { "size": 2450280448, "sha256": "2ea0980e184bbf8457048fbb3ed2a01f8f8c3816a8ee9fbff3ce0886c1aeeb4a" },
+        "quantizer_encoder.onnx": { "size": 12131293, "sha256": "e4f0b707b06c24f7343d0d2d9bd977c1a4560d64b84bd19f30cdde54da1731a9" },
+        "semantic_encoder.onnx": { "size": 436736856, "sha256": "db5751893fb44487658e8de1a88096b5421c590ac203c8d124b6972a990c79d3" },
+        "tokenizer.json": { "size": 11423986, "sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1" }
+      }
+    },
+    "whisper-large-v3-turbo": {
+      "displayName": "Whisper large-v3 turbo",
+      "sources": [
+        { "repo": "openai/whisper-large-v3-turbo", "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9" }
+      ],
+      "files": {
+        "added_tokens.json": { "size": 34648, "gitSha1": "1b33526d33aaa60d79f78ae8651dae50b730185a" },
+        "config.json": { "size": 1256, "gitSha1": "ad2f44ff1ed66e12765b2392dc041469db91a462" },
+        "generation_config.json": { "size": 3772, "gitSha1": "cbe752958dc3e4671b0e0220aa1c545423a6d5f5" },
+        "merges.txt": { "size": 493869, "gitSha1": "6038932a2a1f09a66991b1c2adae0d14066fa29e" },
+        "model.safetensors": { "size": 1617824864, "sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1" },
+        "normalizer.json": { "size": 52666, "gitSha1": "dd6ae819ad738ac1a546e9f9282ef325c33b9ea0" },
+        "preprocessor_config.json": { "size": 340, "gitSha1": "931c77a740890c46365c7ae0c9d350ba3cca908f" },
+        "special_tokens_map.json": { "size": 2186, "gitSha1": "312bc106291bb51bf2cc1648df070bef963a0639" },
+        "tokenizer.json": { "size": 2710337, "gitSha1": "17456db595adc78a973f97d69d8cb50bc87c0b1c" },
+        "tokenizer_config.json": { "size": 282843, "gitSha1": "06ffdc8308eae6bb7bd1fdd81e94b0a881a539ab" },
+        "vocab.json": { "size": 1036558, "gitSha1": "0f3456460629e21d559c6daa23ab6ce3644e8271" }
+      }
     }
   }
 }

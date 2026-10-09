@@ -31,7 +31,10 @@
         "numpy>=2.2.6,<2.4",
         "diffusers==0.40.0",
         "safetensors>=0.7.0",
-        "gradio ; sys_platform == 'never'"
+        "gradio ; sys_platform == 'never'",
+        // OmniVoice lists these for training only; tensorboardX would lift protobuf over descript-audiotools' <3.20 pin.
+        "tensorboardx ; sys_platform == 'never'",
+        "webdataset ; sys_platform == 'never'"
       ]
     },
     {

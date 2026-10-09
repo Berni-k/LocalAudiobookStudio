@@ -1,0 +1,7 @@
+# OmniVoice on ONNX Runtime (the onnx1_30-* environments bring onnxruntime itself, CPU or CUDA build).
+# tokenizers reads the model's tokenizer.json as upstream's AutoTokenizer does; pydub does the silence
+# trimming exactly as upstream (onnx_port/audio.py).
+tokenizers
+pydub
+soundfile
+numpy

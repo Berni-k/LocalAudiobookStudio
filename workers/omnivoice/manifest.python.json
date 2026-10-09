@@ -1,0 +1,8 @@
+{
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "cpuRecommended": false,
+  "cpuNote": "Upstream documents GPU use only; on the CPU it runs in float32 and is slow.",
+  "models": ["omnivoice", "whisper-large-v3-turbo"]
+}

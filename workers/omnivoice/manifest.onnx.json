@@ -1,0 +1,9 @@
+{
+  "envGroup": "onnx1_30-cpu",
+  "requirements": "requirements.onnx.txt",
+  "entry": "worker_onnx.py",
+  "devices": ["cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "A small environment without torch, but every step runs the 0.6B backbone twice: slow on the CPU.",
+  "models": ["omnivoice-onnx"]
+}

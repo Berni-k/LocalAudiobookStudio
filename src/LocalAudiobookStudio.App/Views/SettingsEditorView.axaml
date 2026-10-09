@@ -27,7 +27,9 @@
             <CheckBox IsVisible="{Binding IsBool}" IsChecked="{Binding BoolValue}" IsThreeState="{Binding AllowInherit}" Content="On" />
             <TextBox IsVisible="{Binding IsText}" Text="{Binding TextValue, UpdateSourceTrigger=LostFocus}" Watermark="{Binding Placeholder}"
                      TextWrapping="Wrap" MaxHeight="120" AcceptsReturn="{Binding IsMultiline}" />
-            <ComboBox IsVisible="{Binding IsEnum}" ItemsSource="{Binding Options}" SelectedItem="{Binding EnumValue}" PlaceholderText="{Binding Placeholder}" HorizontalAlignment="Stretch">
+            <!-- Typing jumps to the first option whose label starts with the typed text (long lists like OmniVoice's 646 languages). -->
+            <ComboBox IsVisible="{Binding IsEnum}" ItemsSource="{Binding Options}" SelectedItem="{Binding EnumValue}" PlaceholderText="{Binding Placeholder}" HorizontalAlignment="Stretch"
+                      IsTextSearchEnabled="True">
               <!-- Options the worker's runtime can't do are listed but can't be picked. -->
               <ComboBox.Styles>
                 <Style Selector="ComboBoxItem">

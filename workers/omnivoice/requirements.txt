@@ -1,0 +1,6 @@
+# torch and torchaudio come from the shared environment (workers/environments.json). omnivoice needs
+# transformers >= 5.3 (its audio tokenizer is transformers' HiggsAudioV2TokenizerModel); gradio, which it
+# lists for its demo, is dropped by the environment.
+omnivoice==0.2.1
+soundfile
+numpy
