@@ -1,0 +1,7 @@
+# torch and torchaudio come from the shared environment (workers/environments.json), whose overrides replace
+# upstream's torch 2.9.1 pin. breeze-tts itself isn't a package: the worker downloads its source (worker.py).
+# Its requirements.txt at the pinned commit: qwen-tts 0.1.1 (the audio tokenizer) and transformers 4.57.3,
+# which is why it lives in the tx4 environment. fastapi/uvicorn (its server) and pytest/ruff are left out.
+qwen-tts==0.1.1
+soundfile>=0.13
+numpy>=2.0

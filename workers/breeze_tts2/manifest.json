@@ -1,0 +1,32 @@
+{
+  "id": "breeze_tts2",
+  "displayName": "Breeze TTS 2",
+  "description": "Expressive English and Mandarin TTS. Clones a voice from a short clip, designs one from a written description, or keeps a cloned voice and directs its tone, emotion and pace. Inline vocal events such as (laugh), (sigh) or [笑]. 24 kHz mono, needs a 12 GB GPU. BreezeBlue Research and Non-Commercial License.",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone", "Voice design", "Voice direction"],
+  "priority": 80,
+  "modelVersion": "3e28c515",
+  "envGroup": "torch2_11-cu128-tx4",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 800,
+  "sampleRate": 24000,
+  "voiceCloning": true,
+  "approxVramGb": 9,
+  "devices": ["cuda"],
+  "models": ["breeze-tts-2", "whisper-large-v3-turbo"],
+  "workerSettings": [
+    { "key": "fastPath", "type": "bool", "default": true, "label": "Fast path (CUDA graphs)",
+      "description": "About 5x faster (RTF ~0.6 instead of ~3 on an RTX 3090) for ~1 GB more VRAM and ~20 s more loading time. Turn it off if loading fails on your GPU." }
+  ],
+  "settings": [
+    { "key": "instruction", "type": "string", "label": "Voice description / direction", "default": "", "multiline": true,
+      "description": "Without a reference clip: describes the voice, e.g. \"A warm, thoughtful young woman with a calm, reflective delivery.\" With a clip: directs it, e.g. \"Speak slowly with a restrained, serious tone.\" Write it in the language of the text." },
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "",
+      "description": "Cloning: the exact words spoken in the reference clip, repetitions included. Leave empty to have Whisper transcribe it (downloads Whisper the first time, 1.6 GB)." },
+    { "key": "cfgScale", "type": "float", "min": 1.0, "max": 8.0, "step": 0.5, "default": 4.0, "label": "Instruction strength",
+      "description": "Classifier-free guidance, used only with a description or direction. 4 is upstream's recommendation; higher follows the instruction more closely." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 1.5, "step": 0.05, "default": 0.9, "label": "Temperature" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}
