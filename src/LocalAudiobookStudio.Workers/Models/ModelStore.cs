@@ -361,10 +361,15 @@ public sealed class ModelStore
             {
                 var hash = await DownloadAsync(source, path, partial, report, info.NewHash(), ct).ConfigureAwait(false);
                 var size = new FileInfo(partial).Length;
-                if (size != info.Size || hash != info.Expected)
+                if (size != info.Size)
                 {
                     TryDelete(partial);
                     throw new IOException($"the file differs from the pinned version (size {size}, expected {info.Size})");
+                }
+                if (hash != info.Expected)
+                {
+                    TryDelete(partial);
+                    throw new IOException($"the file differs from the pinned version (hash {hash}, expected {info.Expected})");
                 }
                 File.Move(partial, target, overwrite: true);
                 return source;

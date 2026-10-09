@@ -243,7 +243,8 @@ public sealed class ModelStoreTests : IDisposable
             // Every model with a Hub source has its file list (las models pin).
             if (m.Sources.Any(s => s.IsHub)) Assert.True(m.Files.Count > 0, $"{m.Id} isn't pinned");
             Assert.All(m.Sources.Where(s => s.IsHub), s => Assert.Matches("^[0-9a-f]{40}$", s.Revision ?? ""));
-            Assert.All(m.Files.Values, f => Assert.False(string.IsNullOrEmpty(f.Expected), $"{m.Id} has a file without a hash"));
+            // A real hash, not just a non-empty one: a masked or hand-edited value would fail every download.
+            Assert.All(m.Files, f => Assert.Matches(f.Value.Sha256 != null ? "^[0-9a-f]{64}$" : "^[0-9a-f]{40}$", f.Value.Expected));
         }
         Assert.All(workers.AllRuntimes.Where(w => !w.External && w.Id != "test_tone"), w => Assert.NotEmpty(w.Models));
     }

@@ -315,27 +315,15 @@
       ],
       "files": {
         "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
-        "model.safetensors": {
-          "size": 2270384940,
-          "sha256": "****************************************************************"
-        },
+        "model.safetensors": { "size": 2270384940, "sha256": "ed9cf1b6172f1a8c2921a9560c21109ff3239524563ced9dce6dcdef41e2f515" },
         "model_config.json": { "size": 10454, "gitSha1": "0321320a34e3e0ceda48e47c2c36b70234df746f" },
         "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
         "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
         "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
-        "t5gemma-b-b-ul2/model.safetensors": {
-          "size": 1183022944,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/model.safetensors": { "size": 1183022944, "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3" },
         "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
-        "t5gemma-b-b-ul2/tokenizer.json": {
-          "size": 34362429,
-          "sha256": "****************************************************************"
-        },
-        "t5gemma-b-b-ul2/tokenizer.model": {
-          "size": 4241003,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/tokenizer.json": { "size": 34362429, "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd" },
+        "t5gemma-b-b-ul2/tokenizer.model": { "size": 4241003, "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2" },
         "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
       }
     },
@@ -347,27 +335,15 @@
       ],
       "files": {
         "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
-        "model.safetensors": {
-          "size": 2270384940,
-          "sha256": "****************************************************************"
-        },
+        "model.safetensors": { "size": 2270384940, "sha256": "da85866b11b01d0694d990785f6abbd79c8064df1b0e6f8aea52935e0ef84b64" },
         "model_config.json": { "size": 10341, "gitSha1": "29ba617d6556c9e3c94bea19f07ea66d0c895e9e" },
         "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
         "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
         "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
-        "t5gemma-b-b-ul2/model.safetensors": {
-          "size": 1183022944,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/model.safetensors": { "size": 1183022944, "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3" },
         "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
-        "t5gemma-b-b-ul2/tokenizer.json": {
-          "size": 34362429,
-          "sha256": "****************************************************************"
-        },
-        "t5gemma-b-b-ul2/tokenizer.model": {
-          "size": 4241003,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/tokenizer.json": { "size": 34362429, "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd" },
+        "t5gemma-b-b-ul2/tokenizer.model": { "size": 4241003, "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2" },
         "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
       }
     },
@@ -379,27 +355,15 @@
       ],
       "files": {
         "NOTICE": { "size": 97, "gitSha1": "27fe1d325f98f3f4643f3ba5735584cffd2553dd" },
-        "model.safetensors": {
-          "size": 9222116660,
-          "sha256": "****************************************************************"
-        },
+        "model.safetensors": { "size": 9222116660, "sha256": "48d9c65e290e7bcd5194e0633bfc2424a59ee9683f5c2d58762d997b7d8ce0b5" },
         "model_config.json": { "size": 10360, "gitSha1": "331bfb7e610b15000c930a38f0543f75f3b132be" },
         "t5gemma-b-b-ul2/.gitattributes": { "size": 1570, "gitSha1": "52373fe24473b1aa44333d318f578ae6bf04b49b" },
         "t5gemma-b-b-ul2/config.json": { "size": 2540, "gitSha1": "f5282e2a2964d231e0f19cb2a23f39e08de83128" },
         "t5gemma-b-b-ul2/generation_config.json": { "size": 156, "gitSha1": "a1afbdafc25667679ab591fc9aca56d4a0b91c3d" },
-        "t5gemma-b-b-ul2/model.safetensors": {
-          "size": 1183022944,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/model.safetensors": { "size": 1183022944, "sha256": "9b05ea5a4f211d023832f706fb2c0e83e4fc721b6da35ab69ceb0b55eb7800d3" },
         "t5gemma-b-b-ul2/special_tokens_map.json": { "size": 636, "gitSha1": "8d6368f7e735fbe4781bf6e956b7c6ad0586df80" },
-        "t5gemma-b-b-ul2/tokenizer.json": {
-          "size": 34362429,
-          "sha256": "****************************************************************"
-        },
-        "t5gemma-b-b-ul2/tokenizer.model": {
-          "size": 4241003,
-          "sha256": "****************************************************************"
-        },
+        "t5gemma-b-b-ul2/tokenizer.json": { "size": 34362429, "sha256": "7794135caa3ea73918949c902a781cc61dab674a4b59c17d85931c77c1114cbd" },
+        "t5gemma-b-b-ul2/tokenizer.model": { "size": 4241003, "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2" },
         "t5gemma-b-b-ul2/tokenizer_config.json": { "size": 46437, "gitSha1": "4d625a54ce31c6629f25dadcc7d878e771b40ef7" }
       }
     },
