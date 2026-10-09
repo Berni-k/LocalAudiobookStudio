@@ -81,6 +81,10 @@
                 <TextBox Text="{Binding HuggingFaceToken}" PasswordChar="•" RevealPassword="False" Watermark="hf_…"
                          ToolTip.Tip="An access token from huggingface.co/settings/tokens. Gated models (Stable Audio 3) also need their terms accepted on their Hugging Face page." />
                 <TextBlock Text="For gated models. Saved in plain text in settings.json: only use a read-only token." Classes="caption" TextWrapping="Wrap" />
+                <!-- Opens Hugging Face's "new token" page with the read-only type already picked. -->
+                <HyperlinkButton Content="Create a read-only token on Hugging Face"
+                                 NavigateUri="https://huggingface.co/settings/tokens/new?tokenType=read"
+                                 Padding="0" FontSize="12" HorizontalAlignment="Left" />
               </StackPanel>
             </Grid>
             <Grid>
