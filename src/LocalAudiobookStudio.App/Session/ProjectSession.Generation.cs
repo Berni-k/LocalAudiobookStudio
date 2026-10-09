@@ -185,14 +185,14 @@ public sealed partial class ProjectSession
 
     /// <summary>
     /// Adds a file to the project's assets: a ComfyUI workflow (.json) or an audio file. <paramref name="folder"/>
-    /// is a folder below assets/ ("Voice Reference"), created when missing; null for assets/ itself. Returns the
-    /// project-relative path.
+    /// is a folder below assets/ ("Voice Reference"), created when missing; null for assets/ itself. An audio file
+    /// is named <paramref name="name"/> when given, else after the source file. Returns the project-relative path.
     /// </summary>
-    public async Task<string> ImportAssetAsync(string source, string? folder = null)
+    public async Task<string> ImportAssetAsync(string source, string? folder = null, string? name = null)
     {
         var rel = Path.GetExtension(source).Equals(".json", StringComparison.OrdinalIgnoreCase)
             ? await ImportWorkflowFileAsync(source, folder)
-            : await ImportClipFileAsync(source, folder);
+            : await ImportClipFileAsync(source, folder, name);
         AssetsChanged?.Invoke();
         return rel;
     }
@@ -203,14 +203,15 @@ public sealed partial class ProjectSession
     /// <summary>
     /// Copies an audio file into assets/ (or a folder below it). MP3 and Opus files are kept as they are. A WAV
     /// is stored in the project's audio format (compressed to Opus, or copied). Other formats (FLAC, M4A, …) are
-    /// converted with ffmpeg first, so playback never needs ffmpeg. Returns the project-relative path.
+    /// converted with ffmpeg first, so playback never needs ffmpeg. The asset is named <paramref name="name"/>
+    /// (without extension) when given, else after the source file. Returns the project-relative path.
     /// </summary>
-    public async Task<string> ImportClipFileAsync(string source, string? folder = null)
+    public async Task<string> ImportClipFileAsync(string source, string? folder = null, string? name = null)
     {
         var dir = AssetFolder(folder);
         Directory.CreateDirectory(dir);
         var ext = Path.GetExtension(source).ToLowerInvariant();
-        var stem = AudiobookExporter.SafeFileName(Path.GetFileNameWithoutExtension(source));
+        var stem = AudiobookExporter.SafeFileName(name ?? Path.GetFileNameWithoutExtension(source));
         string Target(string extension)
         {
             var target = Path.Combine(dir, stem + extension);

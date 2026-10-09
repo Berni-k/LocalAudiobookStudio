@@ -168,6 +168,9 @@
                       <TextBlock Text="Stop" />
                     </StackPanel>
                   </Button>
+                  <!-- Keeps the last preview in assets/Generated, e.g. as another speaker's reference clip. -->
+                  <Button Content="Save as asset" Command="{Binding SavePreviewAsAssetCommand}" IsVisible="{Binding CanSavePreview}"
+                          ToolTip.Tip="Add the last preview to the project's assets (Generated), named after the speaker and model" />
                   <TextBlock Text="{Binding PreviewStatus}" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
                 </StackPanel>
               </Grid>

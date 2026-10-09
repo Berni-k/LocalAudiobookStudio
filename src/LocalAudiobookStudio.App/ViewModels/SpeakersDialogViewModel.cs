@@ -112,6 +112,15 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private decimal? _previewLength;
     [ObservableProperty] private bool _isPreviewing;
 
+    /// <summary>The last preview that finished, and who made it (for its asset name).</summary>
+    private sealed record PreviewClip(string Path, string SpeakerId, string SpeakerName, string WorkerName);
+    private PreviewClip? _lastPreview;
+    private bool _lastPreviewSaved;
+
+    /// <summary>"Save as asset" shows for the selected speaker's last preview, until it is saved.</summary>
+    public bool CanSavePreview => _lastPreview != null && !_lastPreviewSaved && Selected?.Id == _lastPreview.SpeakerId
+                                  && File.Exists(_lastPreview.Path);
+
     public bool HasSelection => Selected != null;
     public string SpeakerId => Selected?.Id ?? "";
     public bool IsDefault => Selected != null && string.Equals(_session.Project.Defaults.Speaker, Selected.Id, StringComparison.OrdinalIgnoreCase);
@@ -154,6 +163,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         // A transient deselection while saving must not blank the editor.
         if (_committing && value == null) return;
         Load();
+        OnPropertyChanged(nameof(CanSavePreview));
     }
 
     private void Load()
@@ -418,6 +428,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (reason != null) { PreviewStatus = reason; return; }
 
         var sp = Selected.Model;
+        var workerName = Worker.DisplayName;
         var dir = Path.Combine(_session.Paths.CacheDir, "previews");
         Directory.CreateDirectory(dir);
         var outPath = Path.Combine(dir, $"{sp.Id}-{DateTime.Now:HHmmssfff}.wav");
@@ -444,6 +455,9 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             if (finished.State == JobState.Completed && File.Exists(outPath))
             {
                 PreviewStatus = $"Done (seed {finished.Result?.Seed}).";
+                _lastPreview = new PreviewClip(outPath, sp.Id, sp.DisplayName, workerName);
+                _lastPreviewSaved = false;
+                OnPropertyChanged(nameof(CanSavePreview));
                 if (_player != null)
                 {
                     await _player.PlayFileAsync(outPath);
@@ -460,6 +474,32 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             AppHost.Scheduler.JobCompleted -= Done;
             AppHost.Scheduler.JobFailed -= Done;
             IsPreviewing = false;
+        }
+    }
+
+    /// <summary>The folder below assets/ that saved previews go into.</summary>
+    private const string GeneratedAssetFolder = "Generated";
+
+    /// <summary>
+    /// Keeps the last preview as an asset in assets/Generated, named "&lt;speaker&gt; - &lt;worker&gt; - &lt;timestamp&gt;":
+    /// a voice generated here can then be another speaker's reference clip.
+    /// </summary>
+    [RelayCommand]
+    private async Task SavePreviewAsAsset()
+    {
+        if (_lastPreview is not { } clip || !File.Exists(clip.Path)) return;
+        var who = $"{clip.SpeakerName} - {clip.WorkerName}";
+        if (who.Length > 60) who = who[..60].TrimEnd(); // asset names are cut at 80 characters; keep the timestamp
+        try
+        {
+            var rel = await _session.ImportAssetAsync(clip.Path, GeneratedAssetFolder, $"{who} - {DateTime.Now:yyyyMMdd-HHmmss}");
+            _lastPreviewSaved = true;
+            OnPropertyChanged(nameof(CanSavePreview));
+            PreviewStatus = $"Saved as {Path.GetFileNameWithoutExtension(rel)} in {GeneratedAssetFolder}.";
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowError("Save as asset", ex.Message);
         }
     }
 }
