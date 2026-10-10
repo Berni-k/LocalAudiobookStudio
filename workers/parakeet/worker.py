@@ -11,14 +11,13 @@ environment the CUDA build (NVIDIA's libraries come as packages and are loaded w
 import math
 import os
 import sys
-import wave
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+from common.audio import SAMPLE_RATE, quiet_pieces, read_wav  # noqa: E402
 from common.protocol import Cancelled, ensure_model, log, run_worker, worker_settings  # noqa: E402
 
 MODELS = {"int8": "parakeet-tdt-0.6b-v3-onnx-int8", "full": "parakeet-tdt-0.6b-v3-onnx"}  # workers/models.json
-SAMPLE_RATE = 16000  # the app always sends 16 kHz mono WAV
 FRAME_SEC = 0.08  # one encoder frame: 10 ms features, subsampled 8x
 
 # The model was trained on short utterances and attends over the whole input, so long takes are cut at their
@@ -36,38 +35,6 @@ def _cuda_build():
     if hasattr(ort, "preload_dlls"):
         ort.preload_dlls()
     return True
-
-
-def _read_wav(path):
-    """16-bit mono PCM (what the app writes) as float32 samples."""
-    import numpy as np
-
-    with wave.open(path, "rb") as w:
-        if w.getsampwidth() != 2 or w.getnchannels() != 1:
-            raise ValueError("expected 16-bit mono WAV")
-        if w.getframerate() != SAMPLE_RATE:
-            raise ValueError(f"expected {SAMPLE_RATE} Hz, got {w.getframerate()} Hz")
-        pcm = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
-    return pcm.astype(np.float32) / 32768.0
-
-
-def _chunks(audio):
-    """(start sample, end sample) pieces of at most MAX_CHUNK_SEC, cut where the audio is quietest."""
-    import numpy as np
-
-    total = len(audio)
-    hop = SAMPLE_RATE // 50  # 20 ms energy windows
-    pieces, start = [], 0
-    while total - start > MAX_CHUNK_SEC * SAMPLE_RATE:
-        lo = start + int(MIN_CHUNK_SEC * SAMPLE_RATE)
-        hi = start + int(MAX_CHUNK_SEC * SAMPLE_RATE)
-        windows = audio[lo:hi - (hi - lo) % hop].reshape(-1, hop)
-        quietest = int(np.argmin((windows ** 2).mean(axis=1)))
-        cut = lo + quietest * hop + hop // 2
-        pieces.append((start, cut))
-        start = cut
-    pieces.append((start, total))
-    return pieces
 
 
 class ParakeetWorker:
@@ -121,8 +88,8 @@ class ParakeetWorker:
         log(f"Parakeet ({self.precision}) loaded on {self.device}, providers {self.asr._encoder.get_providers()}")
 
     def transcribe(self, req, report):
-        audio = _read_wav(req.audio_path)
-        pieces = _chunks(audio)
+        audio = read_wav(req.audio_path)
+        pieces = quiet_pieces(audio, MIN_CHUNK_SEC, MAX_CHUNK_SEC)
         words = []
         for i, (start, end) in enumerate(pieces):
             report(i / len(pieces), "Listening" if len(pieces) == 1 else f"Listening (part {i + 1} of {len(pieces)})")
