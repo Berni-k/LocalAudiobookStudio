@@ -28,7 +28,7 @@ public static class Transcription
     }
 
     /// <summary>A job that transcribes <paramref name="wavPath"/> (prepared with <see cref="PrepareAudio"/>).</summary>
-    public static GenerationJob Job(WorkerManifest worker, string wavPath, string? expectedText, string? language, JsonObject settings,
+    public static GenerationJob Job(WorkerManifest worker, string wavPath, string? expectedText, JsonObject settings,
         string label, JobPriority priority, object? tag = null, long readingOrder = 0) =>
         new()
         {
@@ -37,7 +37,7 @@ public static class Transcription
             ReadingOrder = readingOrder,
             Label = label,
             Tag = tag,
-            Transcribe = new TranscribeRequest { AudioPath = wavPath, Text = expectedText, Language = language, Settings = settings },
+            Transcribe = new TranscribeRequest { AudioPath = wavPath, Text = expectedText, Settings = settings },
         };
 
     public static TranscriptCheck Check(string expectedText, TranscriptResult transcript) =>

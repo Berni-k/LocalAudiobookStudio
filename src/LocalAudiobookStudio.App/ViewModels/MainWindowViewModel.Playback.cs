@@ -327,6 +327,9 @@ public sealed partial class MainWindowViewModel
         return Task.CompletedTask;
     }
 
+    /// <summary>Where a file played with <see cref="PlayFileAsync"/> is, in ms; null when no such file is playing.</summary>
+    public double? FilePositionMs => _engine is { IsPlaying: true, Mode: PlaybackMode.Preview } e ? e.PositionMs : null;
+
     /// <summary>A/B comparison: plays the previous take, then the selected take.</summary>
     public void PlayAB(ItemViewModel item, int takeA, int takeB)
     {

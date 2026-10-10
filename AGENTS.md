@@ -122,8 +122,9 @@ Rules that follow from this:
      `devices` (`["cuda"]`, `["cuda", "cpu"]`; `cpuRecommended: false` for slow CPU runs).
    - A worker tagged `Transcription` (hears words, with timings) or `Alignment` (finds a known text's words in audio)
      listens instead of generating: it implements `transcribe(req, report)` instead of `generate`, gets a 16 kHz mono
-     WAV (`req.audio_path`) and the expected text (`req.text`), and isn't offered as a speaker's voice. `languages`
-     lists what it understands. Copy `parakeet`.
+     WAV (`req.audio_path`) and the expected text (`req.text`), and isn't offered as a speaker's voice. A language
+     is an ordinary `language` enum setting (`Auto` plus codes, read from `req.settings`), as in `whisper`; a model
+     that detects the language itself has none. Copy `parakeet`.
    - `settings`: per speaker, overridable per segment. Types: `float`, `int`, `bool`, `string`, `enum` (`options`,
      `optionLabels`), `seed`, `file`, `asset` (`extensions`; `addsSettings` to read more settings from the file).
      A `voice` enum setting holds built-in voices. `workerSettings` are per machine (servers, tokens).

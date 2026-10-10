@@ -35,9 +35,6 @@ public sealed class WorkerManifest
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsTranscriber => HasTag(WorkerTags.Transcription) || HasTag(WorkerTags.Alignment);
 
-    /// <summary>Languages the worker understands (codes like "en", "de"), for transcribers; empty = not stated.</summary>
-    public List<string> Languages { get; set; } = new();
-
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
     /// The Workers window hides workers whose runtimes are all experimental unless "Show all workers" is on.

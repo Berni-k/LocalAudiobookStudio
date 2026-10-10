@@ -56,7 +56,6 @@ public static class InfoCommands
             length = m.LengthMode,
             voices = m.VoiceSetting?.Options,
             transcribes = m.IsTranscriber,
-            languages = m.Languages.Count > 0 ? m.Languages : null,
             settings = m.Settings.Select(s => new
             {
                 key = s.Key,
@@ -77,7 +76,7 @@ public static class InfoCommands
         if (info.whyNotReady != null) ctx.Out("  " + info.whyNotReady);
         if (!string.IsNullOrEmpty(m.Description)) ctx.Out("  " + m.Description);
         if (m.IsTranscriber)
-            ctx.Out($"  transcribes audio (las transcribe -w {m.Id}){(m.Languages.Count > 0 ? "; languages: " + string.Join(", ", m.Languages) : "")}");
+            ctx.Out($"  transcribes audio (las transcribe -w {m.Id})");
         else
             ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
         if (m.Settings.Count > 0) ctx.Out("  settings (--set key=value):");

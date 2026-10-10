@@ -15,6 +15,23 @@
       "small": { "model": "whisper-small-ggml-q8", "file": "ggml-small-q8_0.bin", "dtwHeads": "Small" }
     }
   },
-  "languages": ["en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su", "yue"],
+  "settings": [
+    { "key": "language", "type": "enum", "label": "Language", "default": "Auto",
+      "description": "The language of the audio. Auto detects it, but naming the language is more reliable, especially for short takes.",
+      "options": [
+        "Auto", "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca", "cs", "cy", "da", "de", "el", "en",
+        "es", "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw", "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it",
+        "ja", "jw", "ka", "kk", "km", "kn", "ko", "la", "lb", "ln", "lo", "lt", "lv", "mg", "mi", "mk", "ml", "mn", "mr", "ms",
+        "mt", "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt", "ro", "ru", "sa", "sd", "si", "sk", "sl", "sn", "so",
+        "sq", "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl", "tr", "tt", "uk", "ur", "uz", "vi", "yi", "yo", "yue", "zh"
+      ],
+      "optionLabels": [
+        "Auto", "af - Afrikaans", "am - Amharic", "ar - Arabic", "as - Assamese", "az - Azerbaijani", "ba - Bashkir", "be - Belarusian", "bg - Bulgarian", "bn - Bengali", "bo - Tibetan", "br - Breton", "bs - Bosnian", "ca - Catalan", "cs - Czech", "cy - Welsh", "da - Danish", "de - German", "el - Greek", "en - English",
+        "es - Spanish", "et - Estonian", "eu - Basque", "fa - Persian", "fi - Finnish", "fo - Faroese", "fr - French", "gl - Galician", "gu - Gujarati", "ha - Hausa", "haw - Hawaiian", "he - Hebrew", "hi - Hindi", "hr - Croatian", "ht - Haitian Creole", "hu - Hungarian", "hy - Armenian", "id - Indonesian", "is - Icelandic", "it - Italian",
+        "ja - Japanese", "jw - Javanese", "ka - Georgian", "kk - Kazakh", "km - Khmer", "kn - Kannada", "ko - Korean", "la - Latin", "lb - Luxembourgish", "ln - Lingala", "lo - Lao", "lt - Lithuanian", "lv - Latvian", "mg - Malagasy", "mi - Maori", "mk - Macedonian", "ml - Malayalam", "mn - Mongolian", "mr - Marathi", "ms - Malay",
+        "mt - Maltese", "my - Burmese", "ne - Nepali", "nl - Dutch", "nn - Nynorsk", "no - Norwegian", "oc - Occitan", "pa - Punjabi", "pl - Polish", "ps - Pashto", "pt - Portuguese", "ro - Romanian", "ru - Russian", "sa - Sanskrit", "sd - Sindhi", "si - Sinhala", "sk - Slovak", "sl - Slovenian", "sn - Shona", "so - Somali",
+        "sq - Albanian", "sr - Serbian", "su - Sundanese", "sv - Swedish", "sw - Swahili", "ta - Tamil", "te - Telugu", "tg - Tajik", "th - Thai", "tk - Turkmen", "tl - Tagalog", "tr - Turkish", "tt - Tatar", "uk - Ukrainian", "ur - Urdu", "uz - Uzbek", "vi - Vietnamese", "yi - Yiddish", "yo - Yoruba", "yue - Cantonese", "zh - Chinese"
+      ] }
+  ],
   "approxVramGb": 4
 }

@@ -177,7 +177,6 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             Type = MessageTypes.Transcribe,
             AudioPath = request.AudioPath,
             Text = request.Text,
-            Language = request.Language,
             Settings = request.Settings,
         };
         var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);

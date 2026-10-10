@@ -84,7 +84,7 @@ public sealed class WorkerMessage
     // voices
     public List<VoiceEntry>? Voices { get; set; }
 
-    // transcribe (app → worker: AudioPath, Text, Language, Settings) and transcript (worker → app: Text, Words, Language)
+    // transcribe (app → worker: AudioPath, Text, Settings) and transcript (worker → app: Text, Words, Language: the one it heard)
     public string? AudioPath { get; set; }
     public string? Language { get; set; }
     public List<TranscriptWord>? Words { get; set; }
@@ -137,9 +137,6 @@ public sealed class TranscribeRequest
 
     /// <summary>The text the audio should contain: aligners need it; transcribers may ignore it.</summary>
     public string? Text { get; init; }
-
-    /// <summary>Language code ("en", "de"), or null to let the worker detect it.</summary>
-    public string? Language { get; init; }
 
     public JsonObject Settings { get; init; } = new();
 }

@@ -24,7 +24,6 @@ public static class TranscribeCommand
         new("--runtime"),
         new("--device"),
         new("--set", Repeatable: true),
-        new("--language", "-l"),
         new("--text", "-t"),
         new("--text-file", "-f"),
         new("--words", HasValue: false),
@@ -60,7 +59,7 @@ public static class TranscribeCommand
         Directory.CreateDirectory(temp);
         try
         {
-            return await TranscribeAsync(ctx, host, manifest, settings, a.Get("--language"), a.Has("--words") || aligner, aligner, units, temp);
+            return await TranscribeAsync(ctx, host, manifest, settings, a.Has("--words") || aligner, aligner, units, temp);
         }
         finally
         {
@@ -152,7 +151,7 @@ public static class TranscribeCommand
     // ------------------------------------------------------------------ transcribing
 
     private static async Task<int> TranscribeAsync(CliContext ctx, StudioHost host, WorkerManifest manifest, JsonObject settings,
-        string? language, bool showWords, bool aligner, List<Unit> units, string temp)
+        bool showWords, bool aligner, List<Unit> units, string temp)
     {
         var jobs = new List<GenerationJob>();
         var owner = new Dictionary<Guid, Unit>();
@@ -169,7 +168,7 @@ public static class TranscribeCommand
                 unit.Error = $"Can't read the audio: {ex.Message}";
                 continue;
             }
-            var job = Transcription.Job(manifest, unit.Wav, unit.Expected, language, settings, Path.GetFileName(unit.Audio),
+            var job = Transcription.Job(manifest, unit.Wav, unit.Expected, settings, Path.GetFileName(unit.Audio),
                 JobPriority.Normal, tag: "las-transcribe", readingOrder: i);
             jobs.Add(job);
             owner[job.Id] = unit;

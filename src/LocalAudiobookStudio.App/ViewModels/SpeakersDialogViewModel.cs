@@ -7,6 +7,8 @@ using LocalAudiobookStudio.App.Services;
 using LocalAudiobookStudio.App.Session;
 using LocalAudiobookStudio.Core.IO;
 using LocalAudiobookStudio.Core.Model;
+using LocalAudiobookStudio.Core.Transcripts;
+using LocalAudiobookStudio.Engine;
 using LocalAudiobookStudio.Workers.Manifest;
 using LocalAudiobookStudio.Workers.Protocol;
 using LocalAudiobookStudio.Workers.Scheduling;
@@ -49,6 +51,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     public void Close()
     {
         StopPreview();
+        _follow?.Dispose();
         if (_player != null) _player.PropertyChanged -= OnPlayerChanged;
     }
 
@@ -77,16 +80,46 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         list.AddRange(AppHost.Catalog.Generators.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
         if (sp != null && !string.IsNullOrEmpty(sp.Worker) && list.All(w => w.Id != sp.Worker))
             list.Add(AppHost.Catalog.Get(sp.Worker) ?? new WorkerManifest { Id = sp.Worker, DisplayName = sp.Worker + " (unknown worker)" });
-        // Update in place: replacing the collection would make the dropdown push a null selection back.
-        for (int i = Workers.Count - 1; i >= 0; i--)
-            if (!list.Contains(Workers[i])) Workers.RemoveAt(i);
+        SyncList(Workers, list);
+    }
+
+    /// <summary>Updates a dropdown's items in place: replacing the collection would make the dropdown push a null selection back.</summary>
+    private static void SyncList(ObservableCollection<WorkerManifest> target, List<WorkerManifest> list)
+    {
+        for (int i = target.Count - 1; i >= 0; i--)
+            if (!list.Contains(target[i])) target.RemoveAt(i);
         for (int i = 0; i < list.Count; i++)
-            if (i >= Workers.Count || !ReferenceEquals(Workers[i], list[i]))
+            if (i >= target.Count || !ReferenceEquals(target[i], list[i]))
             {
-                Workers.Remove(list[i]);
-                Workers.Insert(i, list[i]);
+                target.Remove(list[i]);
+                target.Insert(i, list[i]);
             }
     }
+
+    /// <summary>"None": the speaker has no transcription worker. Only stands for that choice in the dropdown.</summary>
+    public static readonly WorkerManifest NoTranscriber = new()
+    {
+        Id = "",
+        DisplayName = "None",
+        Description = "No transcription.",
+    };
+
+    /// <summary>The transcription dropdown: None, then the installed transcription workers (plus the speaker's own if it isn't installed).</summary>
+    public ObservableCollection<WorkerManifest> Transcribers { get; } = new();
+
+    private void RebuildTranscribers(Speaker? sp)
+    {
+        var list = new List<WorkerManifest> { NoTranscriber };
+        list.AddRange(AppHost.Catalog.Transcribers.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
+        if (sp != null && !string.IsNullOrEmpty(sp.Transcriber) && list.All(w => w.Id != sp.Transcriber))
+            list.Add(AppHost.Catalog.Get(sp.Transcriber) ?? new WorkerManifest { Id = sp.Transcriber, DisplayName = sp.Transcriber + " (unknown worker)" });
+        SyncList(Transcribers, list);
+    }
+
+    public bool HasTranscriber => Transcriber != null && !ReferenceEquals(Transcriber, NoTranscriber);
+    public bool IsTranscriberMissing => HasTranscriber && !AppHost.Environments.IsWorkerReady(Transcriber!.Id);
+    public string MissingTranscriberText => Transcriber == null ? "" : $"{Transcriber.DisplayName} is not installed. Install it in Workers, or pick another.";
+    public string TranscriberInfo => Transcriber == null ? "" : Transcriber.Description ?? "";
 
     /// <summary>The speaker's worker isn't installed on this machine.</summary>
     public bool IsWorkerMissing => Worker != null && !IsRecorded && !AppHost.Environments.IsWorkerReady(Worker.Id);
@@ -105,6 +138,8 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private string? _voiceFile;
     [ObservableProperty] private string _aliases = "";
     [ObservableProperty] private SettingsEditorViewModel? _settings;
+    [ObservableProperty] private WorkerManifest? _transcriber;
+    [ObservableProperty] private SettingsEditorViewModel? _transcriberSettings;
     [ObservableProperty] private string _previewText = "The quick brown fox jumps over the lazy dog. How does this voice sound?";
     [ObservableProperty] private string? _previewStatus;
 
@@ -112,10 +147,144 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private decimal? _previewLength;
     [ObservableProperty] private bool _isPreviewing;
 
+    // ------------------------------------------------------------------ preview transcription
+
+    /// <summary>The text the preview's transcript was checked against, and the result (null until a preview was transcribed).</summary>
+    [ObservableProperty] private string? _transcriptSource;
+    [ObservableProperty] private TranscriptCheck? _transcriptCheck;
+
+    /// <summary>"Transcribing…", a failure, or how the transcript compares with the text.</summary>
+    [ObservableProperty] private string? _transcriptStatus;
+
+    /// <summary>What the transcription worker heard, as plain text.</summary>
+    [ObservableProperty] private string? _heardText;
+
+    /// <summary>Where the preview is playing, in ms (for highlighting the word); -1 when it isn't.</summary>
+    [ObservableProperty] private double _playbackMs = -1;
+
+    private IDisposable? _follow;
+
+    public bool HasTranscript => TranscriptCheck != null;
+    public bool HasMismatch => TranscriptCheck is { Errors: > 0 };
+    public bool HasTranscriptStatus => !string.IsNullOrEmpty(TranscriptStatus);
+    public bool ShowTranscript => HasTranscript || HasTranscriptStatus;
+
+    partial void OnTranscriptCheckChanged(TranscriptCheck? value)
+    {
+        OnPropertyChanged(nameof(HasTranscript));
+        OnPropertyChanged(nameof(HasMismatch));
+        OnPropertyChanged(nameof(ShowTranscript));
+    }
+
+    partial void OnTranscriptStatusChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasTranscriptStatus));
+        OnPropertyChanged(nameof(ShowTranscript));
+    }
+
+    private void ClearTranscript()
+    {
+        TranscriptCheck = null;
+        TranscriptSource = null;
+        TranscriptStatus = null;
+        HeardText = null;
+    }
+
+    /// <summary>Follows the preview's playback position until it stops, so the transcript can highlight the word being said.</summary>
+    private void FollowPlayback()
+    {
+        _follow?.Dispose();
+        _follow = DispatcherTimer.Run(() =>
+        {
+            if (_player?.FilePositionMs is double p && IsPlayingPreview)
+            {
+                PlaybackMs = p;
+                return true;
+            }
+            PlaybackMs = -1;
+            return false;
+        }, TimeSpan.FromMilliseconds(33));
+    }
+
+    /// <summary>
+    /// Listens to a finished preview with the speaker's transcription worker and compares what it heard with the
+    /// text. Nothing happens without a (usable) transcription worker.
+    /// </summary>
+    private async Task TranscribePreviewAsync(Speaker sp, string audioPath, string text)
+    {
+        if (Transcriber is not { } worker || ReferenceEquals(worker, NoTranscriber)) return;
+        var reason = AppHost.WhyWorkerCannotRun(worker.Id);
+        if (reason != null) { TranscriptStatus = reason; return; }
+
+        TranscriptStatus = "Transcribing…";
+        var wav = Path.ChangeExtension(audioPath, null) + "-16k.wav";
+        try
+        {
+            await Task.Run(() => Transcription.PrepareAudio(audioPath, wav));
+        }
+        catch (Exception ex)
+        {
+            TranscriptStatus = "Can't read the preview: " + ex.Message;
+            return;
+        }
+        var settings = _session.MergeSettings(sp.TranscriberSettings, null, worker);
+        var job = Transcription.Job(worker, wav, text, settings, $"Transcribe preview: {sp.DisplayName}", JobPriority.Low, tag: "preview");
+
+        var tcs = new TaskCompletionSource<GenerationJob>();
+        void Done(GenerationJob j) { if (j.Id == job.Id) tcs.TrySetResult(j); }
+        AppHost.Scheduler.JobCompleted += Done;
+        AppHost.Scheduler.JobFailed += Done;
+        try
+        {
+            AppHost.Scheduler.Enqueue(job);
+            var finished = await tcs.Task;
+            // The speaker or the preview may have changed while it was listening.
+            if (!ReferenceEquals(Selected?.Model, sp) || _lastPreview?.Path != audioPath) return;
+            if (finished.State == JobState.Completed && finished.Transcript is { } transcript)
+            {
+                var check = Transcription.Check(text, transcript);
+                TranscriptSource = text;
+                TranscriptCheck = check;
+                HeardText = transcript.Text;
+                TranscriptStatus = check.Errors == 0
+                    ? null // a match needs no note
+                    : $"{check.Errors} difference(s) in {check.ExpectedCount} words ({check.WordErrorRate:P0}). Hover the red marks to see what went wrong.";
+            }
+            else
+            {
+                TranscriptStatus = finished.State == JobState.Cancelled ? "Transcription cancelled." : "Transcription failed: " + finished.LastError;
+            }
+        }
+        finally
+        {
+            AppHost.Scheduler.JobCompleted -= Done;
+            AppHost.Scheduler.JobFailed -= Done;
+            try { File.Delete(wav); } catch { /* the previews folder is cache */ }
+        }
+    }
+
     /// <summary>The last preview that finished, and who made it (for its asset name).</summary>
     private sealed record PreviewClip(string Path, string SpeakerId, string SpeakerName, string WorkerName);
     private PreviewClip? _lastPreview;
     private bool _lastPreviewSaved;
+
+    /// <summary>The selected speaker has a generated preview that can be played again.</summary>
+    public bool CanReplayPreview => _lastPreview != null && Selected?.Id == _lastPreview.SpeakerId && File.Exists(_lastPreview.Path);
+
+    /// <summary>The play button shows when there is a preview to play and it isn't playing.</summary>
+    public bool ShowPlayPreview => CanReplayPreview && !IsPlayingPreview && !IsPreviewing;
+
+    partial void OnIsPlayingPreviewChanged(bool value) => OnPropertyChanged(nameof(ShowPlayPreview));
+    partial void OnIsPreviewingChanged(bool value) => OnPropertyChanged(nameof(ShowPlayPreview));
+
+    [RelayCommand]
+    private async Task PlayPreview()
+    {
+        if (!CanReplayPreview || _player == null) return;
+        await _player.PlayFileAsync(_lastPreview!.Path);
+        IsPlayingPreview = _player.IsPlaying;
+        if (IsPlayingPreview) FollowPlayback();
+    }
 
     /// <summary>"Save as asset" shows for the selected speaker's last preview, until it is saved.</summary>
     public bool CanSavePreview => _lastPreview != null && !_lastPreviewSaved && Selected?.Id == _lastPreview.SpeakerId
@@ -162,8 +331,10 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     {
         // A transient deselection while saving must not blank the editor.
         if (_committing && value == null) return;
+        ClearTranscript();
         Load();
         OnPropertyChanged(nameof(CanSavePreview));
+        OnPropertyChanged(nameof(ShowPlayPreview));
     }
 
     private void Load()
@@ -181,6 +352,11 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             VoiceFile = sp?.Voice; // only a voice-cloning reference clip; built-in voices are a setting
             Aliases = sp == null ? "" : string.Join(", ", sp.MarkerAliases);
             Settings = BuildSettings();
+            RebuildTranscribers(sp);
+            Transcriber = sp == null ? null
+                : string.IsNullOrEmpty(sp.Transcriber) ? NoTranscriber
+                : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
+            TranscriberSettings = BuildTranscriberSettings();
         }
         finally
         {
@@ -195,21 +371,33 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     {
         if (Selected == null || Worker == null) return null;
         var sp = Selected.Model;
-        var worker = Worker;
-        var definitions = _session.SettingDefinitionsFor(sp, worker);
-        return new SettingsEditorViewModel(definitions, sp.Settings, allowInherit: false, (key, value) =>
+        return BuildEditor(sp, Worker, sp.Settings, () => Settings = BuildSettings(), RefreshPreviewLength);
+    }
+
+    private SettingsEditorViewModel? BuildTranscriberSettings()
+    {
+        if (Selected == null || Transcriber == null || !HasTranscriber) return null;
+        var sp = Selected.Model;
+        return BuildEditor(sp, Transcriber, sp.TranscriberSettings, () => TranscriberSettings = BuildTranscriberSettings(), null);
+    }
+
+    /// <summary>The settings form for one of the speaker's workers, writing into <paramref name="values"/>.</summary>
+    private SettingsEditorViewModel BuildEditor(Speaker sp, WorkerManifest worker, JsonObject values, Action rebuild, Action? changed)
+    {
+        var definitions = worker.SettingsFor(values, _session.Paths.Resolve);
+        return new SettingsEditorViewModel(definitions, values, allowInherit: false, (key, value) =>
         {
-            if (value == null) sp.Settings.Remove(key); else sp.Settings[key] = value.DeepClone();
-            RefreshPreviewLength(); // a setting such as the model can change the longest length
+            if (value == null) values.Remove(key); else values[key] = value.DeepClone();
+            changed?.Invoke(); // a setting such as the model can change the longest length
             // Another file (a ComfyUI workflow) brings other settings: drop the old one's values and show the new one's.
             var sourceChanged = definitions.Any(d => d.Key == key && d.AddsSettings != null);
             if (sourceChanged)
             {
-                var keep = _session.SettingDefinitionsFor(sp, worker).Select(d => d.Key).ToHashSet();
-                foreach (var stale in definitions.Select(d => d.Key).Where(k => !keep.Contains(k))) sp.Settings.Remove(stale);
+                var keep = worker.SettingsFor(values, _session.Paths.Resolve).Select(d => d.Key).ToHashSet();
+                foreach (var stale in definitions.Select(d => d.Key).Where(k => !keep.Contains(k))) values.Remove(stale);
             }
             Commit();
-            if (sourceChanged) Dispatcher.UIThread.Post(() => { if (ReferenceEquals(Selected?.Model, sp)) Settings = BuildSettings(); });
+            if (sourceChanged) Dispatcher.UIThread.Post(() => { if (ReferenceEquals(Selected?.Model, sp)) rebuild(); });
         }, _session.Paths.Root, importAsset: (def, file) => _session.ImportAssetAsync(file, def.AssetFolder)) { Inline = true };
     }
 
@@ -267,6 +455,19 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         // that was listed drops out), and changing the list while the ComboBox commits its selection makes it
         // read past the end (ArgumentOutOfRangeException in SelectedItems).
         Dispatcher.UIThread.Post(Load);
+    }
+
+    partial void OnTranscriberChanged(WorkerManifest? value)
+    {
+        foreach (var n in new[] { nameof(HasTranscriber), nameof(IsTranscriberMissing), nameof(MissingTranscriberText), nameof(TranscriberInfo) })
+            OnPropertyChanged(n);
+        if (_loading || Selected == null || value == null) return;
+        var sp = Selected.Model;
+        if (sp.Transcriber == value.Id) return;
+        sp.Transcriber = value.Id;
+        sp.TranscriberSettings = value.DefaultSettings();
+        Commit();
+        Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
     }
 
     /// <summary>
@@ -428,12 +629,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (reason != null) { PreviewStatus = reason; return; }
 
         var sp = Selected.Model;
+        var text = PreviewText; // the text box may change while this runs
         var workerName = Worker.DisplayName;
         var dir = Path.Combine(_session.Paths.CacheDir, "previews");
         Directory.CreateDirectory(dir);
         var outPath = Path.Combine(dir, $"{sp.Id}-{DateTime.Now:HHmmssfff}.wav");
         var settings = _session.MergeSettings(sp.Settings, null, Worker);
-        var job = OneShot.Job(Worker, PreviewText, _session.ResolveVoice(sp.Voice), settings, outPath,
+        var job = OneShot.Job(Worker, text, _session.ResolveVoice(sp.Voice), settings, outPath,
             $"Preview: {sp.DisplayName}", JobPriority.Low, durationSec: PreviewLength is decimal len ? Math.Round((double)len, 1) : null, tag: "preview");
 
         var tcs = new TaskCompletionSource<GenerationJob>();
@@ -441,6 +643,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         AppHost.Scheduler.JobCompleted += Done;
         AppHost.Scheduler.JobFailed += Done;
         IsPreviewing = true;
+        ClearTranscript();
         PreviewStatus = "Queued (low priority)…";
         try
         {
@@ -458,10 +661,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 _lastPreview = new PreviewClip(outPath, sp.Id, sp.DisplayName, workerName);
                 _lastPreviewSaved = false;
                 OnPropertyChanged(nameof(CanSavePreview));
-                if (_player != null)
+                // Playback waits for the transcript, so the words are highlighted from the first one.
+                await TranscribePreviewAsync(sp, outPath, text);
+                if (_player != null && ReferenceEquals(Selected?.Model, sp))
                 {
                     await _player.PlayFileAsync(outPath);
                     IsPlayingPreview = _player.IsPlaying;
+                    if (IsPlayingPreview) FollowPlayback();
                 }
             }
             else

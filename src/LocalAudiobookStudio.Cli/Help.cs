@@ -87,7 +87,6 @@ internal static class Help
           -t, --text <text>        The text the audio should contain (one audio file)
           -f, --text-file <path>   The same from a file; for several audio files, a folder of <audio name>.txt
               --words              Print every word with its start and end time
-          -l, --language <code>    Language of the audio (en, de, …), for workers that need it
           -w, --worker <id>        Worker (default: the first installed transcription worker)
               --runtime <name>     Runtime of the worker (internal, internal-gpu, python, onnx, onnx-cuda);
                                    see 'las workers <id>'

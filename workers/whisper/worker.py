@@ -69,13 +69,15 @@ class WhisperWorker:
         import numpy as np
 
         audio = read_wav(req.audio_path)
+        language = str(req.settings.get("language") or "Auto")
+        language = None if language == "Auto" else language
         if len(audio) < SAMPLE_RATE // 10:
-            return {"text": "", "words": [], "language": req.language}
+            return {"text": "", "words": [], "language": language}
         levels = frame_levels(audio)
         speech = float(np.percentile(levels, 95))
         generate = {"task": "transcribe"}
-        if req.language:
-            generate["language"] = req.language
+        if language:
+            generate["language"] = language
         pieces = quiet_pieces(audio, MIN_PIECE_SEC, MAX_PIECE_SEC)
         words, dropped, detected = [], [], None
         for i, (begin, end) in enumerate(pieces):
@@ -100,7 +102,7 @@ class WhisperWorker:
         if dropped:
             log(f"Dropped words heard in silence: {' '.join(dropped)}")
         report(1.0)
-        return {"text": " ".join(w["text"] for w in words), "words": words, "language": req.language or _code(detected)}
+        return {"text": " ".join(w["text"] for w in words), "words": words, "language": language or _code(detected)}
 
 
 def _code(language):

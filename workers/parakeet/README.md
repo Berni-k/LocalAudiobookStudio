@@ -16,8 +16,8 @@ three clips in 7.8 s including start-up; `onnx-cuda` on an RTX 3090 took 11.6 s 
 
 - A transcription worker (tag `Transcription`): it answers `transcribe` requests, not `generate`. It hears the words
   in a take and when each starts and ends; the app compares them with the segment's text.
-- 25 European languages; the model detects the language itself (it doesn't report which), so the request's language
-  is ignored. Punctuation and capitals come out as the model writes them.
+- 25 European languages; the model detects the language itself (it doesn't report which), so it has no
+  language setting. Punctuation and capitals come out as the model writes them.
 - Word timings: a TDT model predicts each token's start frame and how many frames it lasts (80 ms frames). onnx-asr's
   own decoder drops the duration, so `worker.py` (and the built-in runtime) run the decoding loop themselves and keep
   it. `worker.py` uses onnx-asr internals for that, hence the pinned version.

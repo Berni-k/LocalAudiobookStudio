@@ -65,7 +65,6 @@ class Request:
     out_path: str = ""          # where the worker must write the WAV (already ends in .partial)
     final_path: str = ""        # the path the app asked for
     audio_path: str = ""        # transcribe: the audio to listen to (16 kHz mono 16-bit WAV)
-    language: Optional[str] = None  # transcribe: language code ("en"), or None to detect it
     cancelled: bool = False
 
 
@@ -499,7 +498,6 @@ def _handle_transcribe(worker: Any, msg: dict, current: dict) -> None:
         text=msg.get("text"),
         settings=msg.get("settings") or {},
         audio_path=audio_path,
-        language=msg.get("language"),
     )
     current["request"] = req
     result = worker.transcribe(req, _make_reporter(req.id, req)) or {}

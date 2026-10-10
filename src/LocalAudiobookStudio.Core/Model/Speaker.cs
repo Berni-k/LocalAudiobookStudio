@@ -19,6 +19,15 @@ public sealed class Speaker
     /// <summary>Opaque settings passed to the worker; editors are generated from the worker manifest.</summary>
     public JsonObject Settings { get; set; } = new();
 
+    /// <summary>
+    /// Worker id of the transcription worker that listens to this speaker's audio (empty: none). Independent of
+    /// <see cref="Worker"/>, so a recorded speaker can have one too.
+    /// </summary>
+    public string Transcriber { get; set; } = "";
+
+    /// <summary>Settings for <see cref="Transcriber"/>, edited from its manifest like <see cref="Settings"/>.</summary>
+    public JsonObject TranscriberSettings { get; set; } = new();
+
     public List<string> MarkerAliases { get; set; } = new();
 
     public override string ToString() => string.IsNullOrEmpty(DisplayName) ? Id : DisplayName;

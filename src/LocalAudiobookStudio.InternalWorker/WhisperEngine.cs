@@ -72,7 +72,7 @@ internal sealed class WhisperEngine : EngineBase
     public override Task TranscribeAsync(string? id, JsonObject msg)
     {
         var factory = _factory ?? throw new InvalidOperationException("the model isn't loaded");
-        var language = (string?)msg["language"] is { Length: > 0 } l ? l : null;
+        var language = LanguageOf(msg);
         var threads = int.TryParse(Environment.GetEnvironmentVariable("LAS_CPU_THREADS"), out var t) && t > 0
             ? t
             : Math.Max(1, Environment.ProcessorCount / 2);

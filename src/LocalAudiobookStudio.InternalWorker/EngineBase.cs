@@ -76,6 +76,10 @@ internal abstract class EngineBase(EngineContext context) : IEngine
         }
     }
 
+    /// <summary>The request's "language" setting (a code like "en"), or null for Auto.</summary>
+    protected static string? LanguageOf(JsonObject msg) =>
+        (string?)msg["settings"]?["language"] is { Length: > 0 } l && !l.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? l : null;
+
     /// <summary>
     /// The usual transcribe request: reads the 16 kHz WAV, cuts it at quiet points into pieces of at most
     /// <paramref name="maxPieceSec"/> (some models do badly on long input), hears each with
@@ -87,7 +91,7 @@ internal abstract class EngineBase(EngineContext context) : IEngine
         Func<float[], long, CancellationToken, Task<(IEnumerable<HeardWord> Words, string? Language)>> recognize)
     {
         var path = (string?)msg["audioPath"] ?? throw new ArgumentException("transcribe request has no audioPath");
-        var language = (string?)msg["language"] is { Length: > 0 } l ? l : null;
+        var language = LanguageOf(msg);
         using var request = Begin(id);
         var audio = AudioPieces.ReadWav(path);
         var heard = new List<HeardWord>();

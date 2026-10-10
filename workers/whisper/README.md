@@ -9,8 +9,8 @@ OpenAI's [Whisper](https://github.com/openai/whisper) (MIT) for transcription, o
 | `python` | [transformers](https://github.com/huggingface/transformers)' speech recognition pipeline (`worker.py`), PyTorch environment | the original checkpoints |
 
 - A transcription worker (tag `Transcription`): it answers `transcribe` requests, not `generate`.
-- About 100 languages. The request's language (`las transcribe -l de`) is used when given; otherwise Whisper
-  detects it and reports it.
+- About 100 languages. The speaker setting **Language** (`las transcribe --set language=de`) is used when set;
+  with Auto, Whisper detects it and reports it.
 - Word timings come from dynamic time warping over the model's alignment heads (both runtimes). They are rougher than
   Parakeet's, typically within a word or so. whisper.cpp ends a segment's last word where the audio goes quiet:
   its own segment end often falls on the word's start.

@@ -38,7 +38,7 @@
         </Border>
       </DockPanel>
 
-      <!-- Editor in three groups: the speaker itself, its model (with everything model-specific), and a preview.
+      <!-- Editor in three groups: the speaker itself, its transcription, its generation (with everything model-specific), and a preview.
            Each group is a form: labels on the left share one width per group (SharedSizeGroup "label"). -->
       <ScrollViewer Grid.Column="2" IsVisible="{Binding HasSelection}">
         <StackPanel Spacing="12" Margin="0,0,12,0">
@@ -102,10 +102,32 @@
             </StackPanel>
           </Border>
 
-          <!-- ===== Model -->
+          <!-- ===== Transcription: with None selected it is only the dropdown. -->
           <Border Classes="group">
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
-              <TextBlock Text="Model" Classes="groupTitle" Margin="0,0,0,4" />
+              <TextBlock Text="Transcription" Classes="groupTitle" Margin="0,0,0,4" />
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Worker" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <ComboBox ItemsSource="{Binding Transcribers}" SelectedItem="{Binding Transcriber}" HorizontalAlignment="Stretch"
+                            Classes.missing="{Binding IsTranscriberMissing}" PlaceholderText="Choose a worker" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTranscriberMissing}">
+                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding MissingTranscriberText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding TranscriberInfo}" Classes="caption" TextWrapping="Wrap"
+                             IsVisible="{Binding HasTranscriber}" />
+                </StackPanel>
+              </Grid>
+              <ContentControl Content="{Binding TranscriberSettings}" />
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Generation -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Generation" Classes="groupTitle" Margin="0,0,0,4" />
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <TextBlock Text="Worker" Classes="formLabel" />
@@ -151,6 +173,25 @@
                 <TextBlock Text="Text" Classes="formLabel" />
                 <TextBox Grid.Column="1" Text="{Binding PreviewText}" TextWrapping="Wrap" AcceptsReturn="False" />
               </Grid>
+              <!-- What the speaker's transcription worker heard in the preview: the text with the word being played
+                   highlighted, and red marks where it didn't verify (hover for why). -->
+              <Grid IsVisible="{Binding ShowTranscript}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Transcript" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <!-- Outline only, so it doesn't look like an input field. -->
+                  <Border BorderThickness="1" BorderBrush="{DynamicResource SemiColorBorder}" CornerRadius="4" Padding="10,8"
+                          IsVisible="{Binding HasTranscript}">
+                    <ctl:TranscriptView SourceText="{Binding TranscriptSource}" Check="{Binding TranscriptCheck}" PositionMs="{Binding PlaybackMs}"
+                                        TextWrapping="Wrap" />
+                  </Border>
+                  <TextBlock Text="{Binding TranscriptStatus}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasTranscriptStatus}" />
+                  <TextBlock Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasMismatch}">
+                    <Run Text="Heard: " />
+                    <Run Text="{Binding HeardText}" />
+                  </TextBlock>
+                </StackPanel>
+              </Grid>
               <!-- Only for workers that take a length. Empty: the guess shown greyed (needed) or "auto" (optional). -->
               <Grid IsVisible="{Binding ShowPreviewLength}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -162,11 +203,11 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                   <Button Classes="primary" Content="Generate preview" Command="{Binding PreviewCommand}" IsEnabled="{Binding !IsPreviewing}" />
+                  <Button Command="{Binding PlayPreviewCommand}" IsVisible="{Binding ShowPlayPreview}" ToolTip.Tip="Play the preview again">
+                    <PathIcon Data="{StaticResource IconPlay}" Width="10" Height="10" />
+                  </Button>
                   <Button Command="{Binding StopPreviewCommand}" IsVisible="{Binding IsPlayingPreview}" ToolTip.Tip="Stop playing the preview">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                      <PathIcon Data="{StaticResource IconStop}" Width="10" Height="10" />
-                      <TextBlock Text="Stop" />
-                    </StackPanel>
+                    <PathIcon Data="{StaticResource IconStop}" Width="10" Height="10" />
                   </Button>
                   <!-- Keeps the last preview in assets/Generated, e.g. as another speaker's reference clip. -->
                   <Button Content="Save as asset" Command="{Binding SavePreviewAsAssetCommand}" IsVisible="{Binding CanSavePreview}"
