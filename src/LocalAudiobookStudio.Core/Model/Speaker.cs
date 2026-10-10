@@ -90,4 +90,6 @@ public sealed class SpeakerContext
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Any => Batch || HasContext;
+
+    public SpeakerContext Clone() => (SpeakerContext)MemberwiseClone();
 }

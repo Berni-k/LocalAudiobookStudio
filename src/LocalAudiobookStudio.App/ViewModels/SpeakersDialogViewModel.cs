@@ -385,6 +385,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Load();
         OnPropertyChanged(nameof(CanSavePreview));
         OnPropertyChanged(nameof(ShowPlayPreview));
+        OnPropertyChanged(nameof(CanPasteSettings));
     }
 
     private void Load()
@@ -573,6 +574,61 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (_loading || Selected == null) return;
         Selected.Model.MarkerAliases = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         Commit();
+    }
+
+    // ------------------------------------------------------------------ copy and paste
+
+    /// <summary>
+    /// The settings "Copy settings" took, for pasting onto other speakers (the list's context menu). Kept while the app
+    /// runs, so they can go to another project's speakers too.
+    /// </summary>
+    private static Speaker? s_copied;
+
+    public bool CanPasteSettings => s_copied != null && HasSelection;
+
+    public string PasteHeader => s_copied == null ? "Paste settings" : $"Paste settings from {s_copied.DisplayName}";
+
+    [RelayCommand]
+    private void CopySettings()
+    {
+        if (Selected?.Model is not { } sp) return;
+        s_copied = new Speaker
+        {
+            DisplayName = Selected.Name,
+            Worker = sp.Worker,
+            Voice = sp.Voice,
+            Settings = (JsonObject)sp.Settings.DeepClone(),
+            Transcriber = sp.Transcriber,
+            TranscriberSettings = (JsonObject)sp.TranscriberSettings.DeepClone(),
+            Context = sp.Context.Clone(),
+        };
+        OnPropertyChanged(nameof(CanPasteSettings));
+        OnPropertyChanged(nameof(PasteHeader));
+    }
+
+    /// <summary>Everything but the name, colour and marker aliases.</summary>
+    [RelayCommand] private void PasteAll() => Paste(generation: true, transcription: true, context: true);
+    [RelayCommand] private void PasteGeneration() => Paste(generation: true);
+    [RelayCommand] private void PasteTranscription() => Paste(transcription: true);
+    [RelayCommand] private void PasteContext() => Paste(context: true);
+
+    private void Paste(bool generation = false, bool transcription = false, bool context = false)
+    {
+        if (s_copied is not { } from || Selected?.Model is not { } sp) return;
+        if (generation)
+        {
+            sp.Worker = from.Worker;
+            sp.Voice = from.Voice;
+            sp.Settings = (JsonObject)from.Settings.DeepClone();
+        }
+        if (transcription)
+        {
+            sp.Transcriber = from.Transcriber;
+            sp.TranscriberSettings = (JsonObject)from.TranscriberSettings.DeepClone();
+        }
+        if (context) sp.Context = from.Context.Clone();
+        Commit();
+        Load();
     }
 
     // ------------------------------------------------------------------ commands

@@ -22,6 +22,19 @@
         </StackPanel>
         <Border Classes="card" Padding="2">
           <ListBox ItemsSource="{Binding Speakers}" SelectedItem="{Binding Selected}" Classes="side">
+            <!-- Right-clicking a speaker selects it; the menu acts on the selected speaker. -->
+            <ListBox.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Copy settings" Command="{Binding CopySettingsCommand}" />
+                <MenuItem Header="{Binding PasteHeader}" IsEnabled="{Binding CanPasteSettings}">
+                  <MenuItem Header="Everything" Command="{Binding PasteAllCommand}"
+                            ToolTip.Tip="Model, voice and settings, transcription and context: all but the name, colour and aliases" />
+                  <MenuItem Header="Model, voice and settings" Command="{Binding PasteGenerationCommand}" />
+                  <MenuItem Header="Transcription" Command="{Binding PasteTranscriptionCommand}" />
+                  <MenuItem Header="Context" Command="{Binding PasteContextCommand}" />
+                </MenuItem>
+              </ContextMenu>
+            </ListBox.ContextMenu>
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:SpeakerViewModel">
                 <Grid ColumnDefinitions="Auto,*,Auto">
