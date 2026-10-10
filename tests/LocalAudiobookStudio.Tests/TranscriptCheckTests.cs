@@ -87,6 +87,27 @@ public class TranscriptCheckTests
     }
 
     [Fact]
+    public void Two_written_words_heard_as_one_match_and_share_its_time()
+    {
+        const string text = "old rag mats here";
+        var c = TranscriptCheck.Compare(text, [new HeardWord("old", 0, 200), new HeardWord("ragmats", 300, 1000), new HeardWord("here", 1100, 1300)]);
+        Assert.Equal(0, c.Errors);
+        Assert.Equal(4, c.ExpectedCount);
+        Assert.Equal(("rag", 300, 600), (c.Words[1].Expected, c.Words[1].StartMs, c.Words[1].EndMs)); // 3 of 7 letters
+        Assert.Equal(("mats", 600, 1000), (c.Words[2].Expected, c.Words[2].StartMs, c.Words[2].EndMs));
+        Assert.Equal("mats", text.Substring(c.Words[2].TextStart, c.Words[2].TextLength));
+    }
+
+    [Fact]
+    public void One_written_word_heard_as_two_matches_their_span()
+    {
+        var c = TranscriptCheck.Compare("a ragmats here", Heard("a", "rag", "mats", "here"));
+        Assert.Equal(0, c.Errors);
+        var w = Assert.Single(c.Words, w => w.Expected == "ragmats");
+        Assert.Equal(("rag mats", 300, 800), (w.Heard, w.StartMs, w.EndMs));
+    }
+
+    [Fact]
     public void NothingHeardMeansEveryWordIsMissing()
     {
         var c = TranscriptCheck.Compare("all gone", []);

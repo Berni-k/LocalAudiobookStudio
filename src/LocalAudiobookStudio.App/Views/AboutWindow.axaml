@@ -38,6 +38,10 @@
       <TextBlock Text="HartsyInference" Classes="secondary" />
       <SelectableTextBlock Grid.Column="1" Text="{Binding HartsyVersion}" TextWrapping="Wrap" />
     </Grid>
+    <Grid ColumnDefinitions="170,*" Margin="0,2">
+      <TextBlock Text="Internal worker" Classes="secondary" />
+      <SelectableTextBlock Grid.Column="1" Text="{Binding InternalWorkerVersion}" TextWrapping="Wrap" />
+    </Grid>
 
     <TextBlock Text="LOCATIONS" Classes="header" Margin="0,12,0,2" />
     <ItemsControl ItemsSource="{Binding Locations}">

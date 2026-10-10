@@ -1,0 +1,12 @@
+{
+  "devices": ["cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Comes with the app: nothing to download but the model. For a GPU, install the Internal (whisper.cpp GPU) runtime.",
+  "workerSettings": [
+    { "key": "model", "type": "enum", "label": "Model", "default": "small",
+      "options": ["large-v3-turbo", "large-v3", "small"],
+      "optionLabels": ["Large v3 turbo (0.8 GB, 8-bit)", "Large v3 (1 GB, 5-bit, most accurate)", "Small (0.25 GB, 8-bit, fastest)"],
+      "description": "On the CPU, Small transcribes a take in well under its length (12 cores: 55 s of speech in 12 s); Large v3 turbo is more accurate but slower than the audio itself." }
+  ],
+  "models": ["whisper-large-v3-turbo-ggml-q8", "whisper-large-v3-ggml-q5", "whisper-small-ggml-q8"]
+}

@@ -6,9 +6,13 @@ using System.Text.Json.Nodes;
 
 namespace LocalAudiobookStudio.HartsyWorker;
 
+/// <summary>A model to ask the app for (an id in workers/models.json) and where HartsyInference looks for its files.</summary>
+internal sealed record ModelNeed(string Model, string? LinkTo = null, IReadOnlyDictionary<string, string>? Links = null);
+
 /// <summary>
 /// Protocol v2 (see workers/common/protocol.py): newline-delimited JSON, messages on stdout only.
 /// Everything else (our logging, HartsyInference's Logs, which already uses stderr) goes to stderr.
+/// The internal worker compiles this file too (linked), so it uses nothing but the BCL.
 /// </summary>
 internal static partial class Protocol
 {

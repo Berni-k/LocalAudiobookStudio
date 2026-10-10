@@ -153,7 +153,7 @@ cd LocalAudiobookStudio
 dotnet run --project src/LocalAudiobookStudio.App
 ```
 
-The build puts the app into `src/LocalAudiobookStudio.App/bin/<Configuration>/net10.0/`. It also includes `las` (the command line), the `workers` folder and the HartsyInference worker (`hartsy/`). uv is only included if you fetched it with `tools/uv/fetch-uv.ps1` (or `.sh`); otherwise the system check downloads it.
+The build puts the app into `src/LocalAudiobookStudio.App/bin/<Configuration>/net10.0/`. It also includes `las` (the command line), the `workers` folder, the HartsyInference worker (`tools/hartsy/`) and the internal worker (`tools/internal-worker/`). uv is only included if you fetched it with `tools/uv/fetch-uv.ps1` (or `.sh`); otherwise the system check downloads it.
 
 Run the tests with `dotnet test`; they need no GPU, workers or network.
 

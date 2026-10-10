@@ -74,4 +74,16 @@ public static class WorkerSetupCommands
         values[WorkerRuntimes.SettingKey] = chosen.Runtime;
         return host.Catalog.Get(manifest.Id)!;
     }
+
+    /// <summary>Runs the worker on the GPU or the CPU for this run (--device), in memory like <see cref="UseRuntime"/>.</summary>
+    public static void UseDevice(StudioHost host, WorkerManifest manifest, string device, string context)
+    {
+        device = device.Trim().ToLowerInvariant();
+        if (device is not (WorkerManifest.DeviceGpu or WorkerManifest.DeviceCpu))
+            throw new UsageException($"{context}: --device is gpu or cpu.");
+        if (device == WorkerManifest.DeviceGpu ? !manifest.RunsOnGpu : !manifest.RunsOnCpu)
+            throw new UsageException($"{context}: {manifest.DisplayName} ({manifest.RuntimeLabel}) doesn't run on the {device.ToUpperInvariant()}.");
+        if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
+        values[WorkerManifest.DeviceKey] = device;
+    }
 }

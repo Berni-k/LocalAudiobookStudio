@@ -68,9 +68,10 @@
   </Target>
 
   <!--
-    The command line (las) and the HartsyInference worker (las-hartsy-worker) are published as single files for
-    the platform being built: the app's RuntimeIdentifier when set, else this machine's. las goes next to the
-    executable (it uses the same workers/, tools/ and hartsy/ folders), the worker into hartsy/.
+    The command line (las), the HartsyInference worker (las-hartsy-worker) and the internal worker (las-internal-worker:
+    whisper.cpp, ONNX Runtime) are published as single files for the platform being built: the app's RuntimeIdentifier
+    when set, else this machine's. las goes next to the executable (it uses the same workers/ and tools/ folders), the
+    workers into tools/hartsy/ and tools/internal-worker/.
     The references below are for restore and build order only: their DLLs must not mix with the app's.
   -->
   <ItemGroup>
@@ -78,11 +79,14 @@
                       ReferenceOutputAssembly="false" Private="false" />
     <ProjectReference Include="..\LocalAudiobookStudio.HartsyWorker\LocalAudiobookStudio.HartsyWorker.csproj"
                       ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="..\LocalAudiobookStudio.InternalWorker\LocalAudiobookStudio.InternalWorker.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
   <PropertyGroup>
     <CliProject>..\LocalAudiobookStudio.Cli\LocalAudiobookStudio.Cli.csproj</CliProject>
     <HartsyWorkerProject>..\LocalAudiobookStudio.HartsyWorker\LocalAudiobookStudio.HartsyWorker.csproj</HartsyWorkerProject>
+    <InternalWorkerProject>..\LocalAudiobookStudio.InternalWorker\LocalAudiobookStudio.InternalWorker.csproj</InternalWorkerProject>
     <CompanionRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</CompanionRid>
     <!-- Portable RID: distro-built SDKs (e.g. Ubuntu's) report "ubuntu.24.04-x64" as NETCoreSdkRuntimeIdentifier. -->
     <CompanionRid Condition="'$(CompanionRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</CompanionRid>
@@ -93,13 +97,17 @@
     <MSBuild Projects="$(CliProject)" Targets="Publish"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)'))\" />
     <MSBuild Projects="$(HartsyWorkerProject)" Targets="Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)', 'hartsy'))\" />
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)', 'tools', 'hartsy'))\" />
+    <MSBuild Projects="$(InternalWorkerProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(OutDir)', 'tools', 'internal-worker'))\" />
   </Target>
 
   <Target Name="PublishCompanions" AfterTargets="Publish">
     <MSBuild Projects="$(CliProject)" Targets="Publish"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)'))\" />
     <MSBuild Projects="$(HartsyWorkerProject)" Targets="Publish"
-             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)', 'hartsy'))\" />
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)', 'tools', 'hartsy'))\" />
+    <MSBuild Projects="$(InternalWorkerProject)" Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(CompanionRid);PublishDir=$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(PublishDir)', 'tools', 'internal-worker'))\" />
   </Target>
 </Project>

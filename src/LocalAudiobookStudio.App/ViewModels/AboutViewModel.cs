@@ -41,6 +41,7 @@ public sealed partial class AboutViewModel : ObservableObject
         ];
         _ = LoadUvVersionAsync();
         _ = LoadHartsyVersionAsync();
+        _ = LoadInternalWorkerVersionAsync();
     }
 
     /// <summary>"Version 0.1.0 (6a4c02e)": the number and the commit the build is from.</summary>
@@ -50,8 +51,10 @@ public sealed partial class AboutViewModel : ObservableObject
     public IReadOnlyList<AboutRow> Components { get; }
     public IReadOnlyList<AboutLocation> Locations { get; }
     [ObservableProperty] private string _uvVersion = "checking…";
-    /// <summary>"2.0.0-alpha.245 · hartsy\las-hartsy-worker.exe": the library version and where the worker is.</summary>
+    /// <summary>"2.0.0-alpha.245 · tools\hartsy\las-hartsy-worker.exe": the library version and where the worker is.</summary>
     [ObservableProperty] private string _hartsyVersion = "checking…";
+    /// <summary>"Whisper.net 1.9.1, ONNX Runtime 1.31.0 · tools\internal-worker\las-internal-worker.exe".</summary>
+    [ObservableProperty] private string _internalWorkerVersion = "checking…";
 
     /// <summary>"Copyright (c) 2026 Berni · MIT License" (the copyright from Directory.Build.props).</summary>
     public string Copyright { get; } =
@@ -69,6 +72,13 @@ public sealed partial class AboutViewModel : ObservableObject
         HartsyVersion = $"{version} · {Path.GetRelativePath(SettingsStore.AppDir, path)}";
     }
 
+    private async Task LoadInternalWorkerVersionAsync()
+    {
+        if (AppHost.Environments.InternalWorkerPath is not { } path) { InternalWorkerVersion = "not found"; return; }
+        var version = await AppHost.Environments.GetInternalWorkerVersionAsync() ?? "version unknown";
+        InternalWorkerVersion = $"{version} · {Path.GetRelativePath(SettingsStore.AppDir, path)}";
+    }
+
     [RelayCommand]
     private Task SystemCheck() => WindowService.ShowSystemCheckAsync();
 
@@ -81,6 +91,7 @@ public sealed partial class AboutViewModel : ObservableObject
         foreach (var c in Components) sb.AppendLine($"{c.Label}: {c.Value}");
         sb.AppendLine($"uv: {UvVersion}");
         sb.AppendLine($"HartsyInference: {HartsyVersion}");
+        sb.AppendLine($"Internal worker: {InternalWorkerVersion}");
         foreach (var l in Locations) sb.AppendLine($"{l.Label}: {l.Path}");
         if (Dialogs.Owner?.Clipboard is { } clipboard) await clipboard.SetTextAsync(sb.ToString());
     }

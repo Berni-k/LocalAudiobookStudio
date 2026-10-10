@@ -1,0 +1,15 @@
+{
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "Falls back to the CPU builds when no GPU can be used.",
+  "workerSettings": [
+    { "key": "model", "type": "enum", "label": "Model", "default": "large-v3-turbo",
+      "options": ["large-v3-turbo", "large-v3", "small"],
+      "optionLabels": ["Large v3 turbo (0.8 GB, 8-bit)", "Large v3 (1 GB, 5-bit, most accurate)", "Small (0.25 GB, 8-bit, fastest)"],
+      "description": "Turbo is nearly as accurate as Large v3 and several times faster." },
+    { "key": "backend", "type": "enum", "label": "GPU backend", "default": "auto",
+      "options": ["auto", "cuda", "vulkan", "cpu"],
+      "optionLabels": ["Automatic (CUDA, else Vulkan, else CPU)", "CUDA (NVIDIA)", "Vulkan (NVIDIA, AMD, Intel)", "CPU"],
+      "description": "Automatic uses the first that works on the device the app picks. Choose one if the automatic choice misbehaves; Vulkan also reaches GPUs the app doesn't list as devices." }
+  ],
+  "models": ["whisper-large-v3-turbo-ggml-q8", "whisper-large-v3-ggml-q5", "whisper-small-ggml-q8"]
+}

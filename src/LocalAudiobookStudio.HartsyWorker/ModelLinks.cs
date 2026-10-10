@@ -3,9 +3,6 @@ using HartsyInference.Engine;
 
 namespace LocalAudiobookStudio.HartsyWorker;
 
-/// <summary>A model to ask the app for (an id in workers/models.json) and where HartsyInference looks for its files.</summary>
-internal sealed record ModelNeed(string Model, string? LinkTo = null, IReadOnlyDictionary<string, string>? Links = null);
-
 /// <summary>
 /// Which of the app's models a HartsyInference model loads, and where. The app downloads them into its store and makes
 /// HartsyInference's own folder for each (<see cref="AudioModelCache.GetRepoDirectory"/>) a link to the store folder,

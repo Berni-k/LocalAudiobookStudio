@@ -90,9 +90,11 @@ public sealed class StudioHost
 
         Catalog = new WorkerCatalog(WorkerCatalog.DefaultRoot) { RuntimeChoice = RuntimeOf };
         foreach (var e in Catalog.LoadErrors) Log.LogWarning("Manifest error: {Error}", e);
-        Environments = new EnvironmentManager(DataRoot, Catalog, EnvironmentManager.FindUv(DataRoot.Root), EnvironmentManager.FindHartsyWorker());
+        Environments = new EnvironmentManager(DataRoot, Catalog, EnvironmentManager.FindUv(DataRoot.Root), EnvironmentManager.FindHartsyWorker(),
+            EnvironmentManager.FindInternalWorker());
         if (Environments.UvPath == null) Log.LogWarning("uv not found (neither under tools/uv nor on the PATH)");
-        if (Environments.HartsyWorkerPath == null) Log.LogWarning("HartsyInference worker not found under hartsy/");
+        if (Environments.HartsyWorkerPath == null) Log.LogWarning("HartsyInference worker not found under tools/hartsy/");
+        if (Environments.InternalWorkerPath == null) Log.LogWarning("internal worker not found under tools/internal-worker/");
         KeepInstalledRuntimes();
         Models = new ModelStore(Catalog.Models, DataRoot.ModelStore, DataRoot.Models, LoggerFactory.CreateLogger("Models"))
         {

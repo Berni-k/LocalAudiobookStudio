@@ -20,6 +20,7 @@ edited, regenerated and mixed. `las` is the command line for the same engine.
 | `src/LocalAudiobookStudio.App` | Avalonia UI: views, view models, `ProjectSession`, playback and recording (`Devices/`) | Engine |
 | `src/LocalAudiobookStudio.Cli` | `las` | Engine |
 | `src/LocalAudiobookStudio.HartsyWorker` | `las-hartsy-worker`, a standalone worker on HartsyInference | nothing in this repo (its DLLs must not mix with the app's) |
+| `src/LocalAudiobookStudio.InternalWorker` | `las-internal-worker`, a standalone worker for engines that run in .NET: Whisper.net / whisper.cpp, ONNX Runtime on the CPU (published as one file into `tools/internal-worker/`; links the Hartsy worker's `Protocol.cs`) | nothing in this repo |
 | `workers/` | Worker manifests, Python workers, `environments.json` | – |
 | `tests/LocalAudiobookStudio.Tests` | Unit tests | Engine |
 
@@ -35,7 +36,7 @@ Rules that follow from this:
   (`run.bat` / `run.sh`).
 - Compile check while the app may be running (it locks its `bin` folder): build into a temporary folder,
   `dotnet build src/LocalAudiobookStudio.App -o <temp dir>`, and delete it afterwards. Building the App also builds
-  `las` and publishes the HartsyInference worker into `hartsy/`.
+  `las` and publishes the HartsyInference worker into `tools/hartsy/` and the internal worker into `tools/internal-worker/`.
 - Tests: `dotnet test`. They must run without GPUs, installed workers or network. Integration tests against real
   workers were removed on purpose (too dependent on the machine's state); check real workers with `las` instead.
 - The GUI is tested by the maintainer. Don't launch or drive the desktop app to verify a change; compile-check and
@@ -131,8 +132,18 @@ Rules that follow from this:
    `ensure_model(id)`, write `req.out_path` with `write_wav`, and return
    `{"durationMs", "seed", "sampleRate"}`. In `generate`, call `report(fraction, message)` often: it also raises when
    the job is cancelled. Use `torch_device()` so the CPU slot works.
-5. **Other runtimes** (optional): `manifest.<runtime>.json` overlays (`onnx`, `onnx-cuda`, `hartsy`) next to it;
-   mark settings a runtime can't do with `unsupportedSettings` / `unsupportedOptions`.
+5. **Other runtimes** (optional): `manifest.<runtime>.json` overlays (`onnx`, `onnx-cuda`, `hartsy`, `internal`,
+   `internal-gpu`) next to it; mark settings a runtime can't do with `unsupportedSettings` / `unsupportedOptions`.
+   - `internal` runs the model in .NET on the bundled `las-internal-worker`, no Python: the manifest names an `engine`
+     (`whisper`: ggml Whisper models on whisper.cpp; `tdt`: NeMo TDT transducers on ONNX Runtime, CPU) and an
+     `engineConfig` mapping each value of a worker setting (`modelSetting`) to a models.json id and the engine's files.
+     A new model of a kind an engine knows needs only that (see `whisper`, `parakeet`); a new kind is a class in
+     `src/LocalAudiobookStudio.InternalWorker` (derive from `EngineBase`, register in `Engines.cs`, add the name to
+     `InternalGpuRuntime.Engines`). Transcribers send their words through `TranscriptWords` (open ends, overlaps, and
+     for models that invent text over silence, the silence check).
+   - `internal-gpu`: the same with the engine's GPU builds, downloaded on install and pinned in `InternalGpuRuntime.cs`
+     (whisper: Vulkan, and the CUDA 12 or 13 build matching the user's toolkit; cudart and cuBLAS come from that
+     toolkit on the PATH, as for HartsyInference). Moving Whisper.net to a new version means new hashes there too.
 6. **Docs**: add the model to the table in `docs/models.md` (task, devices, license, links).
 7. **Check**: `dotnet test` catches manifest and models.json errors. Then install the worker in the Workers window
    and try it with `las workers <id>` and `las tts "Hello" -o out.wav -w <id> -v` (worker log on stderr).

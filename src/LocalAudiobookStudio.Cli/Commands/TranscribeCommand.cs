@@ -22,6 +22,7 @@ public static class TranscribeCommand
     [
         new("--worker", "-w"),
         new("--runtime"),
+        new("--device"),
         new("--set", Repeatable: true),
         new("--language", "-l"),
         new("--text", "-t"),
@@ -132,6 +133,7 @@ public static class TranscribeCommand
         if (!manifest.IsTranscriber)
             throw new UsageException($"transcribe: {manifest.DisplayName} doesn't transcribe. Transcription workers: {string.Join(", ", transcribers.Select(m => m.Id))}.");
         if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "transcribe");
+        if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "transcribe");
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
 

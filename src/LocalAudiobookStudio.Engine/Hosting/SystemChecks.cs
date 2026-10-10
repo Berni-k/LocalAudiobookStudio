@@ -90,7 +90,10 @@ public static class SystemChecks
             // Without an NVIDIA GPU the driver doesn't matter (models run on the CPU).
             if (gpus.Count > 0) checks.Add(DriverCheck(gpus));
             if (OperatingSystem.IsLinux()) checks.Add(GlibcCheck());
-            checks.AddRange([UvCheck(dataRoot), HartsyCheck(), FfmpegCheck(ffmpegPath, dataRoot)]);
+            checks.Add(UvCheck(dataRoot));
+            // The CUDA libraries only matter with an NVIDIA GPU (HartsyInference and the internal GPU runtime load them).
+            if (gpus.Count > 0) checks.Add(CudaLibrariesCheck());
+            checks.AddRange([HartsyCheck(), InternalWorkerCheck(), FfmpegCheck(ffmpegPath, dataRoot)]);
             checks.AddRange(extraChecks.Select(c => c()));
             return (IReadOnlyList<SystemCheck>)checks;
         });
@@ -147,18 +150,51 @@ public static class SystemChecks
                     : "Not found: Python workers can't be installed without it. Install uv (https://docs.astral.sh/uv/) so it is on the PATH.",
                 ToolInstaller.CanDownloadUv ? new CheckFix(CheckFixKind.DownloadUv, "Download uv") : null);
 
-    /// <summary>The bundled worker, plus the CUDA libraries HartsyInference loads from the system.</summary>
-    private static SystemCheck HartsyCheck()
-    {
-        if (EnvironmentManager.FindHartsyWorker() is not { } worker)
-            return new("HartsyInference", CheckStatus.Info,
+    /// <summary>The bundled HartsyInference worker (its CUDA libraries are <see cref="CudaLibrariesCheck"/>).</summary>
+    private static SystemCheck HartsyCheck() =>
+        EnvironmentManager.FindHartsyWorker() is { } worker
+            ? new("HartsyInference", CheckStatus.Ok, [CheckLine.Path(Display(worker))])
+            : new("HartsyInference", CheckStatus.Info,
                 "Not found (optional): workers that only run on HartsyInference aren't available. Python workers are not affected.");
-        var cublas = FindLibrary(CublasNames);
-        var cudnn = FindLibrary(CudnnNames);
+
+    /// <summary>
+    /// The bundled internal worker (whisper.cpp, ONNX Runtime), and on Windows which Visual C++ runtime its native
+    /// libraries use: Windows' own, else the copy inside the worker.
+    /// </summary>
+    private static SystemCheck InternalWorkerCheck()
+    {
+        if (EnvironmentManager.FindInternalWorker() is not { } worker)
+            return new("Internal worker", CheckStatus.Warning,
+                "Not found: the internal runtimes (whisper.cpp, ONNX on the CPU) aren't available. Reinstall the app.");
         List<CheckLine> lines = [CheckLine.Path(Display(worker))];
+        if (!OperatingSystem.IsWindows()) return new("Internal worker", CheckStatus.Ok, lines);
+
+        // The worker carries its own copy inside the exe and loads it when Windows has none (VcRuntime.cs).
+        string[] vcRuntime = ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll", "vcomp140.dll"];
+        var installed = vcRuntime.All(d => File.Exists(Path.Combine(Environment.SystemDirectory, d)));
+        return new("Internal worker", CheckStatus.Ok,
+            [.. lines, CheckLine.Plain(installed ? "installed" : "not installed; the worker uses its own copy", "Visual C++ runtime")]);
+    }
+
+    /// <summary>
+    /// The NVIDIA libraries GPU workers outside Python load from the system: the CUDA runtime and cuBLAS (the CUDA 12 or
+    /// 13 toolkit) for HartsyInference and the internal GPU runtime's CUDA build, and cuDNN 9, which HartsyInference
+    /// uses for faster convolutions when it's there. (Python workers bring their own.)
+    /// </summary>
+    private static SystemCheck CudaLibrariesCheck()
+    {
+        const string title = "CUDA libraries";
+        var cudart = FindLibrary(CudartNames, out var cudartName);
+        var cublas = FindLibrary(CublasNames, out _);
+        var cudnn = FindLibrary(CudnnNames, out _);
+        var lines = new List<CheckLine>();
+        if (cudart != null)
+            lines.Add(CheckLine.Path(cudart, $"CUDA {(cudartName!.Contains("13") ? 13 : 12)} runtime"));
+        else
+            lines.Add(CheckLine.Warn("not found (CUDA 12 or 13; the CUDA toolkit provides it)", "CUDA runtime"));
         lines.Add(cublas != null
             ? CheckLine.Path(cublas, "cuBLAS")
-            : CheckLine.Warn("not found (CUDA 12 or 13; needed on the GPU, the CUDA toolkit provides it)", "cuBLAS"));
+            : CheckLine.Warn("not found (CUDA 12 or 13; the CUDA toolkit provides it)", "cuBLAS"));
         if (cudnn != null)
         {
             lines.Add(CheckLine.Path(cudnn, "cuDNN 9"));
@@ -172,8 +208,10 @@ public static class SystemChecks
         {
             lines.Add(CheckLine.Warn("not found (optional, for faster convolutions)", "cuDNN 9"));
         }
-        var status = cublas == null ? CheckStatus.Warning : cudnn == null ? CheckStatus.Partial : CheckStatus.Ok;
-        return new("HartsyInference", status, lines);
+        if (cudart == null || cublas == null)
+            lines.Add(CheckLine.Plain("Without the CUDA toolkit, HartsyInference workers run on the CPU, and the internal GPU runtime uses Vulkan or the CPU. Python workers are not affected."));
+        var status = cudart == null || cublas == null ? CheckStatus.Warning : cudnn == null ? CheckStatus.Partial : CheckStatus.Ok;
+        return new(title, status, lines);
     }
 
     private static SystemCheck FfmpegCheck(string? configured, string dataRoot)
@@ -223,20 +261,29 @@ public static class SystemChecks
         return relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative) ? path : relative;
     }
 
-    // What HartsyInference loads: cuBLAS from CUDA 12 or 13, and cuDNN 9 (optional).
+    // What the GPU workers outside Python load: the CUDA runtime and cuBLAS from CUDA 13 or 12, and cuDNN 9 (optional).
+    private static string[] CudartNames => OperatingSystem.IsWindows()
+        ? ["cudart64_13.dll", "cudart64_12.dll"]
+        : ["libcudart.so.13", "libcudart.so.12"];
     private static string[] CublasNames => OperatingSystem.IsWindows()
-        ? ["cublas64_12.dll", "cublas64_13.dll"]
-        : ["libcublas.so.12", "libcublas.so.13"];
+        ? ["cublas64_13.dll", "cublas64_12.dll"]
+        : ["libcublas.so.13", "libcublas.so.12"];
     private static string[] CudnnNames => OperatingSystem.IsWindows() ? ["cudnn64_9.dll"] : ["libcudnn.so.9"];
 
     /// <summary>
-    /// The folder holding one of <paramref name="names"/>: on Linux where the dynamic loader finds it (ldconfig's
-    /// cache, LD_LIBRARY_PATH), otherwise on the PATH or in CUDA_PATH.
+    /// The folder holding one of <paramref name="names"/> (earlier names first), and which one: on Linux where the
+    /// dynamic loader finds it (ldconfig's cache, LD_LIBRARY_PATH), otherwise on the PATH or in CUDA_PATH.
     /// </summary>
-    private static string? FindLibrary(string[] names)
+    private static string? FindLibrary(string[] names, out string? found)
     {
-        if (OperatingSystem.IsLinux() && LdconfigCache().FirstOrDefault(e => names.Contains(e.Name)) is { Path: { } cached })
-            return Path.GetDirectoryName(cached);
+        found = null;
+        if (OperatingSystem.IsLinux())
+            foreach (var name in names)
+                if (LdconfigCache().FirstOrDefault(e => e.Name == name) is { Path: { } cached })
+                {
+                    found = name;
+                    return Path.GetDirectoryName(cached);
+                }
         var dirs = new List<string>();
         dirs.AddRange((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
         if (Environment.GetEnvironmentVariable("CUDA_PATH") is { Length: > 0 } cuda)
@@ -246,12 +293,15 @@ public static class SystemChecks
             dirs.AddRange((Environment.GetEnvironmentVariable("LD_LIBRARY_PATH") ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries));
             dirs.AddRange(["/usr/local/cuda/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib64"]);
         }
+        foreach (var name in names)
         foreach (var d in dirs)
         {
             try
             {
                 var dir = d.Trim('"');
-                if (names.Any(n => File.Exists(Path.Combine(dir, n)))) return dir;
+                if (!File.Exists(Path.Combine(dir, name))) continue;
+                found = name;
+                return dir;
             }
             catch
             {

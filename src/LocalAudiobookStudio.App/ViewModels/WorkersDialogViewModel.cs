@@ -214,8 +214,8 @@ public sealed partial class WorkerItemViewModel : ObservableObject
             .Distinct(StringComparer.OrdinalIgnoreCase).Select(t => new WorkerTag(t)).ToList();
     public string Folder => Manifest.Folder;
     public string EnvFolder => AppHost.DataRoot.EnvDir(Manifest.EnvGroup);
-    /// <summary>Hartsy workers have no venv; their folder only holds the install state.</summary>
-    public string EnvLabel => Manifest.IsHartsy ? "Install state" : "Environment";
+    /// <summary>Bundled workers have no venv; their folder holds the install state (and the internal GPU runtime's builds).</summary>
+    public string EnvLabel => Manifest.IsInternalGpu ? "GPU builds" : Manifest.IsBundled ? "Install state" : "Environment";
 
     /// <summary>Which other installed workers share this worker's environment.</summary>
     public string SharedEnvText
@@ -223,6 +223,11 @@ public sealed partial class WorkerItemViewModel : ObservableObject
         get
         {
             if (Manifest.IsHartsy) return "Runs on the HartsyInference worker that comes with the app; there is no environment to delete.";
+            if (Manifest.IsInternalGpu)
+                return $"Runs on the internal worker that comes with the app. Installing downloads its GPU builds " +
+                       $"({InternalGpuRuntime.DownloadBytes(Manifest.Engine!) / (1024 * 1024)} MB); uninstalling deletes them. It uses CUDA on an NVIDIA GPU " +
+                       "(with the CUDA 12 or 13 toolkit installed), else Vulkan, else the CPU.";
+            if (Manifest.IsInternal) return "Runs on the internal worker that comes with the app, on the CPU; there is no environment to delete.";
             var others = AppHost.Environments.InstalledWorkers(Manifest.EnvGroup)
                 .Where(id => !string.Equals(id, Id, StringComparison.OrdinalIgnoreCase))
                 .Select(id => AppHost.Catalog.Get(id)?.DisplayName ?? id).ToList();
@@ -302,17 +307,27 @@ public sealed partial class WorkerItemViewModel : ObservableObject
         SaveWorkerSetting(WorkerRuntimes.SettingKey, JsonValue.Create(value.Value));
         // Everything below comes from the new runtime's manifest.
         Settings = BuildSettings();
-        LoadHosting();
         SizeLines.Clear();
         SizeError = null;
         Refresh();
-        foreach (var n in new[]
-                 {
-                     nameof(Manifest), nameof(Tags), nameof(Description), nameof(EnvFolder), nameof(HasHosting), nameof(DeviceOptions),
-                     nameof(ShowDevice), nameof(CanChooseDevice), nameof(DeviceHelp), nameof(ParallelHelp), nameof(GpuIdsHelp),
-                     nameof(ShowGpuIds), nameof(HasSize), nameof(CanCheckSize), nameof(EnvLabel), nameof(IsRuntimeExperimental),
-                 })
-            OnPropertyChanged(n);
+        // The device dropdown gets new items here and re-selects one; that isn't the user's choice, and saving it would
+        // pin the worker to the CPU after a visit to a CPU-only runtime.
+        _loadingHosting = true;
+        try
+        {
+            foreach (var n in new[]
+                     {
+                         nameof(Manifest), nameof(Tags), nameof(Description), nameof(EnvFolder), nameof(HasHosting), nameof(DeviceOptions),
+                         nameof(ShowDevice), nameof(CanChooseDevice), nameof(DeviceHelp), nameof(ParallelHelp), nameof(GpuIdsHelp),
+                         nameof(ShowGpuIds), nameof(HasSize), nameof(CanCheckSize), nameof(EnvLabel), nameof(IsRuntimeExperimental),
+                     })
+                OnPropertyChanged(n);
+        }
+        finally
+        {
+            _loadingHosting = false;
+        }
+        LoadHosting();
     }
 
     // ------------------------------------------------------------------ hosting row (device, parallel, GPU ids)
@@ -364,7 +379,8 @@ public sealed partial class WorkerItemViewModel : ObservableObject
 
     partial void OnDeviceChanged(DeviceOption? value)
     {
-        if (!_loadingHosting && value != null) SaveWorkerSetting(WorkerManifest.DeviceKey, JsonValue.Create(value.Value));
+        // A runtime with one device (GPU only, CPU only) offers no choice: nothing to save.
+        if (!_loadingHosting && value != null && CanChooseDevice) SaveWorkerSetting(WorkerManifest.DeviceKey, JsonValue.Create(value.Value));
     }
 
     partial void OnParallelChanged(decimal? value)
@@ -462,7 +478,9 @@ public sealed partial class WorkerItemViewModel : ObservableObject
         EnvReady = envReady;
         InstalledText = Status == EnvStatus.NotInstalled ? NotInstalledText(envReady)
             : state == null ? ""
-            : (Manifest.IsHartsy ? $"HartsyInference worker ({Manifest.HartsyModel})" : $"Python {state.PythonVersion}, environment created {state.InstalledUtc.ToLocalTime():g}")
+            : (Manifest.IsHartsy ? $"HartsyInference worker ({Manifest.HartsyModel})"
+                  : Manifest.IsInternal ? $"internal worker ({(Manifest.IsInternalGpu ? "GPU builds downloaded" : "CPU")}), installed {state.InstalledUtc.ToLocalTime():g}"
+                  : $"Python {state.PythonVersion}, environment created {state.InstalledUtc.ToLocalTime():g}")
               + (SelfTestPassed ? " · self-test passed" : " · self-test FAILED");
         OnPropertyChanged(nameof(SharedEnvText));
         RefreshRuntimeOptions();
@@ -473,12 +491,14 @@ public sealed partial class WorkerItemViewModel : ObservableObject
 
     /// <summary>
     /// What installing has to do: nothing big when the shared environment already exists (only this worker's
-    /// packages are added, mostly from the cache) or for HartsyInference (bundled; only a quick check).
+    /// packages are added, mostly from the cache) or for a bundled worker (only a quick check; the internal GPU
+    /// runtime also downloads its engine's GPU builds unless they are there).
     /// </summary>
     private bool EnvironmentReady() =>
-        Manifest.IsHartsy
-            ? AppHost.Environments.HartsyWorkerPath != null
-            : File.Exists(AppHost.DataRoot.EnvPython(Manifest.EnvGroup)) && AppHost.Environments.ReadState(Manifest.EnvGroup) != null;
+        Manifest.IsHartsy ? AppHost.Environments.HartsyWorkerPath != null
+        : Manifest.IsInternal ? AppHost.Environments.InternalWorkerPath != null
+                                  && (!Manifest.IsInternalGpu || InternalGpuRuntime.IsInstalled(AppHost.DataRoot.EnvDir(Manifest.EnvGroup), Manifest.Engine!))
+        : File.Exists(AppHost.DataRoot.EnvPython(Manifest.EnvGroup)) && AppHost.Environments.ReadState(Manifest.EnvGroup) != null;
 
     /// <summary>Not installed, and the environment it needs is prepared: the caption shows green (installing is quick).</summary>
     [ObservableProperty] private bool _envReady;
@@ -486,6 +506,12 @@ public sealed partial class WorkerItemViewModel : ObservableObject
     private string NotInstalledText(bool envReady) =>
         Manifest.IsHartsy
             ? (envReady ? "The bundled HartsyInference worker is ready" : "The bundled HartsyInference worker is missing")
+        : Manifest.IsInternalGpu
+            ? (envReady ? "The GPU builds are already downloaded"
+                : AppHost.Environments.InternalWorkerPath == null ? "The bundled internal worker is missing"
+                : $"Installing downloads the GPU builds ({InternalGpuRuntime.DownloadBytes(Manifest.Engine!) / (1024 * 1024)} MB)")
+        : Manifest.IsInternal
+            ? (envReady ? "The bundled internal worker is ready" : "The bundled internal worker is missing")
             : (envReady ? $"Environment '{Manifest.EnvGroup}' is already prepared" : $"Environment '{Manifest.EnvGroup}' needs to be installed");
 
     private SettingsEditorViewModel? BuildSettings()

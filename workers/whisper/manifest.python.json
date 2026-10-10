@@ -1,0 +1,15 @@
+{
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Several seconds per take on the CPU with the large models; the Small model is quicker.",
+  "workerSettings": [
+    { "key": "model", "type": "enum", "label": "Model", "default": "large-v3-turbo",
+      "options": ["large-v3-turbo", "large-v3", "small"],
+      "optionLabels": ["Large v3 turbo (1.6 GB, fast)", "Large v3 (2.9 GB, most accurate)", "Small (0.9 GB, for the CPU)"],
+      "description": "Turbo is nearly as accurate as Large v3 and several times faster." }
+  ],
+  "models": ["whisper-large-v3-turbo", "whisper-large-v3", "whisper-small"]
+}

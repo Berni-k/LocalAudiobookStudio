@@ -27,9 +27,13 @@ MODELS = {  # the "model" worker setting -> workers/models.json
 }
 MAX_PIECE_SEC = 20.0
 MIN_PIECE_SEC = 10.0
-# A word whose loudest 20 ms is this far below the take's speech (about -26 dB) was heard in silence. Relative and
-# by peak, since quiet word endings ("s", "f") are real speech.
-SILENT_RATIO = 0.05
+# A word whose loudest 20 ms within MARGIN_SEC of it is this far below the take's speech (about -30 dB) was heard in
+# silence. Loose on purpose, as in the internal worker: DTW times are often late, quiet word edges ("s", "th") are near
+# silence at 16 kHz, and keeping a doubtful word is better than losing a real one.
+SILENT_RATIO = 0.03
+MARGIN_SEC = 0.5
+# Below -60 dBFS a word is in silence whatever the take's level: a take of silence has no speech level to compare with.
+SILENCE_FLOOR = 0.001
 
 
 class WhisperWorker:
@@ -89,7 +93,7 @@ class WhisperWorker:
                 detected = detected or chunk.get("language")
                 start_sec += offset
                 end_sec = start_sec if end_sec is None else end_sec + offset
-                if peak_level(levels, start_sec - 0.1, end_sec + 0.1) < SILENT_RATIO * speech:
+                if peak_level(levels, start_sec - MARGIN_SEC, end_sec + MARGIN_SEC) < max(SILENT_RATIO * speech, SILENCE_FLOOR):
                     dropped.append(text)
                     continue
                 words.append({"text": text, "startMs": int(round(start_sec * 1000)), "endMs": int(round(end_sec * 1000))})

@@ -181,7 +181,56 @@ public sealed class WorkerRuntimeTests : IDisposable
         Assert.Contains(parakeet, catalog.Transcribers);
         Assert.DoesNotContain(catalog.Generators, m => m.Id == "parakeet");
         Assert.Contains(catalog.Generators, m => m.Id == "kokoro");
-        Assert.Equal(WorkerRuntimes.Onnx, parakeet.Runtime);
+        // Built in by default: the internal worker's TDT engine (ONNX Runtime), no Python environment.
+        Assert.True(parakeet is { Runtime: WorkerRuntimes.Internal, IsInternal: true, IsInternalGpu: false, Engine: "tdt", RuntimeLabel: "Internal (ONNX CPU)" });
+        Assert.Equal(WorkerRuntimes.Internal, parakeet.EnvGroup);
+    }
+
+    [Fact]
+    public void Whisper_runs_on_the_internal_worker_by_default()
+    {
+        var catalog = new WorkerCatalog(Repo.Combine("workers"));
+        Assert.Equal([WorkerRuntimes.Internal, WorkerRuntimes.InternalGpu, WorkerRuntimes.Python], catalog.RuntimesOf("whisper").Select(r => r.Runtime));
+        var cpu = catalog.Get("whisper")!;
+        Assert.True(cpu is { IsInternal: true, IsInternalGpu: false, IsBundled: true, RunsOnGpu: false, Engine: "whisper", RuntimeLabel: "Internal (whisper.cpp CPU)" });
+        var gpu = catalog.Get("whisper", WorkerRuntimes.InternalGpu)!;
+        Assert.True(gpu is { IsInternalGpu: true, IsBundled: true, RunsOnGpu: true, RuntimeLabel: "Internal (whisper.cpp GPU)" });
+        // The internal runtimes keep their install state (the GPU one also its downloaded builds) per runtime.
+        Assert.Equal(WorkerRuntimes.Internal, cpu.EnvGroup);
+        Assert.Equal(WorkerRuntimes.InternalGpu, gpu.EnvGroup);
+        Assert.False(catalog.Get("whisper", WorkerRuntimes.Python)!.IsBundled);
+        // The model files come from the manifest, not the engine's code.
+        Assert.Equal("ggml-small-q8_0.bin", (string?)cpu.EngineConfig?["models"]?["small"]?["file"]);
+    }
+
+    [Fact]
+    public void Internal_runtimes_need_a_known_engine_and_engine_models_the_worker_lists()
+    {
+        using var tmp = new TempDir();
+        var dir = Path.Combine(tmp.Path, "x");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "manifest.json"), """{ "id": "x", "displayName": "x", "modelVersion": "1", "runtimeOrder": ["internal"] }""");
+        File.WriteAllText(Path.Combine(dir, "manifest.internal.json"), """{ "engine": "nope" }""");
+        var catalog = new WorkerCatalog(tmp.Path);
+        Assert.Contains(catalog.LoadErrors, e => e.Contains("needs \"engine\""));
+
+        File.WriteAllText(Path.Combine(dir, "manifest.internal.json"),
+            """{ "engine": "tdt", "engineConfig": { "models": { "a": { "model": "missing" } } } }""");
+        File.WriteAllText(Path.Combine(dir, "manifest.internal-gpu.json"), """{ "engine": "tdt" }""");
+        catalog = new WorkerCatalog(tmp.Path);
+        Assert.Contains(catalog.LoadErrors, e => e.Contains("names model 'missing'"));
+        Assert.Contains(catalog.LoadErrors, e => e.Contains("has no GPU builds"));
+    }
+
+    [Fact]
+    public void The_GPU_builds_are_the_version_the_worker_is_built_with()
+    {
+        var props = System.Xml.Linq.XDocument.Load(Repo.Combine("Directory.Packages.props"));
+        var versions = props.Descendants("PackageVersion")
+            .Where(p => ((string?)p.Attribute("Include"))?.StartsWith("Whisper.net", StringComparison.Ordinal) == true)
+            .Select(p => (string?)p.Attribute("Version")).ToList();
+        Assert.NotEmpty(versions);
+        Assert.All(versions, v => Assert.Equal(InternalGpuRuntime.WhisperNetVersion, v));
     }
 
     [Fact]

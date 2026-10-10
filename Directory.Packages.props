@@ -37,6 +37,18 @@
     <PackageVersion Include="HartsyInference.Engine" Version="2.0.0-alpha.249" />
   </ItemGroup>
 
+  <ItemGroup Label="Internal worker (whisper.cpp, ONNX Runtime)">
+    <!--
+      The worker bundles the CPU builds; the GPU runtime downloads the Vulkan and CUDA builds of the same version
+      (InternalGpuRuntime.WhisperNetVersion, which a test keeps in step with this one).
+    -->
+    <PackageVersion Include="Whisper.net" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageVersion Include="Whisper.net.Runtime.NoAvx" Version="1.9.1" />
+    <!-- Parakeet on the CPU in the internal worker (the same ONNX export the Python ONNX runtimes use). -->
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.31.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Tests">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

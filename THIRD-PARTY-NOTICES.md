@@ -2,12 +2,15 @@
 
 Local Audiobook Studio is released under the [MIT License](LICENSE.txt). The app ships with the components below, each under its own license; their license texts follow.
 
-Not covered here, because they are not shipped with the app but downloaded later on your machine: Python and Python packages (from PyPI and the PyTorch index) when you install a worker, the AI models when a worker first runs, and ffmpeg if you let the system check download it. Each comes with its own license; the models are listed in [docs/models.md](docs/models.md).
+Not covered here, because they are not shipped with the app but downloaded later on your machine: Python and Python packages (from PyPI and the PyTorch index) when you install a worker, whisper.cpp's GPU builds (Whisper.net's Vulkan and CUDA runtimes, MIT) when you install Whisper's Internal (whisper.cpp GPU) runtime, the AI models when a worker first runs, and ffmpeg if you let the system check download it. Each comes with its own license; the models are listed in [docs/models.md](docs/models.md).
 
 | Component | What ships | License |
 |---|---|---|
 | [uv](https://github.com/astral-sh/uv) | `tools/uv`: the Python installer the app uses (uv is dual-licensed MIT or Apache-2.0; it is redistributed here under MIT) | MIT |
-| [HartsyInference](https://github.com/HartsyAI/HartsyInference) | `hartsy/las-hartsy-worker`: HartsyInference.Engine and its packages (Audio, Core, Cpu, Cuda, Diffusion, Gpu, LLM, ModelAssets, ThreeD, Video, Vision, Vulkan, World) | MIT |
+| [HartsyInference](https://github.com/HartsyAI/HartsyInference) | `tools/hartsy/las-hartsy-worker`: HartsyInference.Engine and its packages (Audio, Core, Cpu, Cuda, Diffusion, Gpu, LLM, ModelAssets, ThreeD, Video, Vision, Vulkan, World) | MIT |
+| [Whisper.net](https://github.com/sandrohanea/whisper.net) | `tools/internal-worker/las-internal-worker`: Whisper.net and its CPU runtimes (Whisper.net.Runtime, Whisper.net.Runtime.NoAvx) | MIT |
+| [ONNX Runtime](https://github.com/microsoft/onnxruntime) | `tools/internal-worker/las-internal-worker`: Microsoft.ML.OnnxRuntime (CPU), for Parakeet's built-in runtime | MIT |
+| [whisper.cpp and ggml](https://github.com/ggml-org/whisper.cpp) | The native whisper and ggml libraries inside Whisper.net's runtimes | MIT |
 | [Avalonia](https://github.com/AvaloniaUI/Avalonia) | Avalonia, Avalonia.Desktop, Avalonia.Controls.ColorPicker, Avalonia.FreeDesktop, Avalonia.Native, Avalonia.Remote.Protocol, Avalonia.Skia, Avalonia.Themes.Simple, Avalonia.Win32, Avalonia.X11 | MIT |
 | [ANGLE](https://chromium.googlesource.com/angle/angle) | Avalonia.Angle.Windows.Natives (Windows only) | BSD-3-Clause |
 | [Semi.Avalonia](https://github.com/irihitech/Semi.Avalonia) | Semi.Avalonia | MIT |
@@ -21,7 +24,7 @@ Not covered here, because they are not shipped with the app but downloaded later
 | [Concentus](https://github.com/lostromb/concentus) | Concentus: the Opus codec in C#, for compressed takes | BSD-3-Clause (the Opus license) |
 | [NLayer](https://github.com/naudio/NLayer) | NLayer: MP3 decoding, for imported MP3 files | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | CommunityToolkit.Mvvm | MIT |
-| [.NET libraries](https://github.com/dotnet/runtime) | Microsoft.Extensions.DependencyInjection(.Abstractions), Microsoft.Extensions.Logging(.Abstractions), Microsoft.Extensions.Options, Microsoft.Extensions.Primitives, System.Numerics.Tensors | MIT |
+| [.NET libraries](https://github.com/dotnet/runtime) | Microsoft.Extensions.DependencyInjection(.Abstractions), Microsoft.Extensions.Logging(.Abstractions), Microsoft.Extensions.Options, Microsoft.Extensions.Primitives, System.Numerics.Tensors, and Microsoft.Extensions.AI.Abstractions (from [dotnet/extensions](https://github.com/dotnet/extensions), used by Whisper.net) | MIT |
 | [Microsoft.ML.Tokenizers](https://github.com/dotnet/machinelearning) | Microsoft.ML.Tokenizers (used by HartsyInference) | MIT |
 | [Protocol Buffers](https://github.com/protocolbuffers/protobuf) | Google.Protobuf (used by HartsyInference) | BSD-3-Clause |
 | [OmniVoice](https://github.com/k2-fsa/OmniVoice) | `workers/omnivoice/onnx_port`: OmniVoice's prompt, voice design, duration and text helpers, vendored for its ONNX runtime | Apache-2.0 |
@@ -67,6 +70,96 @@ Source: <https://github.com/HartsyAI/HartsyInference>
 MIT License
 
 Copyright (c) 2026 HartsyInference Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## Whisper.net
+
+Source: <https://github.com/sandrohanea/whisper.net>
+
+```text
+MIT License
+
+Copyright (c) 2024 sandrohanea
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## ONNX Runtime
+
+Source: <https://github.com/microsoft/onnxruntime>
+
+```text
+MIT License
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## whisper.cpp and ggml
+
+Source: <https://github.com/ggml-org/whisper.cpp>
+
+```text
+MIT License
+
+Copyright (c) 2023-2026 The ggml authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

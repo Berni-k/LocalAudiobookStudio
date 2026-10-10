@@ -165,17 +165,31 @@ public sealed class WorkerCatalog
                 m.EnvGroup = WorkerRuntimes.HartsyGroup;
                 if (string.IsNullOrEmpty(m.HartsyModel)) throw new JsonException("the hartsy runtime needs \"hartsyModel\"");
             }
+            // The bundled internal worker: the install state (and the GPU runtime's downloaded builds) per runtime.
+            if (m.IsInternal)
+            {
+                m.EnvGroup = m.Runtime;
+                if (!Environments.InternalGpuRuntime.Engines.Contains(m.Engine ?? ""))
+                    throw new JsonException($"the {m.Runtime} runtime needs \"engine\" ({string.Join(", ", Environments.InternalGpuRuntime.Engines)})");
+                if (m.IsInternalGpu && !Environments.InternalGpuRuntime.HasGpuBuilds(m.Engine!))
+                    throw new JsonException($"the {m.Engine} engine has no GPU builds; leave out the {m.Runtime} runtime");
+                // The engine loads only models the Workers window knows about (and can show and delete).
+                foreach (var entry in (m.EngineConfig?["models"] as JsonObject ?? []).Select(e => e.Value?["model"]?.GetValue<string>()))
+                    if (entry == null || !m.Models.Contains(entry))
+                        LoadErrors.Add($"{file}: \"engineConfig\" names model '{entry}', which isn't in its \"models\"");
+            }
             if (string.IsNullOrEmpty(m.EnvGroup)) m.EnvGroup = m.Id;
             // A shared environment decides the Python version and the torch build for every worker in it.
-            if (!m.IsHartsy && Environment(m.EnvGroup) is { } env)
+            if (!m.IsBundled && Environment(m.EnvGroup) is { } env)
             {
                 m.Python = env.Python;
                 m.TorchIndexUrl = env.TorchIndexUrl;
             }
-            m.RuntimeLabel = m.Runtime == WorkerRuntimes.Python && Environment(m.EnvGroup) is { } torchEnv
-                             && torchEnv.Packages.Any(p => p.StartsWith("torch", StringComparison.OrdinalIgnoreCase))
-                ? WorkerRuntimes.PyTorchLabel
-                : WorkerRuntimes.Label(m.Runtime);
+            m.RuntimeLabel = m.IsInternal ? WorkerRuntimes.InternalLabel(m.Engine, m.IsInternalGpu)
+                : m.Runtime == WorkerRuntimes.Python && Environment(m.EnvGroup) is { } torchEnv
+                  && torchEnv.Packages.Any(p => p.StartsWith("torch", StringComparison.OrdinalIgnoreCase))
+                    ? WorkerRuntimes.PyTorchLabel
+                    : WorkerRuntimes.Label(m.Runtime);
             MarkUnsupported(m, file);
             foreach (var def in m.Settings.Where(d => d.AddsSettings != null && !SettingSources.Readers.Contains(d.AddsSettings)))
                 LoadErrors.Add($"{file}: setting '{def.Key}' has an unknown \"addsSettings\" reader '{def.AddsSettings}' " +

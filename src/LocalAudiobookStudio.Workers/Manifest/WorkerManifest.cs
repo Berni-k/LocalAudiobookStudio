@@ -103,6 +103,37 @@ public sealed class WorkerManifest
     public bool IsHartsy => string.Equals(Runtime, WorkerRuntimes.Hartsy, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Runs on the bundled internal worker (tools/internal-worker/las-internal-worker): one of its engines (<see cref="Engine"/>) with
+    /// the builds that come with the app, or (<see cref="IsInternalGpu"/>) with GPU builds downloaded on install.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsInternal => IsInternalGpu || string.Equals(Runtime, WorkerRuntimes.Internal, StringComparison.OrdinalIgnoreCase);
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsInternalGpu => string.Equals(Runtime, WorkerRuntimes.InternalGpu, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The internal worker's engine that runs this worker ("whisper": whisper.cpp; "tdt": NeMo TDT on ONNX Runtime).
+    /// Required for the internal runtimes; see src/LocalAudiobookStudio.InternalWorker/Engines.cs.
+    /// </summary>
+    public string? Engine { get; set; }
+
+    /// <summary>
+    /// What the internal worker's engine loads, so a new model of a known kind needs no code: its <c>models</c> map a
+    /// value of the worker setting named by <c>modelSetting</c> to a models.json id and its files
+    /// (<c>{ "modelSetting": "model", "models": { "small": { "model": "whisper-small-ggml-q8", "file": "ggml-small-q8_0.bin" } } }</c>;
+    /// the other keys of an entry are the engine's). The worker gets it as LAS_ENGINE_CONFIG.
+    /// </summary>
+    public JsonObject? EngineConfig { get; set; }
+
+    /// <summary>
+    /// Runs on a program that comes with the app (HartsyInference, the internal worker) instead of Python: no environment
+    /// to create; its folder in envs/ only holds the install state (and, for whisper.cpp's GPU runtime, its GPU builds).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsBundled => IsHartsy || IsInternal;
+
+    /// <summary>
     /// Kept the same across runtimes: it is part of each segment's input hash, and switching runtime
     /// shouldn't mark every take out of date. The take records its runtime instead.
     /// </summary>
@@ -393,7 +424,7 @@ public static class WorkerRuntimes
     /// <summary>A Python script in a uv environment (workers/&lt;id&gt;/worker.py).</summary>
     public const string Python = "python";
 
-    /// <summary>The bundled .NET worker (hartsy/las-hartsy-worker) running a HartsyInference model.</summary>
+    /// <summary>The bundled .NET worker (tools/hartsy/las-hartsy-worker) running a HartsyInference model.</summary>
     public const string Hartsy = "hartsy";
 
     /// <summary>A Python script on ONNX Runtime, CPU only (a small environment without torch).</summary>
@@ -401,6 +432,16 @@ public static class WorkerRuntimes
 
     /// <summary>A Python script on ONNX Runtime with CUDA (its own GPU build, still without torch).</summary>
     public const string OnnxCuda = "onnx-cuda";
+
+    /// <summary>The bundled internal worker (tools/internal-worker/las-internal-worker) with the builds that come with the app (CPU).</summary>
+    public const string Internal = "internal";
+
+    /// <summary>The same worker with its engine's GPU builds, downloaded on install (<see cref="Environments.InternalGpuRuntime"/>).</summary>
+    public const string InternalGpu = "internal-gpu";
+
+    /// <summary>How an internal runtime is named: what its engine runs on, and where ("Internal (whisper.cpp GPU)", "Internal (ONNX CPU)").</summary>
+    public static string InternalLabel(string? engine, bool gpu) =>
+        $"Internal ({(engine == "whisper" ? "whisper.cpp" : "ONNX")} {(gpu ? "GPU" : "CPU")})";
 
     /// <summary>The "environment" Hartsy workers are recorded in: there is no venv, only the install state.</summary>
     public const string HartsyGroup = "hartsy";
@@ -417,6 +458,8 @@ public static class WorkerRuntimes
         Hartsy => "HartsyInference (.NET)",
         Onnx => "ONNX Runtime (CPU)",
         OnnxCuda => "ONNX Runtime (CUDA)",
+        Internal => "Internal (CPU)",
+        InternalGpu => "Internal (GPU)",
         _ => runtime,
     };
 }

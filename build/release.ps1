@@ -1,5 +1,5 @@
 # Builds a release zip: the app published for one platform (framework-dependent), with las, the workers,
-# uv for that platform, the HartsyInference worker and the example project. The CI release workflow runs it;
+# uv for that platform, the HartsyInference and internal workers and the example project. The CI release workflow runs it;
 # it also runs locally (Windows PowerShell 5.1 or pwsh).
 # Usage: powershell -ExecutionPolicy Bypass -File build/release.ps1 [-Rid win-x64|linux-x64] [-Version 0.1.0]
 param(
@@ -40,7 +40,7 @@ Copy-Item (Join-Path $root "LICENSE.txt"), (Join-Path $root "THIRD-PARTY-NOTICES
 
 if ($Rid -eq "linux-x64") {
     # Git on Windows may not keep the executable bit; zip (Info-ZIP) stores it, so unzip restores it.
-    chmod +x "$stage/LocalAudiobookStudio" "$stage/las" "$stage/hartsy/las-hartsy-worker" "$stage/tools/uv/linux-x64/uv"
+    chmod +x "$stage/LocalAudiobookStudio" "$stage/las" "$stage/tools/hartsy/las-hartsy-worker" "$stage/tools/internal-worker/las-internal-worker" "$stage/tools/uv/linux-x64/uv"
     Push-Location $OutDir
     try { zip -qry "$name.zip" $name; if ($LASTEXITCODE -ne 0) { throw "zip failed" } }
     finally { Pop-Location }

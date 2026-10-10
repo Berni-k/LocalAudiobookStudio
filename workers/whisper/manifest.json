@@ -4,20 +4,17 @@
   "description": "About 100 languages; the language can be set or detected. Good at niche languages, but word timings are rougher than most other models.",
   "tags": ["Transcription"],
   "priority": 45,
+  "runtimeOrder": ["internal", "internal-gpu", "python"],
   "modelVersion": "v1",
-  "envGroup": "torch2_11-cu128-tx5",
-  "requirements": "requirements.txt",
-  "entry": "worker.py",
+  "engine": "whisper",
+  "engineConfig": {
+    "modelSetting": "model",
+    "models": {
+      "large-v3-turbo": { "model": "whisper-large-v3-turbo-ggml-q8", "file": "ggml-large-v3-turbo-q8_0.bin", "dtwHeads": "LargeV3Turbo" },
+      "large-v3": { "model": "whisper-large-v3-ggml-q5", "file": "ggml-large-v3-q5_0.bin", "dtwHeads": "LargeV3" },
+      "small": { "model": "whisper-small-ggml-q8", "file": "ggml-small-q8_0.bin", "dtwHeads": "Small" }
+    }
+  },
   "languages": ["en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su", "yue"],
-  "approxVramGb": 4,
-  "devices": ["cuda", "cpu"],
-  "cpuRecommended": false,
-  "cpuNote": "Several seconds per take on the CPU with the large models; the Small model is quicker.",
-  "workerSettings": [
-    { "key": "model", "type": "enum", "label": "Model", "default": "large-v3-turbo",
-      "options": ["large-v3-turbo", "large-v3", "small"],
-      "optionLabels": ["Large v3 turbo (1.6 GB, fast)", "Large v3 (2.9 GB, most accurate)", "Small (0.9 GB, for the CPU)"],
-      "description": "Turbo is nearly as accurate as Large v3 and several times faster." }
-  ],
-  "models": ["whisper-large-v3-turbo", "whisper-large-v3", "whisper-small"]
+  "approxVramGb": 4
 }

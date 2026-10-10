@@ -4,8 +4,15 @@
   "description": "Speech recognition with word timings for 25 European languages. Checks takes against their text.",
   "tags": ["Transcription"],
   "priority": 50,
-  "runtimeOrder": ["onnx", "onnx-cuda"],
+  "runtimeOrder": ["internal", "onnx", "onnx-cuda"],
   "modelVersion": "v3",
+  "engineConfig": {
+    "modelSetting": "precision",
+    "models": {
+      "int8": { "model": "parakeet-tdt-0.6b-v3-onnx-int8", "preprocessor": "nemo128.onnx", "encoder": "encoder-model.int8.onnx", "decoder": "decoder_joint-model.int8.onnx", "vocab": "vocab.txt" },
+      "full": { "model": "parakeet-tdt-0.6b-v3-onnx", "preprocessor": "nemo128.onnx", "encoder": "encoder-model.onnx", "decoder": "decoder_joint-model.onnx", "vocab": "vocab.txt" }
+    }
+  },
   "languages": ["bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"],
   "approxVramGb": 2,
   "devices": ["cuda", "cpu"],

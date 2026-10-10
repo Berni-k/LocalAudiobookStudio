@@ -28,7 +28,8 @@ internal static class Help
                      ('models <id>', 'models download <id>', 'models delete <id>'; 'models pin <id>' fills
                      in a new model's files and hashes in workers/models.json)
           devices    GPUs found and the devices workers run on
-          doctor     Check the machine: GPU, driver, uv, HartsyInference, ffmpeg, disk space
+          doctor     Check the machine: GPU, driver, uv, CUDA libraries, HartsyInference, the internal
+                     worker, ffmpeg, disk space
                      (--fix downloads a missing uv, and ffmpeg on Windows, into the data folder)
           split      Show how a text file would be split into chapters and segments
           version    Print the version
@@ -88,7 +89,9 @@ internal static class Help
               --words              Print every word with its start and end time
           -l, --language <code>    Language of the audio (en, de, …), for workers that need it
           -w, --worker <id>        Worker (default: the first installed transcription worker)
-              --runtime <name>     Runtime of the worker (onnx, onnx-cuda, …)
+              --runtime <name>     Runtime of the worker (internal, internal-gpu, python, onnx, onnx-cuda);
+                                   see 'las workers <id>'
+              --device gpu|cpu     Where it runs this time (default: the worker's Device setting)
               --set key=value      A worker setting (repeatable); see 'las workers <id>'
           -r, --recursive          Include subfolders of input folders
 

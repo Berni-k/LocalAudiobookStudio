@@ -71,15 +71,34 @@ public sealed partial class TranscriptCheck
     {
         var expected = MergeNumbers(Tokenize(expectedText).ToList(), expectedText);
         var said = MergeNumbers(SplitHeard(heard));
-        var ops = Align(expected.Select(t => t.Key).ToList(), said.Select(h => h.Key).ToList());
+        var keys = expected.Select(t => t.Key).ToList();
+        var ops = Align(keys, said.Select(h => h.Key).ToList());
 
         var words = new List<WordComparison>(ops.Count);
-        foreach (var (kind, e, h) in ops)
+        foreach (var op in ops)
         {
+            var e = op.Expected;
             var ew = e >= 0 ? expected[e] : default;
-            var hw = h >= 0 ? said[h] : null;
-            words.Add(new WordComparison(kind, e >= 0 ? ew.Text : null, hw?.Text,
-                hw?.StartMs ?? 0, hw?.EndMs ?? 0, e >= 0 ? ew.Start : -1, e >= 0 ? ew.Length : 0, hw?.Confidence));
+            var hw = op.Heard >= 0 ? said[op.Heard] : null;
+            string? heardText = hw?.Text;
+            int startMs = hw?.StartMs ?? 0, endMs = hw?.EndMs ?? 0;
+            if (hw != null && op.HeardCount == 2)
+            {
+                // Two heard words for one written word: their text and their span together.
+                var second = said[op.Heard + 1];
+                heardText = hw.Text + " " + second.Text;
+                endMs = second.EndMs;
+            }
+            else if (hw != null && op.Part is { } part)
+            {
+                // One heard word for two written words: its time shared by their lengths.
+                var first = keys[part == 0 ? e : e - 1].Length;
+                var total = first + keys[part == 0 ? e + 1 : e].Length;
+                var split = hw.StartMs + (int)Math.Round((hw.EndMs - hw.StartMs) * (double)first / total);
+                (startMs, endMs) = part == 0 ? (hw.StartMs, split) : (split, hw.EndMs);
+            }
+            words.Add(new WordComparison(op.Kind, e >= 0 ? ew.Text : null, heardText,
+                startMs, endMs, e >= 0 ? ew.Start : -1, e >= 0 ? ew.Length : 0, hw?.Confidence));
         }
         FillMissingTimes(words);
         return new TranscriptCheck(words, expected.Count);
@@ -184,8 +203,10 @@ public sealed partial class TranscriptCheck
     /// different one, so "Eowyn"/"Eowin" lines up as a pair rather than as a missing and an extra word. Between
     /// line-ups with as many edits, the one with the most identical words wins: "quick" missing and "fox" heard as
     /// "box" reads better than three words each heard as the next one.
+    /// Two adjacent words written as one on the other side match too: "rag mats" heard as "ragmats" (a model joining
+    /// words), or "ragmats" heard as "rag mats".
     /// </summary>
-    private static List<(WordMatch kind, int expected, int heard)> Align(List<string> a, List<string> b)
+    private static List<Op> Align(List<string> a, List<string> b)
     {
         int n = a.Count, m = b.Count;
         var cost = new double[n + 1, m + 1];
@@ -193,33 +214,64 @@ public sealed partial class TranscriptCheck
         for (int j = 0; j <= m; j++) cost[0, j] = j;
         for (int i = 1; i <= n; i++)
         for (int j = 1; j <= m; j++)
-            cost[i, j] = Math.Min(cost[i - 1, j - 1] + PairCost(a[i - 1], b[j - 1]),
-                Math.Min(cost[i - 1, j], cost[i, j - 1]) + 1);
+        {
+            var best = Math.Min(cost[i - 1, j - 1] + PairCost(a[i - 1], b[j - 1]), Math.Min(cost[i - 1, j], cost[i, j - 1]) + 1);
+            if (TwoExpectedAsOne(a, b, i, j)) best = Math.Min(best, cost[i - 2, j - 1] - MatchBonus);
+            if (OneExpectedAsTwo(a, b, i, j)) best = Math.Min(best, cost[i - 1, j - 2] - MatchBonus);
+            cost[i, j] = best;
+        }
 
-        var ops = new List<(WordMatch, int, int)>(Math.Max(n, m));
+        var ops = new List<Op>(Math.Max(n, m));
         int x = n, y = m;
         while (x > 0 || y > 0)
         {
             if (x > 0 && y > 0 && Same(cost[x, y], cost[x - 1, y - 1] + PairCost(a[x - 1], b[y - 1])))
             {
                 var c = SubstitutionCost(a[x - 1], b[y - 1]);
-                ops.Add((c == 0 ? WordMatch.Match : c < 1 ? WordMatch.Close : WordMatch.Substituted, x - 1, y - 1));
+                ops.Add(new Op(c == 0 ? WordMatch.Match : c < 1 ? WordMatch.Close : WordMatch.Substituted, x - 1, y - 1));
                 x--; y--;
+            }
+            else if (TwoExpectedAsOne(a, b, x, y) && Same(cost[x, y], cost[x - 2, y - 1] - MatchBonus))
+            {
+                // Added in reverse like the rest: the second written word first.
+                ops.Add(new Op(WordMatch.Match, x - 1, y - 1, Part: 1));
+                ops.Add(new Op(WordMatch.Match, x - 2, y - 1, Part: 0));
+                x -= 2; y--;
+            }
+            else if (OneExpectedAsTwo(a, b, x, y) && Same(cost[x, y], cost[x - 1, y - 2] - MatchBonus))
+            {
+                ops.Add(new Op(WordMatch.Match, x - 1, y - 2, HeardCount: 2));
+                x--; y -= 2;
             }
             else if (x > 0 && Same(cost[x, y], cost[x - 1, y] + 1))
             {
-                ops.Add((WordMatch.Missing, x - 1, -1));
+                ops.Add(new Op(WordMatch.Missing, x - 1, -1));
                 x--;
             }
             else
             {
-                ops.Add((WordMatch.Extra, -1, y - 1));
+                ops.Add(new Op(WordMatch.Extra, -1, y - 1));
                 y--;
             }
         }
         ops.Reverse();
         return ops;
     }
+
+    /// <summary>
+    /// One step of the line-up: written word <see cref="Expected"/> with heard word <see cref="Heard"/> (-1: none).
+    /// <see cref="HeardCount"/> 2: two heard words make up the written one. <see cref="Part"/>: which of two written
+    /// words one heard word stands for (0, 1), or null.
+    /// </summary>
+    private readonly record struct Op(WordMatch Kind, int Expected, int Heard, int HeardCount = 1, int? Part = null);
+
+    /// <summary>Written words i-2 and i-1 together are heard word j-1 ("rag mats" heard as "ragmats").</summary>
+    private static bool TwoExpectedAsOne(List<string> a, List<string> b, int i, int j) =>
+        i >= 2 && j >= 1 && b[j - 1].Length == a[i - 2].Length + a[i - 1].Length && b[j - 1] == a[i - 2] + a[i - 1];
+
+    /// <summary>Written word i-1 is heard words j-2 and j-1 together ("ragmats" heard as "rag mats").</summary>
+    private static bool OneExpectedAsTwo(List<string> a, List<string> b, int i, int j) =>
+        i >= 1 && j >= 2 && a[i - 1].Length == b[j - 2].Length + b[j - 1].Length && a[i - 1] == b[j - 2] + b[j - 1];
 
     private static bool Same(double a, double b) => Math.Abs(a - b) < 1e-9;
 

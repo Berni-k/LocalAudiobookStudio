@@ -2,7 +2,7 @@
   <!--
     las: the command line. Text to speech with the app's workers, and project steps (import, erase takes,
     generate, export) for scripted workflows. Built into the app's output folder (the app references it), since
-    it finds workers/, tools/ and hartsy/ next to itself, and uses the app's settings and data folder.
+    it finds workers/ and tools/ next to itself, and uses the app's settings and data folder.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

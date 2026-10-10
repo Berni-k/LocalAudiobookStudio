@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The internal worker: models that run in .NET instead of Python, one engine per kind of model (Engines.cs; whisper.cpp
+    through Whisper.net, NeMo TDT on ONNX Runtime). Speaks the same newline-delimited JSON protocol as
+    workers/common/protocol.py; the protocol code is the HartsyInference worker's, compiled in here too.
+
+    The CPU builds come with it (runtimes/ and onnxruntime inside the exe). The GPU runtime downloads an engine's GPU
+    builds into the data folder (Workers/Environments/InternalGpuRuntime.cs) and names that folder on the command line.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LocalAudiobookStudio.InternalWorker</RootNamespace>
+    <AssemblyName>las-internal-worker</AssemblyName>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    Published as one file, like the HartsyInference worker: the exe holds every DLL and the native libraries
+    (runtimes/<backend>/<rid>, onnxruntime, the Visual C++ runtime). Self-extract puts them in a folder at first start
+    (DOTNET_BUNDLE_EXTRACT_BASE_DIR, else %TEMP%\.net) and AppContext.BaseDirectory points there, which is where
+    Whisper.net and ONNX Runtime look. Framework-dependent: it runs on the .NET the app runs on. The app's build
+    publishes it into tools/internal-worker/ (see LocalAudiobookStudio.App.csproj).
+  -->
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <DebugType>embedded</DebugType>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\LocalAudiobookStudio.HartsyWorker\Protocol.cs" Link="Protocol.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" />
+    <PackageReference Include="Whisper.net.Runtime" />
+    <PackageReference Include="Whisper.net.Runtime.NoAvx" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+  </ItemGroup>
+
+  <!--
+    What goes into the exe, decided before it's bundled. Whisper.net's runtime packages bring their native files for
+    every platform (macOS, ARM, x86…) whatever is being published; only this platform's are kept. ONNX Runtime's
+    package also brings its Windows libraries to a Linux publish, and import libraries nobody loads.
+  -->
+  <Target Name="KeepThisPlatformsNativeFiles" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <_OtherPlatformFile Include="@(ResolvedFileToPublish)"
+                          Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\', '/').StartsWith('runtimes/'))
+                                     And !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\', '/').Contains('/$(RuntimeIdentifier)/'))" />
+      <_OtherPlatformFile Include="@(ResolvedFileToPublish)"
+                          Condition="'%(ResolvedFileToPublish.Extension)' == '.lib' Or '%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'ggml-metal.metal'" />
+      <_OtherPlatformFile Include="@(ResolvedFileToPublish)"
+                          Condition="$(RuntimeIdentifier.StartsWith('linux')) And '%(ResolvedFileToPublish.Extension)' == '.dll'
+                                     And $([System.String]::Copy('%(ResolvedFileToPublish.Filename)').StartsWith('onnxruntime'))" />
+      <ResolvedFileToPublish Remove="@(_OtherPlatformFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    The Microsoft Visual C++ runtime, which whisper.cpp and ONNX Runtime need on Windows: bundled from the build
+    machine's (the redistributable's licence allows this app-local deployment). The worker loads them only when Windows
+    has none of its own (VcRuntime.cs).
+  -->
+  <Target Name="BundleVcRuntime" AfterTargets="ComputeResolvedFilesToPublishList"
+          Condition="$(RuntimeIdentifier.StartsWith('win')) And '$(OS)' == 'Windows_NT'">
+    <ItemGroup>
+      <_VcRuntimeDll Include="$(SystemRoot)\System32\vcruntime140.dll;$(SystemRoot)\System32\vcruntime140_1.dll;$(SystemRoot)\System32\msvcp140.dll;$(SystemRoot)\System32\msvcp140_1.dll;$(SystemRoot)\System32\vcomp140.dll" />
+      <ResolvedFileToPublish Include="@(_VcRuntimeDll)" Condition="Exists('%(FullPath)')"
+                             RelativePath="%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+    <Warning Condition="!Exists('$(SystemRoot)\System32\vcomp140.dll')"
+             Text="The Visual C++ runtime isn't installed on this machine: the internal worker is published without it." />
+  </Target>
+</Project>

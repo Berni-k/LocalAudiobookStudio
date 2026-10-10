@@ -58,12 +58,14 @@ public sealed class EnvironmentManager
     /// </summary>
     public const string PackageCutoff = "2026-10-03T18:00:00Z";
 
-    public EnvironmentManager(DataRootPaths dataRoot, WorkerCatalog catalog, string? uvPath, string? hartsyWorkerPath = null)
+    public EnvironmentManager(DataRootPaths dataRoot, WorkerCatalog catalog, string? uvPath, string? hartsyWorkerPath = null,
+        string? internalWorkerPath = null)
     {
         DataRoot = dataRoot;
         Catalog = catalog;
         UvPath = uvPath;
         HartsyWorkerPath = hartsyWorkerPath;
+        InternalWorkerPath = internalWorkerPath;
     }
 
     public DataRootPaths DataRoot { get; }
@@ -75,8 +77,11 @@ public sealed class EnvironmentManager
     /// <summary>Uses a uv found or downloaded after startup (the system check's "Download uv").</summary>
     public void UseUv(string path) => UvPath = path;
 
-    /// <summary>The bundled HartsyInference worker (hartsy/las-hartsy-worker), or null if it isn't present.</summary>
+    /// <summary>The bundled HartsyInference worker (tools/hartsy/las-hartsy-worker), or null if it isn't present.</summary>
     public string? HartsyWorkerPath { get; }
+
+    /// <summary>The bundled internal worker (tools/internal-worker/las-internal-worker: whisper.cpp, ONNX Runtime), or null if it isn't present.</summary>
+    public string? InternalWorkerPath { get; }
 
     public event Action<string>? StatusChanged;
 
@@ -113,12 +118,16 @@ public sealed class EnvironmentManager
         return null;
     }
 
-    /// <summary>Finds the bundled HartsyInference worker, which the app's build publishes into <c>hartsy/</c>.</summary>
-    public static string? FindHartsyWorker(string? baseDir = null)
+    /// <summary>Finds the bundled HartsyInference worker, which the app's build publishes into <c>tools/hartsy/</c>.</summary>
+    public static string? FindHartsyWorker(string? baseDir = null) => FindBundledWorker("hartsy", "las-hartsy-worker", baseDir);
+
+    /// <summary>Finds the bundled internal worker (whisper.cpp, ONNX Runtime), which the app's build publishes into <c>tools/internal-worker/</c>.</summary>
+    public static string? FindInternalWorker(string? baseDir = null) => FindBundledWorker("internal-worker", "las-internal-worker", baseDir);
+
+    private static string? FindBundledWorker(string folder, string name, string? baseDir)
     {
         baseDir ??= AppContext.BaseDirectory;
-        var exe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "las-hartsy-worker.exe" : "las-hartsy-worker";
-        var path = Path.Combine(baseDir, "hartsy", exe);
+        var path = Path.Combine(baseDir, "tools", folder, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? name + ".exe" : name);
         if (!File.Exists(path)) return null;
         EnsureExecutable(path);
         return path;
@@ -172,13 +181,37 @@ public sealed class EnvironmentManager
         return version;
     }
 
+    /// <summary>The libraries the bundled internal worker is built on ("Whisper.net 1.9.1, ONNX Runtime 1.31.0"), or null.</summary>
+    public async Task<string?> GetInternalWorkerVersionAsync(CancellationToken ct = default)
+    {
+        if (InternalWorkerPath == null) return null;
+        string? version = null;
+        try
+        {
+            await ProcessRunner.RunAsync(InternalWorkerPath, ["--version"], BundledWorkerEnvironment(),
+                l => { if (l.StartsWith("Whisper.net ", StringComparison.Ordinal)) version = l.Trim(); }, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A worker that doesn't start: no version to show.
+        }
+        return version;
+    }
+
     /// <summary>Environment for the HartsyInference worker process.</summary>
     private Dictionary<string, string> HartsyEnvironment()
     {
-        var env = DataRoot.BaseEnvironment();
-        // The single-file worker unpacks itself (DLLs, CUDA kernels) here instead of %TEMP%\.net.
-        env["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = Path.Combine(DataRoot.Cache, "dotnet-bundle");
+        var env = BundledWorkerEnvironment();
         env["LAS_HARTSY_SETTINGS"] = DataRoot.HartsySettingsFile;
+        return env;
+    }
+
+    /// <summary>Environment for a single-file worker that comes with the app (HartsyInference, internal).</summary>
+    private Dictionary<string, string> BundledWorkerEnvironment()
+    {
+        var env = DataRoot.BaseEnvironment();
+        // The single-file workers unpack themselves (DLLs, native libraries, CUDA kernels) here instead of %TEMP%\.net.
+        env["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = Path.Combine(DataRoot.Cache, "dotnet-bundle");
         return env;
     }
 
@@ -227,14 +260,14 @@ public sealed class EnvironmentManager
     }
 
     /// <summary>
-    /// The worker's executable is there: the HartsyInference worker, or the venv's python with the base Python it
-    /// was made from. uv's python.exe on Windows is a small launcher; when the base install it names is gone
-    /// (removed, or another Python version replaced it), the launcher stays but can't start anything.
+    /// The worker's executable is there: a bundled worker (with the GPU runtime's downloaded builds), or the venv's
+    /// python with the base Python it was made from. uv's python.exe on Windows is a small launcher; when the base
+    /// install it names is gone (removed, or another Python version replaced it), the launcher stays but can't start anything.
     /// </summary>
     private bool InterpreterPresent(WorkerManifest m) =>
-        m.IsHartsy
-            ? File.Exists(HartsyWorkerPath ?? "")
-            : File.Exists(DataRoot.EnvPython(m.EnvGroup)) && DataRootPaths.VenvBaseExists(DataRoot.EnvDir(m.EnvGroup));
+        m.IsHartsy ? File.Exists(HartsyWorkerPath ?? "")
+        : m.IsInternal ? File.Exists(InternalWorkerPath ?? "") && (!m.IsInternalGpu || InternalGpuRuntime.IsInstalled(DataRoot.EnvDir(m.EnvGroup), m.Engine!))
+        : File.Exists(DataRoot.EnvPython(m.EnvGroup)) && DataRootPaths.VenvBaseExists(DataRoot.EnvDir(m.EnvGroup));
 
     /// <summary>True when the worker is installed and passed its self-test (an available update doesn't matter).</summary>
     public bool IsWorkerReady(string workerId) => GetWorkerStatus(workerId) is EnvStatus.Ready or EnvStatus.UpdateAvailable;
@@ -255,6 +288,14 @@ public sealed class EnvironmentManager
             // A new worker build (another HartsyInference version) asks for a new self-test.
             sb.Append("hartsy=").Append(w.HartsyModel).Append('\n');
             if (HartsyWorkerPath != null && File.Exists(HartsyWorkerPath)) sb.Append("exe=").Append(new FileInfo(HartsyWorkerPath).Length);
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()))).ToLowerInvariant();
+        }
+        if (w.IsInternal)
+        {
+            // A new worker build or new GPU builds ask for a new self-test (and, for the GPU runtime, a new download).
+            sb.Append("internal=").Append(w.Runtime).Append('/').Append(w.Engine).Append('\n');
+            if (InternalWorkerPath != null && File.Exists(InternalWorkerPath)) sb.Append("exe=").Append(new FileInfo(InternalWorkerPath).Length).Append('\n');
+            if (w.IsInternalGpu) sb.Append("gpu=").Append(InternalGpuRuntime.Fingerprint(w.Engine!));
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()))).ToLowerInvariant();
         }
         sb.Append("python=").Append(PythonVersionFor(w.EnvGroup)).Append('\n');
@@ -282,7 +323,7 @@ public sealed class EnvironmentManager
 
     private async Task<bool> InstallCoreAsync(string workerId, bool rebuild, Action<string> log, CancellationToken ct)
     {
-        if (Catalog.Get(workerId) is { IsHartsy: true } hartsy) return await InstallHartsyAsync(hartsy, log, ct);
+        if (Catalog.Get(workerId) is { IsBundled: true } bundled) return await InstallBundledAsync(bundled, log, ct);
         if (UvPath == null)
         {
             log("ERROR: uv was not found, neither in tools/uv nor on the PATH. Install uv (https://docs.astral.sh/uv/) or run tools/uv/fetch-uv.ps1 (Windows) / tools/uv/fetch-uv.sh (Linux), then restart.");
@@ -433,9 +474,19 @@ public sealed class EnvironmentManager
     /// <summary>How to start a worker process: the program, its arguments and its working directory.</summary>
     public (string Executable, List<string> Arguments, string WorkingDirectory) WorkerCommand(WorkerManifest w) =>
         w.IsHartsy
-            ? (HartsyWorkerPath ?? throw new InvalidOperationException("The HartsyInference worker (hartsy/las-hartsy-worker) is missing from the app folder."),
+            ? (HartsyWorkerPath ?? throw new InvalidOperationException("The HartsyInference worker (tools/hartsy/las-hartsy-worker) is missing from the app folder."),
                HartsyArguments(w), w.Folder)
-            : (DataRoot.EnvPython(w.EnvGroup), ["-u", Path.Combine(w.Folder, w.Entry)], w.Folder);
+            : w.IsInternal
+                ? (InternalWorkerPath ?? throw new InvalidOperationException("The internal worker (tools/internal-worker/las-internal-worker) is missing from the app folder."),
+                   InternalArguments(w), w.Folder)
+                : (DataRoot.EnvPython(w.EnvGroup), ["-u", Path.Combine(w.Folder, w.Entry)], w.Folder);
+
+    private List<string> InternalArguments(WorkerManifest w)
+    {
+        var args = new List<string> { "--worker", w.Id, "--model-version", w.ModelVersion, "--engine", w.Engine! };
+        if (w.IsInternalGpu) args.AddRange(["--gpu-folder", InternalGpuRuntime.EngineFolder(DataRoot.EnvDir(w.EnvGroup), w.Engine!)]);
+        return args;
+    }
 
     private static List<string> HartsyArguments(WorkerManifest w)
     {
@@ -445,25 +496,41 @@ public sealed class EnvironmentManager
     }
 
     /// <summary>
-    /// Installs a worker on the HartsyInference runtime. There are no packages: the bundled worker only has to
-    /// bring up its backend. The model downloads when it first runs, like the Python workers' models.
+    /// Installs a worker on a runtime that comes with the app (HartsyInference, the internal worker). There are no
+    /// packages: the bundled worker only has to bring up its backend; the internal GPU runtime first downloads its
+    /// engine's GPU builds unless they are there. Install and repair do the same. The model downloads when the worker
+    /// first runs, like the Python workers' models.
     /// </summary>
-    private async Task<bool> InstallHartsyAsync(WorkerManifest worker, Action<string> log, CancellationToken ct)
+    private async Task<bool> InstallBundledAsync(WorkerManifest worker, Action<string> log, CancellationToken ct)
     {
         var group = worker.EnvGroup;
+        var (program, programName) = worker.IsHartsy
+            ? (HartsyWorkerPath, "The HartsyInference worker (tools/hartsy/las-hartsy-worker)")
+            : (InternalWorkerPath, "The internal worker (tools/internal-worker/las-internal-worker)");
         lock (_installing)
         {
-            if (!_installing.Add(group)) { log("Another HartsyInference installation is already running."); return false; }
+            if (!_installing.Add(group)) { log($"Another installation of the {worker.RuntimeLabel} runtime is already running."); return false; }
             _installingWorkers.Add(worker.Id);
         }
         StatusChanged?.Invoke(group);
+        FileStream? groupLock = null;
         try
         {
-            if (HartsyWorkerPath == null)
-                return Fail(log, "The HartsyInference worker (hartsy/las-hartsy-worker) is missing from the app folder. Rebuild the app.");
+            if (program == null)
+                return Fail(log, $"{programName} is missing from the app folder. Rebuild the app.");
             DataRoot.EnsureCreated();
-            Directory.CreateDirectory(DataRoot.EnvDir(group));
-            log($"== {worker.DisplayName} on HartsyInference: self-test of {HartsyWorkerPath}");
+            var envDir = DataRoot.EnvDir(group);
+            Directory.CreateDirectory(envDir);
+            if (worker.IsInternalGpu)
+            {
+                groupLock = LockGroup(group, log);
+                if (groupLock == null) return false;
+                // Not again on a repair: an app update marks the runtime "update available" (a new worker build), and
+                // that shouldn't cost hundreds of MB. The builds download again when their pinned versions or the CUDA
+                // toolkit change, or after the last uninstall (which deletes the folder).
+                await InternalGpuRuntime.InstallAsync(envDir, worker.Engine!, DataRoot.Temp, log, ct);
+            }
+            log($"== {worker.DisplayName} on {worker.RuntimeLabel}: self-test of {program}");
             var output = new StringBuilder();
             var code = await RunSelfTestAsync(worker, l => { output.AppendLine(l); log($"[{worker.Id}] {l}"); }, ct);
 
@@ -490,6 +557,7 @@ public sealed class EnvironmentManager
         }
         finally
         {
+            groupLock?.Dispose();
             lock (_installing)
             {
                 _installing.Remove(group);
@@ -526,6 +594,12 @@ public sealed class EnvironmentManager
         }
         else if (state != null)
         {
+            // The internal GPU runtime is shared by engines: an engine's GPU builds go with its last worker.
+            if (worker.IsInternalGpu && remaining.All(id => Catalog.InGroup(id, group)?.Engine != worker.Engine))
+            {
+                var engineDir = InternalGpuRuntime.EngineFolder(dir, worker.Engine!);
+                if (Directory.Exists(engineDir)) Directory.Delete(engineDir, recursive: true);
+            }
             state.Installed = remaining;
             state.SelfTests.Remove(worker.Id);
             state.SelfTestOutput.Remove(worker.Id);
@@ -588,6 +662,22 @@ public sealed class EnvironmentManager
         if (w.IsHartsy)
         {
             env = HartsyEnvironment();
+        }
+        else if (w.IsInternal)
+        {
+            env = BundledWorkerEnvironment();
+            // What the engine loads (the manifest's engineConfig): model ids and files per worker-setting value.
+            if (w.EngineConfig != null) env["LAS_ENGINE_CONFIG"] = w.EngineConfig.ToJsonString();
+            // CUDA builds load cudart and cuBLAS from the user's CUDA toolkit by name. Its folders go on the search
+            // path in case the toolkit's installer didn't add them (Windows PATH, Linux LD_LIBRARY_PATH).
+            if (w.IsInternalGpu)
+            {
+                var variable = OperatingSystem.IsWindows() ? "PATH" : "LD_LIBRARY_PATH";
+                var current = env.TryGetValue(variable, out var v) ? v : Environment.GetEnvironmentVariable(variable);
+                var extra = CudaToolkit.LibraryFolders().Where(Directory.Exists).ToList();
+                if (extra.Count > 0)
+                    env[variable] = string.Join(Path.PathSeparator, string.IsNullOrEmpty(current) ? extra : [.. extra, current]);
+            }
         }
         else
         {
