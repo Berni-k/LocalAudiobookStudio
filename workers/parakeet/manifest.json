@@ -1,0 +1,20 @@
+{
+  "id": "parakeet",
+  "displayName": "Parakeet TDT 0.6B v3",
+  "description": "Speech recognition with word timings for 25 European languages. Checks takes against their text.",
+  "tags": ["Transcription"],
+  "priority": 50,
+  "runtimeOrder": ["onnx", "onnx-cuda"],
+  "modelVersion": "v3",
+  "languages": ["bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"],
+  "approxVramGb": 2,
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "Runs well on the CPU.",
+  "workerSettings": [
+    { "key": "precision", "type": "enum", "label": "Model", "default": "int8",
+      "options": ["int8", "full"],
+      "optionLabels": ["8-bit (0.7 GB, fast)", "Full precision (2.5 GB)"],
+      "description": "The 8-bit model is smaller and faster on the CPU, with almost the same accuracy." }
+  ],
+  "models": ["parakeet-tdt-0.6b-v3-onnx-int8", "parakeet-tdt-0.6b-v3-onnx"]
+}

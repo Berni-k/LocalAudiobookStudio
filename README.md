@@ -109,6 +109,9 @@ las tts "Hello there." -o hello.wav
 echo "Piped text" | las tts -o out.wav --voice am_michael
 las tts -i chapters/ -o audio/ --skip-existing          # a folder of .txt files, one WAV each
 
+# What a transcription worker hears, compared with the text the audio should contain
+las transcribe hello.wav -t "Hello there." --words
+
 # A whole pipeline on a project: steps run in order and stop at the first failure
 las project MyBook import book.txt erase-takes generate export -o book.m4b
 

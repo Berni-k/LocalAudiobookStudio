@@ -17,6 +17,7 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 | MOSS-SoundEffect v2.0 | Sound effects | GPU | – | Apache 2.0 | Experimental | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-SoundEffect-v2.0) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
 | AudioGen | Sound effects | GPU (HartsyInference) | – | **CC-BY-NC 4.0 (non-commercial)** | Experimental | [Model](https://huggingface.co/facebook/audiogen-medium) · [Code](https://github.com/facebookresearch/audiocraft) |
 | ACE-Step 1.5 | Music | GPU | – | MIT | Experimental | [Turbo](https://huggingface.co/ACE-Step/acestep-v15-xl-turbo-diffusers) · [SFT](https://huggingface.co/ACE-Step/acestep-v15-xl-sft-diffusers) · [Code](https://github.com/ace-step/ACE-Step-1.5) |
+| Parakeet TDT 0.6B v3 | Transcription with word timings (25 European languages) | CPU, GPU (ONNX) | – | CC-BY-4.0 | New | [Model](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) · [ONNX](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) · [Code](https://github.com/istupakov/onnx-asr) |
 | Test tones | Debug | CPU | – | – | For testing the pipeline | – |
 
 **The app's MIT license does not cover the models.** Each model has its own license, and some don't allow commercial use. Check the model's page before publishing audio made with it. Gated models (Stable Audio 3) need you to accept their terms on Hugging Face and put a read-only access token in *Settings → Hugging Face token*.

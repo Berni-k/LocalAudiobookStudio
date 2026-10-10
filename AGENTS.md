@@ -48,9 +48,12 @@ Rules that follow from this:
 `las` sits next to the app in the build output and uses the app's settings, installed workers and data folder.
 
 - `las doctor` (system check), `las workers`, `las workers <id>` (settings and voices), `las devices`
+- `las workers install <id>` (also `repair`, `uninstall`; `--runtime <name>`): what the Workers window does, so a new
+  worker can be installed and tried without the GUI
 - `las tts "Hello" -o out.wav -w test_tone`: a quick pipeline check without a model download (install *Test tones*
-  once in the Workers window; it only needs NumPy)
+  once with `las workers install test_tone`; it only needs NumPy)
 - `las project <dir> import book.txt generate export -o book.m4b`: a whole project headless
+- `las transcribe out.wav -t "Hello" --words`: what a transcription worker hears, word timings, differences from the text
 - `--json` for machine-readable output. Exit codes: 0 ok, 1 failures, 2 usage, 3 setup needed, 130 cancelled.
 - A project can't be open in the app and in `las` at the same time (`.cache/open.lock`).
 
@@ -116,6 +119,10 @@ Rules that follow from this:
    - `envGroup` (an environment in `environments.json`; reuse one, or add one if the pins clash), `modelVersion`,
      `models` (the models.json ids it asks for), `maxChars`, `sampleRate`, `voiceCloning`, `approxVramGb`,
      `devices` (`["cuda"]`, `["cuda", "cpu"]`; `cpuRecommended: false` for slow CPU runs).
+   - A worker tagged `Transcription` (hears words, with timings) or `Alignment` (finds a known text's words in audio)
+     listens instead of generating: it implements `transcribe(req, report)` instead of `generate`, gets a 16 kHz mono
+     WAV (`req.audio_path`) and the expected text (`req.text`), and isn't offered as a speaker's voice. `languages`
+     lists what it understands. Copy `parakeet`.
    - `settings`: per speaker, overridable per segment. Types: `float`, `int`, `bool`, `string`, `enum` (`options`,
      `optionLabels`), `seed`, `file`, `asset` (`extensions`; `addsSettings` to read more settings from the file).
      A `voice` enum setting holds built-in voices. `workerSettings` are per machine (servers, tokens).

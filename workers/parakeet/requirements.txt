@@ -1,0 +1,5 @@
+# Parakeet on ONNX Runtime (the onnx1_30-* environments bring onnxruntime itself, CPU or CUDA build).
+# onnx-asr computes the features and runs the sessions; worker.py relies on its internals (the TDT decoder
+# step), so it is pinned.
+onnx-asr==0.12.0
+numpy

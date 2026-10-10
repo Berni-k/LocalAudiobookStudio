@@ -1,7 +1,10 @@
 """Shared worker protocol helper (protocol version 2).
 
 A worker only implements ``load(report)`` and ``generate(req, report)`` (and optionally
-``prepare(report)``: download the model files before ``load`` reads them); this module handles
+``prepare(report)``: download the model files before ``load`` reads them). A transcription worker
+(tagged Transcription or Alignment) implements ``transcribe(req, report)`` instead of ``generate``:
+``req.audio_path`` is a 16 kHz mono 16-bit WAV, ``req.text`` the text it should contain (if known), and
+it returns ``{"text", "words": [{"text", "startMs", "endMs", "confidence"}], "language"}``. This module handles
 the rest: the ``hello`` handshake, newline-delimited JSON over stdin/stdout, redirecting stray
 ``print`` output to stderr, turning exceptions into ``error`` messages, cooperative cancellation,
 progress throttling, the ``.partial`` rename, and ``shutdown``. Models come from the app:
@@ -61,6 +64,8 @@ class Request:
     seed: Optional[int] = None
     out_path: str = ""          # where the worker must write the WAV (already ends in .partial)
     final_path: str = ""        # the path the app asked for
+    audio_path: str = ""        # transcribe: the audio to listen to (16 kHz mono 16-bit WAV)
+    language: Optional[str] = None  # transcribe: language code ("en"), or None to detect it
     cancelled: bool = False
 
 
@@ -387,6 +392,8 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 send({"type": "ready", "id": mid})
             elif mtype == "generate":
                 _handle_generate(worker, msg, current)
+            elif mtype == "transcribe":
+                _handle_transcribe(worker, msg, current)
             elif mtype == "listVoices":
                 voices = worker.list_voices() if hasattr(worker, "list_voices") else []
                 send({"type": "voices", "id": mid, "voices": voices})
@@ -478,4 +485,39 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
         "durationMs": int(result.get("durationMs", 0)),
         "seed": int(result.get("seed", seed)),
         "sampleRate": int(result.get("sampleRate", 0)),
+    })
+
+
+def _handle_transcribe(worker: Any, msg: dict, current: dict) -> None:
+    if not hasattr(worker, "transcribe"):
+        raise RuntimeError("this worker doesn't transcribe audio")
+    audio_path = msg.get("audioPath") or ""
+    if not os.path.isfile(audio_path):
+        raise FileNotFoundError(f"no audio at {audio_path}")
+    req = Request(
+        id=msg.get("id"),
+        text=msg.get("text"),
+        settings=msg.get("settings") or {},
+        audio_path=audio_path,
+        language=msg.get("language"),
+    )
+    current["request"] = req
+    result = worker.transcribe(req, _make_reporter(req.id, req)) or {}
+    if req.cancelled:
+        raise Cancelled()
+    words = [
+        {
+            "text": str(w["text"]),
+            "startMs": int(w["startMs"]),
+            "endMs": int(w["endMs"]),
+            **({"confidence": float(w["confidence"])} if w.get("confidence") is not None else {}),
+        }
+        for w in result.get("words") or []
+    ]
+    send({
+        "type": "transcript",
+        "id": req.id,
+        "text": result.get("text") or " ".join(w["text"] for w in words),
+        "words": words,
+        "language": result.get("language"),
     })

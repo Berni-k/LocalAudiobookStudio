@@ -584,6 +584,33 @@
         "tokenizer_config.json": { "size": 282843, "gitSha1": "06ffdc8308eae6bb7bd1fdd81e94b0a881a539ab" },
         "vocab.json": { "size": 1036558, "gitSha1": "0f3456460629e21d559c6daa23ab6ce3644e8271" }
       }
+    },
+    "parakeet-tdt-0.6b-v3-onnx-int8": {
+      "displayName": "Parakeet TDT 0.6B v3 (ONNX, 8-bit)",
+      "sources": [
+        { "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx", "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce" }
+      ],
+      "include": ["config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"],
+      "files": {
+        "config.json": { "size": 97, "gitSha1": "02a773005666393de591dfd55230b778da1653d8" },
+        "decoder_joint-model.int8.onnx": { "size": 18202004, "sha256": "eea7483ee3d1a30375daedc8ed83e3960c91b098812127a0d99d1c8977667a70" },
+        "encoder-model.int8.onnx": { "size": 652183999, "sha256": "6139d2fa7e1b086097b277c7149725edbab89cc7c7ae64b23c741be4055aff09" },
+        "vocab.txt": { "size": 93939, "gitSha1": "fc43e1c723e262df60b70e1919614417162d1fe2" }
+      }
+    },
+    "parakeet-tdt-0.6b-v3-onnx": {
+      "displayName": "Parakeet TDT 0.6B v3 (ONNX)",
+      "sources": [
+        { "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx", "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce" }
+      ],
+      "include": ["config.json", "vocab.txt", "encoder-model.onnx", "encoder-model.onnx.data", "decoder_joint-model.onnx"],
+      "files": {
+        "config.json": { "size": 97, "gitSha1": "02a773005666393de591dfd55230b778da1653d8" },
+        "decoder_joint-model.onnx": { "size": 72520893, "sha256": "e978ddf6688527182c10fde2eb4b83068421648985ef23f7a86be732be8706c1" },
+        "encoder-model.onnx": { "size": 41770866, "sha256": "98a74b21b4cc0017c1e7030319a4a96f4a9506e50f0708f3a516d02a77c96bb1" },
+        "encoder-model.onnx.data": { "size": 2435420160, "sha256": "9a22d372c51455c34f13405da2520baefb7125bd16981397561423ed32d24f36" },
+        "vocab.txt": { "size": 93939, "gitSha1": "fc43e1c723e262df60b70e1919614417162d1fe2" }
+      }
     }
   }
 }
