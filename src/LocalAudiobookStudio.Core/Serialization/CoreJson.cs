@@ -23,6 +23,7 @@ namespace LocalAudiobookStudio.Core.Serialization;
 [JsonSerializable(typeof(TimelineItem))]
 [JsonSerializable(typeof(List<TimelineItem>))]
 [JsonSerializable(typeof(TakeInfo))]
+[JsonSerializable(typeof(Transcripts.StoredTranscript))]
 [JsonSerializable(typeof(AppSettings))]
 [JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(JsonNode))]

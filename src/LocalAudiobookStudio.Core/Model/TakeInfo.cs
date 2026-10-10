@@ -22,9 +22,6 @@ public sealed class TakeInfo
     public double? LoudnessLufs { get; set; }
     public int GenerationMs { get; set; }
 
-    /// <summary>1 to 5 stars, or null when unrated.</summary>
-    public int? Rating { get; set; }
-
     /// <summary>Detected leading silence, used when the item has no explicit trim.</summary>
     public int TrimStartMs { get; set; }
 
@@ -33,6 +30,15 @@ public sealed class TakeInfo
 
     /// <summary>Number of characters of the source text (used for speaking-rate estimates).</summary>
     public int? TextLength { get; set; }
+
+    /// <summary>
+    /// How the transcript compared with the text the take was made from, worked out once when it was transcribed: the
+    /// differences found (null: not transcribed) and the words of that text. Kept here so counting a chapter or listing
+    /// takes needs no transcript file, and an older take keeps the verdict it had.
+    /// </summary>
+    public int? TranscriptErrors { get; set; }
+
+    public int? TranscriptWordCount { get; set; }
 
     public static string FileStem(int take) => $"take-{take:0000}";
 

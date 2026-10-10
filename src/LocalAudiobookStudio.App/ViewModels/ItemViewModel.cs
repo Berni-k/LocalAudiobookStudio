@@ -7,6 +7,7 @@ using LocalAudiobookStudio.Audio.Analysis;
 using LocalAudiobookStudio.Audio.Mixing;
 using LocalAudiobookStudio.Core.Model;
 using LocalAudiobookStudio.Core.Timeline;
+using LocalAudiobookStudio.Core.Transcripts;
 using LocalAudiobookStudio.Workers.Scheduling;
 
 namespace LocalAudiobookStudio.App.ViewModels;
@@ -228,14 +229,42 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
     public bool IsFailed => Status == ItemStatus.Failed;
     public bool IsGenerating => Status == ItemStatus.Generating;
     public bool IsQueued => Status == ItemStatus.Queued;
-    public bool ShowStatusOverlay => Status is not ItemStatus.Ready && !(Status == ItemStatus.Stale && HasWaveform) && !IsPause;
+    public bool ShowStatusOverlay => Status is not ItemStatus.Ready && !(Status == ItemStatus.Stale && HasWaveform) && !IsPause && !IsTranscribing;
+
+    /// <summary>The take is queued for or being listened to by the speaker's transcription worker.</summary>
+    [ObservableProperty] private bool _isTranscribing;
+
+    partial void OnIsTranscribingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowStatusOverlay));
+        RaiseOverlay();
+    }
 
     partial void OnStatusChanged(ItemStatus value) => RaiseStatus();
-    partial void OnQueuePositionChanged(int value) => OnPropertyChanged(nameof(StatusText));
-    partial void OnProgressChanged(double value) => OnPropertyChanged(nameof(StatusText));
+    partial void OnQueuePositionChanged(int value) { OnPropertyChanged(nameof(StatusText)); RaiseOverlay(); }
+    partial void OnProgressChanged(double value) { OnPropertyChanged(nameof(StatusText)); RaiseOverlay(); }
+
+    /// <summary>
+    /// The text shown over the waveform, upper case: transcribing, else the status (queued, generating, failed…).
+    /// Anything else that needs to say something over a waveform goes here too.
+    /// </summary>
+    public string OverlayText => IsTranscribing ? "TRANSCRIBING…" : ShowStatusOverlay ? StatusText.ToUpperInvariant() : "";
+
+    public bool ShowOverlay => OverlayText.Length > 0;
+
+    /// <summary>Something is going on (queued, generating, transcribing): the text is a prominent badge.</summary>
+    public bool IsOverlayActive => IsTranscribing || Status is ItemStatus.Queued or ItemStatus.Generating;
+
+    private void RaiseOverlay()
+    {
+        OnPropertyChanged(nameof(OverlayText));
+        OnPropertyChanged(nameof(ShowOverlay));
+        OnPropertyChanged(nameof(IsOverlayActive));
+    }
 
     private void RaiseStatus()
     {
+        RaiseOverlay();
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusTooltip));
         OnPropertyChanged(nameof(IsBusy));
@@ -314,6 +343,7 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasWaveform));
             OnPropertyChanged(nameof(ShowStatusOverlay));
+            RaiseOverlay();
         }
     }
 
@@ -371,7 +401,161 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
 
     public bool IsDirty => CanEditText && EditText != _loadedText;
 
-    partial void OnEditTextChanged(string value) => OnPropertyChanged(nameof(IsDirty));
+    partial void OnEditTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsDirty));
+        RaiseTextShown();
+    }
+
+    private void RaiseTextShown()
+    {
+        OnPropertyChanged(nameof(ShowTranscript));
+        OnPropertyChanged(nameof(ShowTextBox));
+    }
+
+    // ------------------------------------------------------------------ transcript
+    //
+    // A take transcribed by its speaker's transcription worker has a .transcript file. While it exists the row shows
+    // the text with the heard differences marked (and the word being played highlighted) in place of the text box.
+    // Clicking the text switches to the text box to edit the original; a new take, playing or leaving the box
+    // brings the transcript text back.
+
+    private string? _transcriptPath;       // the file _transcript was read from
+    private string? _requestedPath;        // a read in progress
+    private StoredTranscript? _transcript;
+    private TranscriptCheck? _marks;
+    private string? _marksText;
+
+    /// <summary>
+    /// The selected take's transcript compared with the segment's text, or null when it has none, it is being read
+    /// (a visible row or a chapter count asks first; the files are read in the background) or the section ignores it.
+    /// </summary>
+    public TranscriptCheck? TranscriptMarks
+    {
+        get
+        {
+            if (LoadedTranscript is not { } transcript) return null;
+            var text = Model.Text ?? "";
+            if (_marks == null || _marksText != text)
+            {
+                _marks = TranscriptCheck.Compare(text, transcript.Words);
+                _marksText = text;
+            }
+            return _marks;
+        }
+    }
+
+    /// <summary>The selected take's transcript once it is read (it is read in the background on first ask), else null.</summary>
+    private StoredTranscript? LoadedTranscript
+    {
+        get
+        {
+            if (!CanEditText || Model.IgnoreTranscript == true || Model.SelectedTake is not int take) return null;
+            var path = Session.Paths.TakeTranscript(Id, take);
+            if (_transcriptPath != path)
+            {
+                if (_requestedPath != path)
+                {
+                    _requestedPath = path;
+                    _ = ReadTranscriptAsync(path);
+                }
+                return null;
+            }
+            return _transcript;
+        }
+    }
+
+    /// <summary>
+    /// The differences found when the selected take was transcribed, from the take's own file (null: not transcribed, or
+    /// the section ignores transcripts). Nothing is read or compared, so counting a chapter is cheap.
+    /// </summary>
+    private int? TranscriptErrors => CanEditText && Model.IgnoreTranscript != true ? SelectedTakeInfo?.TranscriptErrors : null;
+
+    private async Task ReadTranscriptAsync(string path)
+    {
+        var transcript = await Task.Run(() => StoredTranscript.TryLoad(path));
+        if (_requestedPath != path) return; // another take was selected meanwhile
+        _requestedPath = null;
+        _transcriptPath = path;
+        _transcript = transcript;
+        _marks = null;
+        RaiseTranscript();
+    }
+
+    /// <summary>The words the worker heard, as one line (for the tooltip of a flagged segment).</summary>
+    public string TranscriptHeard => _transcript == null ? "" : string.Join(' ', _transcript.Words.Select(w => w.Text));
+
+    private bool IsApproved => Model.ApprovedTranscriptTake is int a && a == Model.SelectedTake;
+
+    /// <summary>The transcript differs from the text and nobody accepted it: the red X shows and the chapter counts it.</summary>
+    public bool TranscriptFlagged => TranscriptErrors > 0 && !IsApproved;
+
+    /// <summary>The transcript matches the text, or the user approved the take: the green check shows.</summary>
+    public bool TranscriptVerified => TranscriptErrors is int e && (e == 0 || IsApproved);
+
+    public string TranscriptFlagTooltip => $"The transcript doesn't match the text. Heard:\n{TranscriptHeard}\n\nClick to approve this take or ignore this section.";
+
+    public string TranscriptVerifiedTooltip => IsApproved && TranscriptErrors > 0
+        ? "Approved by you although the transcript differs"
+        : "The transcript matches the text";
+
+    /// <summary>The text the marks were made for.</summary>
+    public string TranscriptSource => Model.Text ?? "";
+
+    /// <summary>The user clicked into the text to edit it.</summary>
+    [ObservableProperty] private bool _isEditingText;
+
+    partial void OnIsEditingTextChanged(bool value) => RaiseTextShown();
+
+    /// <summary>The transcript text shows instead of the text box (not while the text has unsaved changes or is being edited).</summary>
+    public bool ShowTranscript => !IsDirty && !IsEditingText && TranscriptMarks != null;
+
+    public bool ShowTextBox => CanEditText && !ShowTranscript;
+
+    /// <summary>The playhead in the take's own time (the transcript's), or -1 when not playing here.</summary>
+    public double TranscriptPositionMs => PlayheadMs >= 0 ? TrimStartMs + PlayheadMs : -1;
+
+    partial void OnPlayheadMsChanged(double value) => OnPropertyChanged(nameof(TranscriptPositionMs));
+
+    partial void OnIsPlayingChanged(bool value)
+    {
+        if (value) EndTextEdit();
+    }
+
+    /// <summary>Back to the transcript text, unless there are unsaved changes.</summary>
+    public void EndTextEdit()
+    {
+        if (!IsDirty) IsEditingText = false;
+    }
+
+    /// <summary>A transcript was saved for one of this segment's takes: read it again.</summary>
+    public void RefreshTranscript()
+    {
+        _transcriptPath = null;
+        _requestedPath = null;
+        OnPropertyChanged(nameof(Takes)); // the inspector's take list shows each take's verdict
+        RaiseTranscript();
+        Chapter.RecountStatus();
+    }
+
+    /// <summary>Everything shown from the transcript may have changed.</summary>
+    private void RaiseTranscript()
+    {
+        OnPropertyChanged(nameof(TranscriptMarks));
+        OnPropertyChanged(nameof(TranscriptSource));
+        OnPropertyChanged(nameof(TranscriptFlagged));
+        OnPropertyChanged(nameof(TranscriptVerified));
+        OnPropertyChanged(nameof(TranscriptFlagTooltip));
+        OnPropertyChanged(nameof(TranscriptVerifiedTooltip));
+        RaiseTextShown();
+        OnPropertyChanged(nameof(TranscriptPositionMs));
+    }
+
+    [RelayCommand]
+    private void ApproveTranscript() => Session.ApproveTranscript([this]);
+
+    [RelayCommand]
+    private void IgnoreTranscript() => Session.SetTranscriptIgnored([this], true);
 
     private void SyncEditText()
     {
@@ -477,6 +661,8 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
         OnPropertyChanged(nameof(TrimStartMs));
         OnPropertyChanged(nameof(TrimEndMs));
         OnPropertyChanged(nameof(EffectiveGainDb));
+        EndTextEdit();
+        RaiseTranscript();
         if (_peaksRequested) EnsurePeaks();
     }
 

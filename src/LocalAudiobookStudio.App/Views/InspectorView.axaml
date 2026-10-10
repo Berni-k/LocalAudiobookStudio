@@ -206,15 +206,16 @@
                         <TextBlock Text="(older input)" Classes="caption warning" IsVisible="{Binding !IsCurrentInput}" VerticalAlignment="Center"
                                    ToolTip.Tip="This take was generated from different text or settings" />
                       </StackPanel>
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
-                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="1" ToolTip.Tip="Rate 1–5 stars (click stars)" />
-                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="2" />
-                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="3" />
-                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="4" />
-                        <Button Classes="tool" Padding="1" FontSize="12" Content="★" Command="{Binding RateCommand}" CommandParameter="5" />
-                      </StackPanel>
+                      <!-- Did this take's transcript match the text? -->
+                      <Panel Grid.Column="1" Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptPassed}"
+                             ToolTip.Tip="{Binding TranscriptTooltip}">
+                        <PathIcon Data="{StaticResource IconCheck}" Width="14" Height="14" Foreground="#2EA043" />
+                      </Panel>
+                      <Panel Grid.Column="1" Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptFailed}"
+                             ToolTip.Tip="{Binding TranscriptTooltip}">
+                        <PathIcon Data="{StaticResource IconClose}" Width="22" Height="22" Foreground="#FF3B30" />
+                      </Panel>
                     </Grid>
-                    <TextBlock Text="{Binding Stars}" Classes="caption" Foreground="{DynamicResource SemiColorWarning}" />
                     <TextBlock Text="{Binding Details}" Classes="caption" TextWrapping="Wrap" />
                     <Border Height="30" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="3">
                       <ctl:WaveformView Peaks="{Binding Peaks}" Interactive="False" ShowFullRange="True" Fill="{DynamicResource WaveformBrush}" />

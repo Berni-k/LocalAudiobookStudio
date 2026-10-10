@@ -83,6 +83,7 @@ public sealed partial class ProjectSession
 
     private void OnJobCompleted(GenerationJob job)
     {
+        if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>
         {
@@ -94,6 +95,57 @@ public sealed partial class ProjectSession
                 Notify($"Take {job.TakeNumber} kept but not selected: the segment changed while it was generating.");
             vm.RefreshAudio();
             RefreshItems([vm]);
+            TranscribeTake(vm, job.TakeNumber);
+        });
+    }
+
+    // ------------------------------------------------------------------ transcripts
+
+    /// <summary>
+    /// Has the speaker's transcription worker listen to a new take (nothing happens for a speaker without one).
+    /// The result is saved next to the take and shown on the segment's text.
+    /// </summary>
+    private void TranscribeTake(ItemViewModel vm, int take)
+    {
+        try
+        {
+            var job = Engine.BuildTranscriptionJob(vm.Model, take, ChapterIndex(vm.Chapter), vm.Chapter.Items.IndexOf(vm));
+            if (job == null) return;
+            vm.IsTranscribing = true;
+            AppHost.Scheduler.Enqueue(job);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
+        {
+            _log.LogWarning(ex, "Could not start transcribing take {Take} of {Item}", take, vm.Id);
+        }
+    }
+
+    /// <summary>Listens to the selected take of each segment again (its speaker's transcription worker).</summary>
+    public void RerunTranscripts(IEnumerable<ItemViewModel> items)
+    {
+        var count = 0;
+        foreach (var vm in items)
+        {
+            if (vm.Model.SelectedTake is not int take || Engine.TranscriberFor(vm.Model) == null) continue;
+            TranscribeTake(vm, take);
+            count++;
+        }
+        Notify(count == 0 ? "No transcription worker is set for this speaker." : $"Transcribing {count} segment(s)…");
+    }
+
+    /// <summary>A transcription job ended (completed or failed): saves the result and shows it.</summary>
+    private void OnTranscriptionFinished(GenerationJob job)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var done = Engine.FinishTranscription(job);
+            if (job.Tag is TranscriptJobTag tag && _itemVms.TryGetValue(tag.ItemId, out var listening)) listening.IsTranscribing = false;
+            if (done == null)
+            {
+                if (job.State == JobState.Failed) _log.LogWarning("Transcription failed: {Error}", job.LastError);
+                return;
+            }
+            if (_itemVms.TryGetValue(done.Value.ItemId, out var vm)) vm.RefreshTranscript();
         });
     }
 
@@ -159,10 +211,12 @@ public sealed partial class ProjectSession
         vm.RefreshAudio();
         RefreshItems([vm]);
         Notify($"Recorded take {info.Take} ({Core.Timeline.TimeFormat.Short(info.DurationMs)}).");
+        TranscribeTake(vm, info.Take);
     }
 
     private void OnJobFailed(GenerationJob job)
     {
+        if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>
         {

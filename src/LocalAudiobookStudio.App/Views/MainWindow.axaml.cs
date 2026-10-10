@@ -332,6 +332,12 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnEditorLostFocus(object? sender, RoutedEventArgs e)
     {
+        if (e.Source is TextBox { Name: "RowEditor", DataContext: ItemViewModel { IsDirty: false } clean })
+        {
+            // Nothing to save: back to the transcript text (if the row has one).
+            clean.EndTextEdit();
+            return;
+        }
         if (_promptingSave || e.Source is not TextBox { Name: "RowEditor" } box || box.DataContext is not ItemViewModel { IsDirty: true } item) return;
         // Let focus settle: the text box's own context menu or switching to another app shouldn't prompt.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -357,7 +363,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Puts the caret at the end of an item's text box (scrolling it into view first is the caller's job).</summary>
-    private void FocusEditor(ItemViewModel item)
+    private void FocusEditor(ItemViewModel item, int? caret = null)
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -365,7 +371,7 @@ public partial class MainWindow : Window
             var box = c.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b => b.Name == "RowEditor");
             if (box == null) return;
             box.Focus();
-            box.CaretIndex = box.Text?.Length ?? 0;
+            box.CaretIndex = Math.Min(caret ?? int.MaxValue, box.Text?.Length ?? 0);
         }, DispatcherPriority.Background);
     }
 
@@ -408,6 +414,19 @@ public partial class MainWindow : Window
     /// <summary>Clicking a row's speaker chip opens a menu to reassign that row's speaker.</summary>
     private void OnStackTapped(object? sender, TappedEventArgs e)
     {
+        // Clicking a transcribed row's text edits the original text, with the caret where the click was.
+        var source = e.Source as Visual;
+        var view = source?.FindAncestorOfType<TranscriptView>(includeSelf: true)
+                   ?? (source?.FindAncestorOfType<Border>(includeSelf: true) is { Name: "TranscriptBox", Child: TranscriptView inner } ? inner : null);
+        if (view is { DataContext: ItemViewModel row })
+        {
+            var caret = view.SourceIndexAt(e.GetPosition(view));
+            SelectItems([row]);
+            row.IsEditingText = true;
+            FocusEditor(row, caret);
+            e.Handled = true;
+            return;
+        }
         var chip = (e.Source as Visual)?.FindAncestorOfType<Border>(includeSelf: true);
         while (chip != null && chip.Name != "SpeakerChip") chip = chip.FindAncestorOfType<Border>();
         if (chip?.DataContext is not ItemViewModel item || ViewModel?.Session == null) return;
@@ -734,16 +753,6 @@ public partial class MainWindow : Window
             if (idx > 0) items.Add(Item($"Compare with previous take (A/B: {takes[idx - 1].Take} → {takes[idx].Take})", () => vm.PlayAB(item, takes[idx - 1].Take, takes[idx].Take)));
             if (current != null)
             {
-                var rate = new MenuItem { Header = "Rate take" };
-                var stars = new List<object>();
-                for (int n = 1; n <= 5; n++)
-                {
-                    var r = n;
-                    stars.Add(Item(new string('★', n) + new string('☆', 5 - n), () => vm.Session!.RateTake(item, current.Take, current.Rating == r ? null : r)));
-                }
-                stars.Add(Item("Clear rating", () => vm.Session!.RateTake(item, current.Take, null)));
-                rate.ItemsSource = stars;
-                items.Add(rate);
                 items.Add(Item("Open containing folder", () => Dialogs.Reveal(vm.Session!.Takes.TakeAudio(item.Id, current.Take))));
                 items.Add(Item("Export this take as WAV…", async () =>
                 {
@@ -758,6 +767,15 @@ public partial class MainWindow : Window
         BuildSpeakerMenu(speakerMenu);
         items.Add(speakerMenu);
         items.Add(Item("Generate / regenerate", () => vm.RegenerateCommand.Execute(null), "R"));
+
+        // Transcript: listen to the take again, and take back an approval or an ignore.
+        var selected = vm.SelectedItems.ToList();
+        if (selected.Any(i => vm.Session!.Engine.TranscriberFor(i.Model) != null && i.Model.SelectedTake != null))
+            items.Add(Item("Rerun transcript", () => vm.Session!.RerunTranscripts(selected)));
+        if (selected.Any(i => i.Model.ApprovedTranscriptTake != null))
+            items.Add(Item("Undo transcript approval", () => vm.Session!.ClearTranscriptApproval(selected)));
+        if (selected.Any(i => i.Model.IgnoreTranscript == true))
+            items.Add(Item("Stop ignoring transcript", () => vm.Session!.SetTranscriptIgnored(selected, false)));
         items.Add(new Separator());
         items.Add(Item("Set gain…", () => vm.SetGainCommand.Execute(null)));
         items.Add(Item("Reset gain", () => vm.ResetGainCommand.Execute(null)));

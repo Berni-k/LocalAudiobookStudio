@@ -6,6 +6,7 @@ using LocalAudiobookStudio.Core.Hashing;
 using LocalAudiobookStudio.Core.IO;
 using LocalAudiobookStudio.Core.Model;
 using LocalAudiobookStudio.Core.Timeline;
+using LocalAudiobookStudio.Core.Transcripts;
 using LocalAudiobookStudio.Engine.Hosting;
 using LocalAudiobookStudio.Workers.Manifest;
 using LocalAudiobookStudio.Workers.Protocol;
@@ -16,6 +17,9 @@ namespace LocalAudiobookStudio.Engine.Projects;
 
 /// <summary>Identifies jobs that belong to a project (as opposed to speaker previews and one-off generations).</summary>
 public sealed record SegmentJobTag(ProjectEngine Engine, Guid ItemId);
+
+/// <summary>Identifies the job that transcribes a take; <see cref="WavPath"/> is the 16 kHz copy it listens to.</summary>
+public sealed record TranscriptJobTag(ProjectEngine Engine, Guid ItemId, int Take, string WavPath);
 
 /// <summary>A segment's state on disk (the app adds queued and generating from the scheduler).</summary>
 public enum SegmentAudioState
@@ -255,6 +259,69 @@ public sealed class ProjectEngine(StudioHost host, Project project)
         TakeStore.SaveTakeInfo(Paths, job.ItemId, info);
         Takes.Add(job.ItemId, info);
         return Task.CompletedTask;
+    }
+
+    // ================================================================== transcripts
+
+    /// <summary>The transcription worker of a segment's speaker, or null when it has none.</summary>
+    public WorkerManifest? TranscriberFor(TimelineItem item) =>
+        item.Kind == ItemKind.Tts && Project.FindSpeaker(item.Speaker) is { Transcriber.Length: > 0 } sp
+        && Catalog.Get(sp.Transcriber) is { IsTranscriber: true } m ? m : null;
+
+    /// <summary>
+    /// The job that transcribes a take with its speaker's transcription worker, or null when the speaker has none or
+    /// it can't run here. Decodes the take into the 16 kHz copy the worker reads (a moment for a segment-sized take).
+    /// </summary>
+    public GenerationJob? BuildTranscriptionJob(TimelineItem item, int take, int chapterIndex, int itemIndex)
+    {
+        if (TranscriberFor(item) is not { } manifest || Project.FindSpeaker(item.Speaker) is not { } speaker) return null;
+        if (string.IsNullOrWhiteSpace(item.Text)) return null;
+        if (Host.WhyWorkerCannotRun(manifest.Id) is { } why)
+        {
+            Host.Log.LogInformation("Not transcribing {Item}: {Why}", item.Id, why);
+            return null;
+        }
+        var audio = Takes.TakeAudio(item.Id, take);
+        if (!File.Exists(audio)) return null;
+
+        var dir = Path.Combine(Paths.CacheDir, "transcribe");
+        Directory.CreateDirectory(dir);
+        var wav = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".wav");
+        Transcription.PrepareAudio(audio, wav);
+        var label = item.Text!.Length > 50 ? item.Text[..47] + "…" : item.Text;
+        return Transcription.Job(manifest, wav, item.Text, MergeSettings(speaker.TranscriberSettings, null, manifest),
+            $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
+            tag: new TranscriptJobTag(this, item.Id, take, wav), readingOrder: chapterIndex * 1_000_000L + itemIndex);
+    }
+
+    public bool OwnsTranscript(GenerationJob job) => job.Tag is TranscriptJobTag tag && ReferenceEquals(tag.Engine, this);
+
+    /// <summary>
+    /// Saves what a finished transcription job heard next to its take, and removes the job's 16 kHz copy.
+    /// Returns the item and take it belongs to, or null when the job failed or the take is gone.
+    /// </summary>
+    public (Guid ItemId, int Take)? FinishTranscription(GenerationJob job)
+    {
+        if (job.Tag is not TranscriptJobTag tag || !ReferenceEquals(tag.Engine, this)) return null;
+        try { File.Delete(tag.WavPath); } catch (IOException) { /* cache */ }
+        if (job.State != JobState.Completed || job.Transcript is not { } transcript) return null;
+        if (!Directory.Exists(Paths.SegmentAudioDir(tag.ItemId))) return null;
+        new StoredTranscript
+        {
+            Worker = job.WorkerId,
+            Language = transcript.Language,
+            Words = transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence)).ToList(),
+        }.Save(Paths.TakeTranscript(tag.ItemId, tag.Take));
+
+        // The verdict goes into the take's own file: it is read anyway, and it is what the take is judged by from now on.
+        if (job.Transcribe?.Text is { } text && Takes.Find(tag.ItemId, tag.Take) is { } info)
+        {
+            var check = Transcription.Check(text, transcript);
+            info.TranscriptErrors = check.Errors;
+            info.TranscriptWordCount = check.ExpectedCount;
+            TakeStore.SaveTakeInfo(Paths, tag.ItemId, info);
+        }
+        return (tag.ItemId, tag.Take);
     }
 
     /// <summary>

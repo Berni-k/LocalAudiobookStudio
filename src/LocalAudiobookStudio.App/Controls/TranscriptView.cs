@@ -27,8 +27,13 @@ public sealed class TranscriptView : TextBlock
     /// <summary>A word that can be highlighted: its time and how to switch the highlight.</summary>
     private sealed record Spot(int StartMs, int EndMs, Action<bool> Highlight);
 
+    /// <summary>Where a piece of the shown text came from in <see cref="SourceText"/> (for turning a click into a caret position).</summary>
+    private readonly record struct Piece(int ShownStart, int ShownLength, int SourceStart);
+
     private readonly List<Spot> _spots = new();
+    private readonly List<Piece> _pieces = new();
     private Spot? _active;
+    private int _shown;
 
     protected override Type StyleKeyOverride => typeof(TextBlock);
 
@@ -39,22 +44,23 @@ public sealed class TranscriptView : TextBlock
         PositionMsProperty.Changed.AddClassHandler<TranscriptView>((v, _) => v.UpdateHighlight());
     }
 
-    private IBrush ErrorBrush => Resource("SemiColorDanger") ?? Brushes.IndianRed;
+    // Fixed colors: bright enough to stand out on both themes.
+    private static readonly IBrush ErrorBrush = new SolidColorBrush(Color.FromRgb(255, 59, 48));
     private static readonly IBrush HighlightBrush = new SolidColorBrush(Color.FromRgb(46, 160, 67), 0.6);
-
-    private IBrush? Resource(string key) => this.TryFindResource(key, ActualThemeVariant, out var r) ? r as IBrush : null;
 
     private void Rebuild()
     {
         _spots.Clear();
+        _pieces.Clear();
         _active = null;
+        _shown = 0;
         Inlines ??= new InlineCollection();
         Inlines.Clear();
         var text = SourceText;
         if (string.IsNullOrEmpty(text)) return;
         if (Check is not { } check)
         {
-            Inlines.Add(new Run(text));
+            AddRun(text, 0);
             return;
         }
 
@@ -63,24 +69,51 @@ public sealed class TranscriptView : TextBlock
         {
             if (w.Kind == WordMatch.Extra)
             {
-                Inlines.Add(Marker(w));
+                AddObject(Marker(w), cursor);
                 continue;
             }
             if (w.TextStart < cursor || w.TextStart + w.TextLength > text.Length) continue;
-            if (w.TextStart > cursor) Inlines.Add(new Run(text[cursor..w.TextStart]));
+            if (w.TextStart > cursor) AddRun(text[cursor..w.TextStart], cursor);
             var word = text.Substring(w.TextStart, w.TextLength);
+            if (w.IsError) AddObject(ErrorWord(w, word), w.TextStart);
+            else AddRun(word, w.TextStart, w);
             cursor = w.TextStart + w.TextLength;
-            Inlines.Add(w.IsError ? ErrorWord(w, word) : PlainWord(w, word));
         }
-        if (cursor < text.Length) Inlines.Add(new Run(text[cursor..]));
+        if (cursor < text.Length) AddRun(text[cursor..], cursor);
         UpdateHighlight();
     }
 
-    private Inline PlainWord(WordComparison w, string word)
+    private void AddRun(string text, int sourceStart, WordComparison? word = null)
     {
-        var run = new Run(word);
-        AddSpot(w, on => run.Background = on ? HighlightBrush : null);
-        return run;
+        var run = new Run(text);
+        if (word != null) AddSpot(word, on => run.Background = on ? HighlightBrush : null);
+        Inlines!.Add(run);
+        _pieces.Add(new Piece(_shown, text.Length, sourceStart));
+        _shown += text.Length;
+    }
+
+    /// <summary>An element that takes the place of one character in the shown text.</summary>
+    private void AddObject(Inline inline, int sourceStart)
+    {
+        Inlines!.Add(inline);
+        _pieces.Add(new Piece(_shown, 1, sourceStart));
+        _shown++;
+    }
+
+    /// <summary>The index in <see cref="SourceText"/> that a point in this control is over (for placing the caret when editing).</summary>
+    public int SourceIndexAt(Point point)
+    {
+        var text = SourceText ?? "";
+        if (_pieces.Count == 0) return text.Length;
+        var hit = TextLayout.HitTestPoint(new Point(point.X - Padding.Left, point.Y - Padding.Top));
+        var pos = hit.TextPosition;
+        foreach (var p in _pieces)
+        {
+            if (pos < p.ShownStart || pos > p.ShownStart + p.ShownLength) continue;
+            var offset = p.ShownLength == 1 ? 0 : pos - p.ShownStart;
+            return Math.Clamp(p.SourceStart + offset, 0, text.Length);
+        }
+        return text.Length;
     }
 
     /// <summary>A word that didn't verify: red and underlined, with what went wrong on hover.</summary>

@@ -122,6 +122,15 @@ public sealed class TimelineItem
 
     public bool Locked { get; set; }
 
+    /// <summary>
+    /// The take the user accepted although the transcription worker heard something different from the text.
+    /// Only that take counts: a new or another take is checked on its own.
+    /// </summary>
+    public int? ApprovedTranscriptTake { get; set; }
+
+    /// <summary>The user doesn't want this segment's transcript shown or counted (the check keeps flagging it wrongly).</summary>
+    public bool? IgnoreTranscript { get; set; }
+
     [JsonIgnore]
     public bool IsGenerated => Kind == ItemKind.Tts;
 
@@ -184,6 +193,8 @@ public sealed class TimelineItem
         FadeOutMs = o.FadeOutMs;
         Normalize = o.Normalize;
         Locked = o.Locked;
+        ApprovedTranscriptTake = o.ApprovedTranscriptTake;
+        IgnoreTranscript = o.IgnoreTranscript;
     }
 
     /// <summary>Deep copy with a fresh id and no generated audio (used for paste/duplicate).</summary>
@@ -192,6 +203,7 @@ public sealed class TimelineItem
         var c = Clone();
         c.Id = Guid.NewGuid();
         c.SelectedTake = null;
+        c.ApprovedTranscriptTake = null;
         c.InputHash = null;
         c.LastError = null;
         return c;

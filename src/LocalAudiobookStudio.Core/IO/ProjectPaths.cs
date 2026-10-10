@@ -30,6 +30,9 @@ public sealed class ProjectPaths(string root)
     public string TakeJson(Guid itemId, int take) => Path.Combine(SegmentAudioDir(itemId), Model.TakeInfo.FileStem(take) + ".json");
     public string TakePeaks(Guid itemId, int take) => Path.Combine(SegmentAudioDir(itemId), Model.TakeInfo.FileStem(take) + ".peaks");
 
+    /// <summary>What a transcription worker heard in the take (<see cref="Transcripts.StoredTranscript"/>).</summary>
+    public string TakeTranscript(Guid itemId, int take) => Path.Combine(SegmentAudioDir(itemId), Model.TakeInfo.FileStem(take) + ".transcript");
+
     /// <summary>Peaks for imported clips live in the rebuildable cache.</summary>
     public string ClipPeaks(string clipFile) =>
         Path.Combine(CacheDir, "peaks", Path.GetFileNameWithoutExtension(clipFile) + "-" + StableHash(clipFile) + ".peaks");

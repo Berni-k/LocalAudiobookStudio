@@ -522,6 +522,7 @@
                   <!-- Speaker column: speaker on top, length and end time at the bottom. Also the drag handle for reordering. -->
                   <Border Grid.Column="0" x:Name="DragHandle" Width="{Binding Columns.SpeakerWidth}" Background="Transparent" Cursor="SizeAll"
                           Padding="12,9,6,6" ToolTip.Tip="{Binding StartTooltip}">
+                    <Grid>
                     <DockPanel>
                       <!-- The segment's number in the chapter on the left (as a per-segment export numbers it), the speaker or kind on the right. -->
                       <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*">
@@ -566,6 +567,24 @@
                       </StackPanel>
                       <Panel />
                     </DockPanel>
+                    <!-- Transcript check, lower right: a red X when the worker heard something other than the text (hover for what it
+                         heard, click to approve the take or ignore the section), a small green check when it matched. -->
+                    <Button Classes="transcriptFlag" HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="0" MinHeight="0" MinWidth="0"
+                            Background="Transparent" BorderThickness="0" Cursor="Hand" IsVisible="{Binding TranscriptFlagged}"
+                            ToolTip.Tip="{Binding TranscriptFlagTooltip}">
+                      <PathIcon Data="{StaticResource IconClose}" Width="26" Height="26" Foreground="#FF3B30" />
+                      <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                          <MenuItem Header="Approve this take" Command="{Binding ApproveTranscriptCommand}" />
+                          <MenuItem Header="Ignore this section" Command="{Binding IgnoreTranscriptCommand}" />
+                        </MenuFlyout>
+                      </Button.Flyout>
+                    </Button>
+                    <Panel HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" IsVisible="{Binding TranscriptVerified}"
+                           ToolTip.Tip="{Binding TranscriptVerifiedTooltip}">
+                      <PathIcon Data="{StaticResource IconCheck}" Width="13" Height="13" Foreground="#2EA043" />
+                    </Panel>
+                    </Grid>
                   </Border>
 
                   <!-- Text column: edit directly. Ctrl+Enter saves, Escape discards, clicking away asks. -->
@@ -577,7 +596,19 @@
                     <Panel>
                     <TextBlock Text="{Binding EditText}" IsVisible="{Binding !CanEditText}" Classes="secondary" TextWrapping="Wrap" Margin="12,6" VerticalAlignment="Center"
                                FontFamily="{DynamicResource SegmentFontFamily}" FontSize="{DynamicResource SegmentFontSize}" />
-                    <TextBox x:Name="RowEditor" Text="{Binding EditText}" IsReadOnly="{Binding IsTextReadOnly}" IsVisible="{Binding CanEditText}"
+                    <!-- A transcribed take: the text with what was heard wrong marked in red and the spoken word highlighted
+                         while it plays. Clicking it switches to the text box to edit the original. -->
+                    <!-- Border, padding and every text property come from the text box itself, so the text sits exactly where it does there. -->
+                    <Border x:Name="TranscriptBox" IsVisible="{Binding ShowTranscript}" VerticalAlignment="Top" Cursor="IBeam" Background="Transparent"
+                            BorderThickness="{Binding #RowEditor.BorderThickness}" Padding="{Binding #RowEditor.Padding}">
+                      <ctl:TranscriptView x:Name="RowTranscript" SourceText="{Binding TranscriptSource}" Check="{Binding TranscriptMarks}"
+                                          PositionMs="{Binding TranscriptPositionMs}" TextWrapping="Wrap"
+                                          FontFamily="{Binding #RowEditor.FontFamily}" FontSize="{Binding #RowEditor.FontSize}"
+                                          FontWeight="{Binding #RowEditor.FontWeight}" FontStyle="{Binding #RowEditor.FontStyle}"
+                                          FontStretch="{Binding #RowEditor.FontStretch}" LetterSpacing="{Binding #RowEditor.LetterSpacing}"
+                                          Foreground="{Binding #RowEditor.Foreground}" LineHeight="{Binding #RowEditor.LineHeight}" />
+                    </Border>
+                    <TextBox x:Name="RowEditor" Text="{Binding EditText}" IsReadOnly="{Binding IsTextReadOnly}" IsVisible="{Binding ShowTextBox}"
                              TextWrapping="Wrap" AcceptsReturn="True" MinHeight="0" VerticalAlignment="Stretch" VerticalContentAlignment="Top"
                              FontFamily="{DynamicResource SegmentFontFamily}" FontSize="{DynamicResource SegmentFontSize}"
                              LineHeight="{Binding $self.FontSize, Converter={x:Static ctl:Converters.LineHeight}}" />
@@ -607,8 +638,11 @@
                                             GainDb="{Binding EffectiveGainDb}" PlayheadMs="{Binding PlayheadMs}" Host="{Binding}"
                                             PlaceholderDurationMs="{Binding PlaceholderDurationMs}"
                                             Fill="{DynamicResource WaveformBrush}" Margin="2,2" />
-                          <TextBlock Text="{Binding StatusText}" IsVisible="{Binding ShowStatusOverlay}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     Classes="caption" Classes.error="{Binding IsFailed}" IsHitTestVisible="False" />
+                          <!-- The one place for text over the waveform (queued, generating, transcribing, failed…): OverlayText. -->
+                          <Border Classes="overlayBadge" Classes.active="{Binding IsOverlayActive}" Classes.error="{Binding IsFailed}"
+                                  IsVisible="{Binding ShowOverlay}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                            <TextBlock Text="{Binding OverlayText}" />
+                          </Border>
                           <ProgressBar IsVisible="{Binding IsGenerating}" Value="{Binding Progress}" Maximum="1" IsIndeterminate="{Binding Progress, Converter={x:Static ctl:Converters.IsZero}}"
                                        VerticalAlignment="Bottom" Height="3" MinHeight="3" Margin="2" />
                         </Panel>
@@ -728,6 +762,30 @@
   </Panel>
 
   <Window.Styles>
+    <!-- Text over a waveform. Quiet by default (not generated, stale); a prominent badge while something is going on; red when failed. -->
+    <Style Selector="Border.overlayBadge">
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.overlayBadge > TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    </Style>
+    <Style Selector="Border.overlayBadge.active">
+      <Setter Property="Background" Value="{DynamicResource SemiColorBackground1}" />
+      <Setter Property="Opacity" Value="0.92" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.overlayBadge.active > TextBlock">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
+    </Style>
+    <Style Selector="Border.overlayBadge.error > TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+    </Style>
     <!-- Row backgrounds: speech on Surface, other kinds muted. -->
     <Style Selector="Grid.row">
       <Setter Property="Background" Value="Transparent" />

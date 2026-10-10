@@ -435,7 +435,19 @@ public sealed partial class TakeRowViewModel : ObservableObject
         $"{Info.CreatedUtc.ToLocalTime():g} · {TimeFormat.Short(Info.DurationMs)} · seed {Info.Seed?.ToString() ?? "–"}" +
         (Info.Gpu != null ? $" · {Info.Gpu}" : "") + (Info.GenerationMs > 0 ? $" · {Info.GenerationMs / 1000.0:0.0}s" : "");
     public bool IsCurrentInput => Info.InputHash == _main.Session?.ComputeHash(Item.Model);
-    public string Stars => Info.Rating is int r ? new string('★', r) + new string('☆', 5 - r) : "☆☆☆☆☆";
+
+    // This take's transcript against the segment's text, read in the background. Nothing shows without a
+    // transcript, or when the section ignores them.
+    // The verdict is in the take's own file: how its transcript compared with the text it was made from.
+    private bool IsApproved => Item.Model.ApprovedTranscriptTake == Info.Take;
+    private int? Errors => Item.Model.IgnoreTranscript == true ? null : Info.TranscriptErrors;
+    public bool TranscriptPassed => Errors is int e && (e == 0 || IsApproved);
+    public bool TranscriptFailed => Errors > 0 && !IsApproved;
+
+    public string TranscriptTooltip => Errors is not int e ? "" :
+        e == 0 ? "The transcript matches the text"
+        : IsApproved ? "Approved by you although the transcript differs"
+        : $"The transcript doesn't match the text: {e} difference(s) in {Info.TranscriptWordCount} words";
 
     [ObservableProperty] private Peaks? _peaks;
 
@@ -454,15 +466,6 @@ public sealed partial class TakeRowViewModel : ObservableObject
 
     [RelayCommand]
     private Task Delete() => Item.ConfirmDeleteTakeAsync(Take);
-
-
-    [RelayCommand]
-    private void Rate(string? stars)
-    {
-        if (_main.Session == null || !int.TryParse(stars, out var n)) return;
-        _main.Session.RateTake(Item, Take, n == 0 || Info.Rating == n ? null : n);
-        OnPropertyChanged(nameof(Stars));
-    }
 
     [RelayCommand]
     private void OpenFolder()

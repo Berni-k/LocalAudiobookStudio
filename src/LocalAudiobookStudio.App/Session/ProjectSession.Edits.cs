@@ -104,6 +104,20 @@ public sealed partial class ProjectSession
     public void SetLocked(IReadOnlyList<ItemViewModel> items, bool locked) =>
         Edit(items, locked ? "Lock" : "Unlock", m => m.Locked = locked, evenIfLocked: true);
 
+    // ------------------------------------------------------------------ transcript review
+
+    /// <summary>Accepts the selected take although its transcript differs from the text.</summary>
+    public void ApproveTranscript(IReadOnlyList<ItemViewModel> items) =>
+        Edit(items, "Approve take", m => m.ApprovedTranscriptTake = m.SelectedTake, evenIfLocked: true);
+
+    /// <summary>Takes back an approval.</summary>
+    public void ClearTranscriptApproval(IReadOnlyList<ItemViewModel> items) =>
+        Edit(items, "Undo approval", m => m.ApprovedTranscriptTake = null, evenIfLocked: true);
+
+    /// <summary>Stops checking (and showing) the transcript of these segments, or starts again.</summary>
+    public void SetTranscriptIgnored(IReadOnlyList<ItemViewModel> items, bool ignore) =>
+        Edit(items, ignore ? "Ignore transcript" : "Check transcript", m => m.IgnoreTranscript = ignore ? true : null, evenIfLocked: true);
+
     public void ToggleLock(IReadOnlyList<ItemViewModel> items)
     {
         if (items.Count == 0) return;
@@ -162,16 +176,6 @@ public sealed partial class ProjectSession
         SelectTake(item, takes[next].Take);
     }
 
-    /// <summary>Rates a take (1–5 stars, null to clear). Stored in the take's metadata; not undoable.</summary>
-    public void RateTake(ItemViewModel item, int take, int? rating)
-    {
-        var info = Takes.Find(item.Id, take);
-        if (info == null) return;
-        info.Rating = rating;
-        Core.IO.TakeStore.SaveTakeInfo(Paths, item.Id, info);
-        item.RefreshAudio();
-    }
-
     /// <summary>
     /// Deletes a take's files from disk (not undoable). When it was the selected take, the next
     /// remaining take (or the previous one, if it was the last) becomes selected.
@@ -188,6 +192,7 @@ public sealed partial class ProjectSession
         File.Delete(Takes.TakeAudio(item.Id, take));
         try { File.Delete(Paths.TakeJson(item.Id, take)); } catch (IOException) { /* the audio is gone, so the take is hidden anyway */ }
         try { File.Delete(peaks); } catch (IOException) { /* rebuildable cache */ }
+        try { File.Delete(Paths.TakeTranscript(item.Id, take)); } catch (IOException) { /* a stray file the take list never shows */ }
         Takes.Reload(item.Id);
 
         if (item.Model.SelectedTake == take)

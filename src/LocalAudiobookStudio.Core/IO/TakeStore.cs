@@ -10,6 +10,9 @@ public static partial class TakeStore
     [GeneratedRegex(@"^take-(\d{4,})\.(wav|opus|json)$", RegexOptions.IgnoreCase)]
     private static partial Regex TakeFileRegex();
 
+    /// <summary>A take's side files (peaks, transcript) named like its metadata file, so one pattern finds the take number.</summary>
+    private static string AsTakeFile(string name) => name.Replace(".peaks", ".json").Replace(".transcript", ".json");
+
     /// <summary>Loads the metadata of every take of a segment, ordered by take number.
     /// Takes whose audio file is missing are skipped.</summary>
     public static List<TakeInfo> LoadTakes(ProjectPaths paths, Guid itemId)
@@ -64,7 +67,7 @@ public static partial class TakeStore
         {
             var name = Path.GetFileName(f);
             if (name.EndsWith(".partial", StringComparison.OrdinalIgnoreCase)) name = name[..^".partial".Length];
-            var m = TakeFileRegex().Match(name.Replace(".peaks", ".json"));
+            var m = TakeFileRegex().Match(AsTakeFile(name));
             if (m.Success && int.TryParse(m.Groups[1].Value, out var n)) max = Math.Max(max, n);
         }
         try
@@ -121,7 +124,7 @@ public static partial class TakeStore
             }
             foreach (var f in Directory.EnumerateFiles(dir))
             {
-                var m = TakeFileRegex().Match(Path.GetFileName(f).Replace(".peaks", ".json"));
+                var m = TakeFileRegex().Match(AsTakeFile(Path.GetFileName(f)));
                 if (!m.Success) continue;
                 if (int.TryParse(m.Groups[1].Value, out var n) && n == keep) continue;
                 File.Delete(f);

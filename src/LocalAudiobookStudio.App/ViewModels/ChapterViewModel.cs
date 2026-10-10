@@ -45,6 +45,9 @@ public sealed partial class ChapterViewModel : ObservableObject
     [ObservableProperty] private int _staleCount;
     [ObservableProperty] private int _failedCount;
     [ObservableProperty] private int _missingCount;
+
+    /// <summary>Segments whose transcript doesn't match their text (counted in <see cref="FailedCount"/> too).</summary>
+    [ObservableProperty] private int _mismatchCount;
     [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private bool _isEditingTitle;
 
@@ -52,7 +55,8 @@ public sealed partial class ChapterViewModel : ObservableObject
     public bool HasStale => StaleCount > 0;
     public bool HasFailed => FailedCount > 0;
     public string BadgeTooltip =>
-        $"Duration: {DurationText}\n{FinishedCount} finished\n{StaleCount} stale\n{FailedCount} failed\n{MissingCount} not generated";
+        $"Duration: {DurationText}\n{FinishedCount} finished\n{StaleCount} stale\n{FailedCount} failed\n{MissingCount} not generated" +
+        (MismatchCount > 0 ? $"\n{MismatchCount} transcript mismatch" : "");
 
     partial void OnDurationMsChanged(double value) { OnPropertyChanged(nameof(DurationText)); OnPropertyChanged(nameof(BadgeTooltip)); }
     partial void OnDurationIsEstimateChanged(bool value) { OnPropertyChanged(nameof(DurationText)); OnPropertyChanged(nameof(BadgeTooltip)); }
@@ -60,12 +64,13 @@ public sealed partial class ChapterViewModel : ObservableObject
     partial void OnStaleCountChanged(int value) { OnPropertyChanged(nameof(HasStale)); OnPropertyChanged(nameof(BadgeTooltip)); }
     partial void OnFailedCountChanged(int value) { OnPropertyChanged(nameof(HasFailed)); OnPropertyChanged(nameof(BadgeTooltip)); }
     partial void OnMissingCountChanged(int value) => OnPropertyChanged(nameof(BadgeTooltip));
+    partial void OnMismatchCountChanged(int value) => OnPropertyChanged(nameof(BadgeTooltip));
 
     public void RefreshTitle() => OnPropertyChanged(nameof(Title));
 
     public void RecountStatus()
     {
-        int finished = 0, stale = 0, failed = 0, missing = 0;
+        int finished = 0, stale = 0, failed = 0, missing = 0, mismatch = 0;
         foreach (var i in Items)
         {
             switch (i.Status)
@@ -75,11 +80,14 @@ public sealed partial class ChapterViewModel : ObservableObject
                 case ItemStatus.Failed: failed++; break;
                 case ItemStatus.NotGenerated: missing++; break;
             }
+            // A take whose transcript doesn't match its text is red too, unless it failed anyway.
+            if (i.Status != ItemStatus.Failed && i.TranscriptFlagged) { mismatch++; failed++; }
         }
         FinishedCount = finished;
         StaleCount = stale;
         FailedCount = failed;
         MissingCount = missing;
+        MismatchCount = mismatch;
     }
 
     // ------------------------------------------------------------------ structure (model + VM in sync)
