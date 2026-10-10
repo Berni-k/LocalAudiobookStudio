@@ -61,6 +61,7 @@ while (inbox.Take() is { } msg)
         {
             case "load": await engine.LoadAsync(id); break;
             case "transcribe": await engine.TranscribeAsync(id, msg); break;
+            case "generate" when Protocol.RefuseParts(id, msg): break;
             case "generate": await engine.GenerateAsync(id, msg); break;
             case "listVoices": Protocol.Send("voices", id, ("voices", new JsonArray())); break;
             default: Protocol.Error(id, $"unknown message type: {type}", fatal: false); break;

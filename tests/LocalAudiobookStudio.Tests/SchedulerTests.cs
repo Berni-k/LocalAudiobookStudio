@@ -405,6 +405,20 @@ public class GenerationSchedulerTests
     }
 
     [Fact]
+    public async Task UnfusableFailsWithoutRetry()
+    {
+        using var tmp = new TempDir();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w,
+            (_, _) => throw new WorkerErrorException("too many voices", false, null, ErrorCodes.Unfusable)), _ => WorkerHosting.AnyLocal);
+        s.ConfigureDevices(Gpus(1));
+        GenerationJob? failed = null;
+        s.JobFailed += j => failed = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = tmp.Path });
+        await WaitUntil(() => failed != null);
+        Assert.Equal(1, failed!.Attempts);
+    }
+
+    [Fact]
     public async Task CancelRunningJob()
     {
         using var tmp = new TempDir();

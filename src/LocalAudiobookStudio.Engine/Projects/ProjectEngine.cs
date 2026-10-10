@@ -39,7 +39,7 @@ public sealed record LayoutInput(List<Chapter> Chapters, Dictionary<Guid, ItemDu
 /// the timeline. Not thread-safe: the model is read and changed on the owner's thread (the app's UI thread),
 /// except <see cref="SaveGeneratedTake"/>, which only writes take files and the take index.
 /// </summary>
-public sealed class ProjectEngine(StudioHost host, Project project)
+public sealed partial class ProjectEngine(StudioHost host, Project project)
 {
     private readonly SpeakingRateTracker _rates = new();
 
@@ -233,19 +233,28 @@ public sealed class ProjectEngine(StudioHost host, Project project)
     public Task SaveGeneratedTake(GenerationJob job, GenerateResult result)
     {
         if (!Owns(job)) return Task.CompletedTask;
+        SaveTake(job, job.ItemId, job.TakeNumber, result.Path, job.InputHash, result.Seed, job.Request.Text?.Length);
+        return Task.CompletedTask;
+    }
 
-        var peaksPath = Paths.TakePeaks(job.ItemId, job.TakeNumber);
-        var analysis = TakeAnalyzer.Analyze(result.Path, peaksPath, Host.SilenceTrim);
+    /// <summary>
+    /// Analyses a generated take's WAV (loudness, trims, peaks), stores it in the project's format and saves its take
+    /// file. Thread-safe like <see cref="SaveGeneratedTake"/>: it doesn't touch the model.
+    /// </summary>
+    private TakeInfo SaveTake(GenerationJob job, Guid itemId, int take, string wavPath, string? inputHash, long? seed, int? textLength,
+        TakeFusion? fusion = null)
+    {
+        var analysis = TakeAnalyzer.Analyze(wavPath, Paths.TakePeaks(itemId, take), Host.SilenceTrim);
         var manifest = Catalog.Get(job.WorkerId);
         var info = new TakeInfo
         {
-            Take = job.TakeNumber,
+            Take = take,
             CreatedUtc = DateTime.UtcNow,
-            InputHash = job.InputHash ?? "",
+            InputHash = inputHash ?? "",
             Worker = job.WorkerId,
             ModelVersion = manifest != null ? Host.ModelVersionOf(manifest) : "",
             Runtime = manifest?.Runtime,
-            Seed = result.Seed,
+            Seed = seed,
             Gpu = job.DeviceName,
             DurationMs = analysis.DurationMs,
             SampleRate = analysis.SampleRate,
@@ -253,12 +262,13 @@ public sealed class ProjectEngine(StudioHost host, Project project)
             GenerationMs = job.StartedUtc is DateTime s ? (int)(DateTime.UtcNow - s).TotalMilliseconds : 0,
             TrimStartMs = analysis.TrimStartMs,
             TrimEndMs = analysis.TrimEndMs,
-            TextLength = job.Request.Text?.Length,
-            Format = StoreAudio(result.Path),
+            TextLength = textLength,
+            Fusion = fusion,
+            Format = StoreAudio(wavPath),
         };
-        TakeStore.SaveTakeInfo(Paths, job.ItemId, info);
-        Takes.Add(job.ItemId, info);
-        return Task.CompletedTask;
+        TakeStore.SaveTakeInfo(Paths, itemId, info);
+        Takes.Add(itemId, info);
+        return info;
     }
 
     // ================================================================== transcripts
@@ -409,11 +419,14 @@ public sealed class ProjectEngine(StudioHost host, Project project)
     /// Selects a finished job's take, if the segment's input is still what was generated. Returns false when
     /// the segment changed meanwhile (the take is kept but not selected).
     /// </summary>
-    public bool ApplyCompletedTake(TimelineItem item, GenerationJob job)
+    public bool ApplyCompletedTake(TimelineItem item, GenerationJob job) => ApplyTake(item, job.TakeNumber, job.InputHash);
+
+    /// <summary>Selects a new take made from <paramref name="inputHash"/>, if the segment's input is still that.</summary>
+    public bool ApplyTake(TimelineItem item, int take, string? inputHash)
     {
-        if (ComputeHash(item) != job.InputHash) return false;
-        item.SelectedTake = job.TakeNumber;
-        item.InputHash = job.InputHash;
+        if (ComputeHash(item) != inputHash) return false;
+        item.SelectedTake = take;
+        item.InputHash = inputHash;
         item.LastError = null;
         item.TrimStartMs = null; // use the new take's detected silence
         item.TrimEndMs = null;

@@ -164,6 +164,74 @@
             </StackPanel>
           </Border>
 
+          <!-- ===== Context: lines around a segment, and neighbouring segments, generated with it in one go. Two boxes,
+               each switched on by the checkbox in its header; the settings show once it is on. The worker's limits are
+               warnings at the bottom. Not part of what makes a take stale. A recorded speaker has it too (its lines can be
+               context for others), without the numbers: its own segments aren't generated. -->
+          <Border Classes="group" IsVisible="{Binding ShowContext}">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Context" Classes="groupTitle" Margin="0,0,0,4" />
+
+              <Border Classes="card" Padding="10,6,10,10">
+                <StackPanel Classes="form">
+                  <CheckBox IsChecked="{Binding ContextInclude}" Content="Include context" FontWeight="SemiBold"
+                            ToolTip.Tip="{Binding IncludeTip}" />
+                  <StackPanel Classes="form" IsVisible="{Binding ShowContextSettings}">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Segments before" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding ContextBefore}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
+                                     Width="130" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Segments after" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding ContextAfter}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
+                                     Width="130" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Max characters" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding ContextMaxChars}" Minimum="0" Maximum="5000" Increment="100" FormatString="0"
+                                     Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of context on each side" />
+                    </Grid>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Disabled for workers that render one voice at a time, and for recorded speakers. -->
+              <Border Classes="card" Padding="10,6,10,10">
+                <StackPanel Classes="form">
+                  <CheckBox IsChecked="{Binding ContextBatch}" Content="Batching" FontWeight="SemiBold" IsEnabled="{Binding CanBatch}"
+                            ToolTip.Tip="{Binding BatchTip}" ToolTip.ShowOnDisabled="True" />
+                  <StackPanel Classes="form" IsVisible="{Binding ShowBatchSettings}">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Max segments" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxSegments}" Minimum="2" Maximum="100" Increment="1" FormatString="0"
+                                     Watermark="Any" Width="130" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Max characters" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxChars}" Minimum="100" Maximum="20000" Increment="100" FormatString="0"
+                                     Watermark="Any" Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of the batch's segments together" />
+                    </Grid>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitWarning}">
+                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ContextSplitWarning}" Classes="caption warning" TextWrapping="Wrap" MaxWidth="460" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitError}">
+                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ContextSplitError}" Classes="caption error" TextWrapping="Wrap" MaxWidth="460" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
           <!-- ===== Preview (not for recorded speakers: they have no model) -->
           <Border Classes="group" IsVisible="{Binding CanPreview}">
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">

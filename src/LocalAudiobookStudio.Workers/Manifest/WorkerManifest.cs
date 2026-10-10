@@ -342,6 +342,19 @@ public sealed class WorkerManifest
     public double ClampLength(double seconds, JsonObject? settings = null) =>
         Math.Clamp(seconds, MinLengthSec, MaxLengthSecFor(settings));
 
+    /// <summary>
+    /// Whether the worker takes fused generations (a generate request with parts: several segments, and lines of
+    /// context around them, in one go). Without this entry it only gets one segment per request.
+    /// </summary>
+    public FusionSupport? Fusion { get; set; }
+
+    /// <summary>
+    /// Renders several voices in one go, so neighbouring segments can be batched. Context works with every worker: one
+    /// that doesn't fuse gets it as plain text around the segment, trimmed away by transcription.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CanBatch => Fusion is { Speakers: > 1 };
+
     /// <summary>Folder the manifest was loaded from (not serialized in the file).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string Folder { get; set; } = "";
@@ -402,6 +415,38 @@ public sealed class LengthMaxBy
     public string Setting { get; set; } = "";
     /// <summary>Maximum seconds by setting value.</summary>
     public Dictionary<string, double> Values { get; set; } = new();
+}
+
+/// <summary>
+/// The manifest's <c>fusion</c> entry: <c>{ "speakers": 4, "maxChars": 3000, "context": ["text", "audio"], "spans": true }</c>.
+/// The app only groups segments within these limits, whose settings are the same apart from those marked
+/// <see cref="SettingDefinition.PerVoice"/>; the worker can still refuse a group (error code "unfusable").
+/// </summary>
+public sealed class FusionSupport
+{
+    /// <summary>Different voices in one generation, context included.</summary>
+    public int Speakers { get; set; } = 1;
+
+    /// <summary>All the parts' text together, context included; null: the worker's <see cref="WorkerManifest.MaxChars"/>.</summary>
+    public int? MaxChars { get; set; }
+
+    /// <summary>What context parts the worker uses (<see cref="FusionContext"/>); empty: it takes no context parts.</summary>
+    public List<string> Context { get; set; } = new();
+
+    /// <summary>The worker usually reports where each part is in the audio, so the app needn't transcribe to cut it.</summary>
+    public bool Spans { get; set; }
+
+    public bool TakesContext(string kind) => Context.Contains(kind, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Kinds of context a fusing worker can use.</summary>
+public static class FusionContext
+{
+    /// <summary>The line's text, rendered along with the segments and cut away.</summary>
+    public const string Text = "text";
+
+    /// <summary>The line's existing take, which the model hears instead of rendering it again.</summary>
+    public const string Audio = "audio";
 }
 
 /// <summary>How well a worker runs on the CPU (from "devices" and "cpuRecommended").</summary>
@@ -528,6 +573,12 @@ public sealed class SettingDefinition
     /// for an ordinary setting. Choosing another file changes the settings shown below it.
     /// </summary>
     public string? AddsSettings { get; set; }
+
+    /// <summary>
+    /// Belongs to the voice rather than to the generation (a preset voice, a reference transcript): in a fused
+    /// generation it goes on each part, and may differ between them. All other settings must be the same.
+    /// </summary>
+    public bool PerVoice { get; set; }
 
     /// <summary>Display names for <see cref="Options"/>, in the same order (optional; the value is shown otherwise).</summary>
     public List<string> OptionLabels { get; set; } = new();

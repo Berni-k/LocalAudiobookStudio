@@ -140,6 +140,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private SettingsEditorViewModel? _settings;
     [ObservableProperty] private WorkerManifest? _transcriber;
     [ObservableProperty] private SettingsEditorViewModel? _transcriberSettings;
+    [ObservableProperty] private bool _contextInclude;
+    [ObservableProperty] private decimal _contextBefore;
+    [ObservableProperty] private decimal _contextAfter;
+    [ObservableProperty] private decimal _contextMaxChars;
+    [ObservableProperty] private bool _contextBatch;
+    [ObservableProperty] private decimal? _batchMaxSegments;
+    [ObservableProperty] private decimal? _batchMaxChars;
     [ObservableProperty] private string _previewText = "The quick brown fox jumps over the lazy dog. How does this voice sound?";
     [ObservableProperty] private string? _previewStatus;
 
@@ -325,6 +332,49 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     partial void OnPreviewTextChanged(string value) => OnPropertyChanged(nameof(PreviewLengthWatermark));
     public string WorkerInfo => Worker == null ? "" :
         (Worker.Description ?? "") + (IsRecorded || AppHost.Environments.IsWorkerReady(Worker.Id) ? "" : "  (not installed — see Workers)");
+    /// <summary>Batching needs a worker that renders several voices in one go; for others the box is disabled.</summary>
+    public bool CanBatch => Worker?.CanBatch == true;
+
+    public bool ShowBatchSettings => ContextBatch && CanBatch;
+
+    public string BatchTip =>
+        CanBatch ? "Combine the generation of similar neighbouring segments that also have batching enabled"
+        : IsRecorded ? "Recorded segments aren't generated, so they can't be batched"
+        : $"{Worker?.DisplayName ?? "This worker"} renders one voice at a time, so it can't batch";
+
+    /// <summary>Recorded speakers have the group too: their lines can be context for others.</summary>
+    public bool ShowContext => Worker != null;
+
+    /// <summary>A recorded speaker's segments get no context of their own; only whether its lines may be context.</summary>
+    public bool ShowContextSettings => ContextInclude && !IsRecorded;
+
+    public string IncludeTip => IsRecorded
+        ? "Let neighbouring segments use this speaker's lines as context"
+        : "Include context from neighbouring segments that also have context enabled. Generation is slower, as there is more text to generate.";
+
+    /// <summary>
+    /// Context or batching is on, and the worker doesn't time the segments in what it renders: transcription separates
+    /// them. Only shown when there is a transcription worker (else <see cref="ContextSplitError"/>).
+    /// </summary>
+    public string? ContextSplitWarning =>
+        NeedsTranscription && HasTranscriber ? $"{Worker!.DisplayName} doesn't time the segments, so transcription separates them." : null;
+
+    /// <summary>Transcription would have to separate the segments, and there is no transcription worker.</summary>
+    public string? ContextSplitError => NeedsTranscription && !HasTranscriber
+        ? "No transcription worker is set, so the segments can't be separated: context and batching are ignored."
+        : null;
+
+    /// <summary>Context or batching is on, and the worker doesn't say where the segments are (a worker that doesn't fuse never does).</summary>
+    private bool NeedsTranscription =>
+        (ContextInclude || ContextBatch && CanBatch) && !IsRecorded && Worker != null && Worker.Fusion?.Spans != true;
+
+    public bool HasContextSplitWarning => ContextSplitWarning != null;
+    public bool HasContextSplitError => ContextSplitError != null;
+
+    private static readonly string[] ContextWarnings =
+        [nameof(CanBatch), nameof(ShowBatchSettings), nameof(BatchTip), nameof(ShowContext), nameof(ShowContextSettings), nameof(IncludeTip),
+         nameof(ContextSplitWarning), nameof(HasContextSplitWarning), nameof(ContextSplitError), nameof(HasContextSplitError)];
+
     public int SegmentCount => Selected == null ? 0 : _session.Project.AllItems().Count(i => i.Kind == ItemKind.Tts && string.Equals(i.Speaker, Selected.Id, StringComparison.OrdinalIgnoreCase));
 
     partial void OnSelectedChanged(SpeakerViewModel? value)
@@ -357,12 +407,20 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 : string.IsNullOrEmpty(sp.Transcriber) ? NoTranscriber
                 : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
             TranscriberSettings = BuildTranscriberSettings();
+            var context = sp?.Context ?? new SpeakerContext();
+            ContextInclude = context.Include;
+            ContextBefore = context.Before;
+            ContextAfter = context.After;
+            ContextMaxChars = context.MaxChars;
+            ContextBatch = context.Batch && CanBatch; // a worker that can't batch shows it off (the planner ignores it too)
+            BatchMaxSegments = context.BatchMaxSegments;
+            BatchMaxChars = context.BatchMaxChars;
         }
         finally
         {
             _loading = false;
         }
-        foreach (var n in new[] { nameof(HasSelection), nameof(SpeakerId), nameof(IsDefault), nameof(SupportsCloning), nameof(WorkerInfo), nameof(SegmentCount), nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText) })
+        foreach (var n in new[] { nameof(HasSelection), nameof(SpeakerId), nameof(IsDefault), nameof(SupportsCloning), nameof(WorkerInfo), nameof(SegmentCount), nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText) }.Concat(ContextWarnings))
             OnPropertyChanged(n);
         RefreshPreviewLength();
     }
@@ -438,6 +496,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     partial void OnWorkerChanged(WorkerManifest? value)
     {
         OnPropertyChanged(nameof(SupportsCloning));
+        foreach (var n in ContextWarnings) OnPropertyChanged(n);
         OnPropertyChanged(nameof(WorkerInfo));
         OnPropertyChanged(nameof(IsRecorded));
         OnPropertyChanged(nameof(CanPreview));
@@ -450,6 +509,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         sp.Worker = value.Id;
         sp.Settings = value.DefaultSettings(_session.Speakers.IndexOf(Selected));
         if (!value.VoiceCloning) sp.Voice = null; // a reference clip means nothing to a worker without cloning
+        if (!value.CanBatch) sp.Context.Batch = false; // nor batching to one that renders one voice at a time
         Commit();
         // Reload once the dropdown has finished this selection: Load rebuilds its item list (a missing worker
         // that was listed drops out), and changing the list while the ComboBox commits its selection makes it
@@ -457,9 +517,26 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Dispatcher.UIThread.Post(Load);
     }
 
+    partial void OnContextIncludeChanged(bool value) => EditContext(c => c.Include = value);
+    partial void OnContextBeforeChanged(decimal value) => EditContext(c => c.Before = (int)value);
+    partial void OnContextAfterChanged(decimal value) => EditContext(c => c.After = (int)value);
+    partial void OnContextMaxCharsChanged(decimal value) => EditContext(c => c.MaxChars = (int)value);
+    partial void OnContextBatchChanged(bool value) => EditContext(c => c.Batch = value);
+    // Empty means any.
+    partial void OnBatchMaxSegmentsChanged(decimal? value) => EditContext(c => c.BatchMaxSegments = value is > 0 ? (int)value : null);
+    partial void OnBatchMaxCharsChanged(decimal? value) => EditContext(c => c.BatchMaxChars = value is > 0 ? (int)value : null);
+
+    private void EditContext(Action<SpeakerContext> edit)
+    {
+        foreach (var n in ContextWarnings) OnPropertyChanged(n); // they depend on whether context or batching is on
+        if (_loading || Selected == null) return;
+        edit(Selected.Model.Context);
+        Commit();
+    }
+
     partial void OnTranscriberChanged(WorkerManifest? value)
     {
-        foreach (var n in new[] { nameof(HasTranscriber), nameof(IsTranscriberMissing), nameof(MissingTranscriberText), nameof(TranscriberInfo) })
+        foreach (var n in new[] { nameof(HasTranscriber), nameof(IsTranscriberMissing), nameof(MissingTranscriberText), nameof(TranscriberInfo) }.Concat(ContextWarnings))
             OnPropertyChanged(n);
         if (_loading || Selected == null || value == null) return;
         var sp = Selected.Model;

@@ -12,8 +12,9 @@
   "devices": ["cuda", "cpu"],
   "cpuRecommended": false,
   "cpuNote": "Very slow on the CPU (float32, SDPA; upstream's CPU path). Use the 1.5B model: 7B needs about 30 GB of RAM.",
+  "fusion": { "speakers": 4, "maxChars": 5000, "context": ["text"] },
   "settings": [
-    { "key": "voice", "type": "enum", "label": "Preset voice", "default": "en-Carter_man",
+    { "key": "voice", "type": "enum", "label": "Preset voice", "default": "en-Carter_man", "perVoice": true,
       "description": "Used when the speaker has no voice-cloning reference clip.",
       "options": ["en-Carter_man", "en-Alice_woman", "en-Frank_man", "en-Maya_woman", "in-Samuel_man", "zh-Xinran_woman", "zh-Bowen_man"],
       "optionLabels": ["Carter (EN, male)", "Alice (EN, female)", "Frank (EN, male)", "Maya (EN, female)", "Samuel (EN/IN, male)", "Xinran (ZH, female)", "Bowen (ZH, male)"] },

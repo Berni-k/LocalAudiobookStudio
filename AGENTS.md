@@ -82,6 +82,17 @@ Rules that follow from this:
 - A Python worker implements `load(report)` and `generate(req, report)` (optionally `prepare(report)` for downloads)
   with `workers/common/protocol.py`. Stdout carries protocol messages only; everything else goes to stderr.
 - A model's `modelVersion` is part of every segment's input hash: changing it makes all its takes stale.
+- Fused generation (several segments, or a segment with lines of context around it, in one go): a worker that
+  declares `"fusion": { "speakers", "maxChars", "context": ["text", "audio"], "spans" }` gets generate requests with
+  `parts` (`role` generate or context, `speaker` key, `text`, `voice`, per-voice `settings`, context `audioPath`) and
+  implements `generate_parts(req, report)`; settings marked `"perVoice": true` go on each part (context too, when its
+  speaker uses the same worker; otherwise it has no voice), the rest are shared and must match. Speakers opt in under
+  Context (`Speaker.Context`: include context with segments before/after and max characters; batching with max
+  segments and characters); `ProjectEngine.BuildJobs` plans the groups,
+  `ProjectEngine.Fusion.cs` cuts the result into takes. It may return `spans` (one `(startMs, endMs)` or `None` per part; otherwise the app transcribes to cut)
+  and raises `Unfusable` for a combination it can't do (no retry; the app generates one by one). Workers without
+  `fusion` never see parts (the bundled .NET workers refuse them); context still works for them: the app sends the
+  context lines and the segment as one ordinary text and trims with transcription. Batching needs `fusion.speakers` > 1.
 - Settings can come from a file: a setting with `"addsSettings": "<reader>"` (usually `"type": "asset"`) picks a file,
   and the reader in `SettingSources.cs` turns it into more settings shown below it. The ComfyUI bridge's workflow
   (`comfyWorkflow`) is the first; add a reader there for other kinds of file.

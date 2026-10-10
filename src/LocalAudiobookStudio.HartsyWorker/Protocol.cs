@@ -80,6 +80,14 @@ internal static partial class Protocol
     public static void Error(string? id, string message, bool fatal, string? trace = null) =>
         Send("error", id, ("message", message), ("fatal", fatal), ("trace", trace));
 
+    /// <summary>A generate request with parts (a fused generation), which these workers don't do: the app generates them one by one.</summary>
+    public static bool RefuseParts(string? id, JsonObject msg)
+    {
+        if (msg["parts"] is not JsonArray { Count: > 0 }) return false;
+        Send("error", id, ("message", "this worker doesn't render several parts together"), ("fatal", false), ("code", "unfusable"));
+        return true;
+    }
+
     // ------------------------------------------------------------------ requests to the app
 
     private static readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> Replies = new();

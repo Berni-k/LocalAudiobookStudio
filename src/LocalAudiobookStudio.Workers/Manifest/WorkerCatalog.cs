@@ -196,6 +196,7 @@ public sealed class WorkerCatalog
                                $"(known: {string.Join(", ", SettingSources.Readers)})");
             foreach (var id in m.Models.Where(id => Models.Get(id) == null))
                 LoadErrors.Add($"{file}: \"models\" names '{id}', which isn't in {ModelCatalog.FileName}");
+            CheckFusion(m, file);
             return m;
         }
         catch (Exception ex)
@@ -250,6 +251,19 @@ public sealed class WorkerCatalog
             def.UnsupportedOptionsReason = reason;
             foreach (var o in options) def.UnsupportedOptions.Add(o);
         }
+    }
+
+    /// <summary>
+    /// A "fusion" entry the app could act on wrongly: the bundled workers refuse fused requests (a runtime overlay turns
+    /// fusion off with <c>"fusion": null</c>), and a context kind the app doesn't know would never be sent.
+    /// </summary>
+    private void CheckFusion(WorkerManifest m, string file)
+    {
+        if (m.Fusion is not { } f) return;
+        if (m.IsBundled) LoadErrors.Add($"{file}: the {m.Runtime} runtime can't fuse generations; set \"fusion\": null in its overlay");
+        if (f.Speakers < 1) LoadErrors.Add($"{file}: \"fusion\" needs \"speakers\" of 1 or more");
+        foreach (var kind in f.Context.Where(k => k is not (FusionContext.Text or FusionContext.Audio)))
+            LoadErrors.Add($"{file}: \"fusion\" has an unknown context kind '{kind}' ({FusionContext.Text}, {FusionContext.Audio})");
     }
 
     /// <summary>Default location: the <c>workers</c> folder next to the executable.</summary>

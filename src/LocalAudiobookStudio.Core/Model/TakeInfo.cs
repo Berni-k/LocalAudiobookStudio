@@ -40,10 +40,28 @@ public sealed class TakeInfo
 
     public int? TranscriptWordCount { get; set; }
 
+    /// <summary>Set when the take was cut out of a fused generation (several segments, or context, in one go).</summary>
+    public TakeFusion? Fusion { get; set; }
+
     public static string FileStem(int take) => $"take-{take:0000}";
 
     /// <summary>The audio file's name: take-NNNN.wav or take-NNNN.opus.</summary>
     public string FileName => FileStem(Take) + AudioFormats.ExtensionOf(Format);
+}
+
+/// <summary>How a take came out of a fused generation.</summary>
+public sealed class TakeFusion
+{
+    /// <summary>Segments generated together (this one included).</summary>
+    public int Segments { get; set; }
+
+    /// <summary>Lines of context around them.</summary>
+    public int Context { get; set; }
+
+    /// <summary>How it was cut out: <see cref="Worker"/> (the worker said where) or <see cref="Transcript"/>.</summary>
+    public string Split { get; set; } = Worker;
+
+    public const string Worker = "worker", Transcript = "transcript";
 }
 
 /// <summary>How a project stores its audio (takes, recordings, imported WAVs).</summary>

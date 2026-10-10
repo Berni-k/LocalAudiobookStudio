@@ -20,6 +20,12 @@ Backend: [fishaudio/fish-speech](https://github.com/fishaudio/fish-speech), pinn
   `[pause]`, `[professional broadcast tone]`. Type them in the segment text; note that a tag at the
   start of a line in an *imported* text file is read as a speaker marker by the import.
 - **Languages:** 80+, detected from the text.
+- **Batches and context** (`generate_parts`): up to 5 voices as `<|speaker:N|>` turns, the speakers with a reference
+  clip numbered first. Each part is its own turn, generated after the ones before it with their codes in the history
+  (as `generate_long` does), so the spans are exact. A context line with a take is heard, not generated; context after
+  the last segment is skipped (it can't change what comes before it). The oldest turns are dropped when the history
+  outgrows the model's context. Only the segments are written.
+- **Repetition penalty:** fish-speech's `generate_long` takes the setting but never passes it on, so it has no effect.
 - **Progress / cancel:** fish-speech's per-token `tqdm` loop is swapped for a reporter, so progress
   is live and cancel stops within one token.
 - Length cap: about 2.5× the expected token count for the text (21.5 tokens/s), so runaway

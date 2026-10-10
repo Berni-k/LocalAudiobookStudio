@@ -19,7 +19,7 @@ import zipfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from common.protocol import ensure_model, log, run_worker, write_wav  # noqa: E402
+from common.protocol import Unfusable, ensure_model, log, run_worker, write_wav  # noqa: E402
 
 MODEL = "fish-s2-pro"  # fishaudio/s2-pro (workers/models.json)
 FISH_COMMIT = "214da3cd841bda85da2496b96cd3c4d7edb1337e"
@@ -28,6 +28,8 @@ SAMPLE_RATE = 44100
 # The codec runs at 44100 / 2048 = 21.5 tokens per second and speech is about 14 characters per
 # second, so a segment needs roughly 1.5 tokens per character (progress bar and length cap).
 TOKENS_PER_CHAR = 1.5
+# Voices in one conversation (generate_parts); generate_long groups at most 5 speakers per batch.
+MAX_SPEAKERS = 5
 
 
 def models_dir():
@@ -204,6 +206,148 @@ class FishS2Worker:
         duration_ms = write_wav(req.out_path, audio, sr)
         report(1.0)
         return {"durationMs": duration_ms, "seed": req.seed, "sampleRate": sr}
+
+    def _encode_audio(self, path):
+        """VQ codes of a context take (not cached: each take is heard once or twice)."""
+        import torch
+
+        with open(path, "rb") as f, torch.inference_mode():
+            return self.engine.encode_reference(reference_audio=f.read(), enable_reference_audio=True)
+
+    def generate_parts(self, req, report):
+        """A conversation in one go: every part is its own turn, generated after the turns before it, as
+        fish-speech's generate_long does with its batches, so each segment hears what came before. One turn per
+        part keeps each part's codes apart, so the spans are exact. Context with a take is heard (its codes go into
+        the history) rather than generated; context after the last segment can't change it and is skipped. Only the
+        segments are written to the output, one after the other."""
+        import numpy as np
+        import torch
+        import fish_speech.models.text2semantic.inference as t2s
+        from types import SimpleNamespace
+        from fish_speech.content_sequence import TextPart, VQPart
+        from fish_speech.conversation import Conversation, Message
+        from fish_speech.utils import set_seed
+
+        s = req.settings
+        parts = req.parts
+        kept = [i for i, p in enumerate(parts) if not p.is_context]
+        if not kept:
+            raise ValueError("no segment to generate")
+        last = kept[-1]
+
+        # Each speaker's reference: a clip with its transcript. fish-speech pairs the i-th reference with
+        # <|speaker:i|>, so the speakers that have one get the first numbers.
+        refs = {}
+        for p in parts[:last + 1]:
+            clip = (p.voice or "").strip()
+            ref_text = " ".join(str(p.settings.get("refText") or "").split())
+            if clip and not os.path.isfile(clip):
+                raise FileNotFoundError(f"voice reference clip not found: {clip}")
+            if clip and not ref_text and not p.is_context:
+                raise ValueError("S2 Pro needs the reference clip's transcript: fill in 'Reference transcript' "
+                                 "in the speaker's settings.")
+            if p.speaker not in refs or (clip and ref_text and refs[p.speaker] is None):
+                refs[p.speaker] = (clip, ref_text) if clip and ref_text else None
+        if len(refs) > MAX_SPEAKERS:
+            raise Unfusable(f"S2 Pro takes at most {MAX_SPEAKERS} voices in one conversation")
+        order = [k for k, r in refs.items() if r] + [k for k, r in refs.items() if not r]
+        number = {k: i for i, k in enumerate(order)}
+
+        report(0.02, "Encoding reference clips")
+        referenced = [refs[k] for k in order if refs[k]]
+        if referenced:
+            system_parts = [
+                TextPart(text="convert the provided text to speech reference to the following:\n\nText:\n", cal_loss=False),
+                TextPart(text="\n".join(f"<|speaker:{i}|>{text}" for i, (_, text) in enumerate(referenced)), cal_loss=False),
+                TextPart(text="\n\nSpeech:\n", cal_loss=False),
+                VQPart(codes=torch.cat([self._reference(clip).cpu() for clip, _ in referenced], dim=1), cal_loss=False),
+            ]
+        else:
+            system_parts = [TextPart(text="convert the provided text to speech", cal_loss=False)]
+        system = Message(role="system", parts=system_parts, cal_loss=False, add_im_start=True, add_im_end=True)
+
+        def user(p):
+            text = " ".join((p.text or "").split())
+            return Message(role="user", parts=[TextPart(text=f"<|speaker:{number[p.speaker]}|>{text}", cal_loss=False)],
+                           cal_loss=False, add_im_start=True, add_im_end=True)
+
+        def assistant(codes):
+            return Message(role="assistant", parts=[VQPart(codes=codes.cpu(), cal_loss=False)], cal_loss=False,
+                           modality="voice", add_im_start=True, add_im_end=True)
+
+        rendered = [i for i in range(last + 1) if not (parts[i].is_context and parts[i].audio_path)]
+        expected_total = max(16.0, sum(len(parts[i].text or "") for i in rendered) * TOKENS_PER_CHAR)
+        done_tokens = [0]
+
+        def progress_tqdm(iterable, *args, **kwargs):
+            for x in iterable:
+                done_tokens[0] += 1
+                report(min(0.9, 0.05 + 0.85 * done_tokens[0] / expected_total), "Synthesizing")
+                yield x
+
+        set_seed(req.seed)
+        max_length = self.model.config.max_seq_len
+        history = []  # (user, assistant) message pairs, oldest first
+        audio = {}  # part index -> decoded audio of a kept part
+        original_tqdm = t2s.tqdm
+        t2s.tqdm = progress_tqdm
+        try:
+            with torch.inference_mode():
+                for i, p in enumerate(parts[:last + 1]):
+                    if p.is_context and p.audio_path:
+                        report(min(0.9, 0.05 + 0.85 * done_tokens[0] / expected_total), "Hearing the context")
+                        history.append((user(p), assistant(self._encode_audio(p.audio_path))))
+                        continue
+                    # The oldest turns go when the conversation outgrows the model's context (as generate_long
+                    # would fail instead); the references stay.
+                    while True:
+                        conversation = Conversation([system] + [m for pair in history for m in pair] + [user(p)])
+                        conversation.append(Message(role="assistant", parts=[], cal_loss=False, modality="voice",
+                                                    add_im_start=True, add_im_end=False))
+                        encoded, audio_masks, audio_parts = conversation.encode_for_inference(
+                            self.model.tokenizer, num_codebooks=self.model.config.num_codebooks)
+                        if encoded.size(1) <= max_length - 2048 or not history:
+                            break
+                        history.pop(0)
+                    if encoded.size(1) > max_length - 2048:
+                        raise ValueError("the reference clips and this segment are too long for S2 Pro")
+                    prompt_length = encoded.size(1)
+                    y = t2s.generate(
+                        model=self.model,
+                        prompt=encoded.to(device=self.device),
+                        max_new_tokens=int(len(p.text or "") * TOKENS_PER_CHAR * 2.5) + 256,
+                        audio_masks=audio_masks,
+                        audio_parts=audio_parts,
+                        decode_one_token=self.decode_one_token,
+                        temperature=float(s.get("temperature", 0.8)),
+                        top_p=float(s.get("topP", 0.8)),
+                        top_k=30,
+                    )
+                    codes = y[1:, prompt_length:-1].clone()
+                    del y, encoded
+                    history.append((user(p), assistant(codes)))
+                    if not p.is_context:
+                        report(min(0.9, 0.05 + 0.85 * done_tokens[0] / expected_total), "Decoding")
+                        audio[i] = np.asarray(self.engine.get_audio_segment(SimpleNamespace(codes=codes)),
+                                              dtype=np.float32).reshape(-1)
+        finally:
+            t2s.tqdm = original_tqdm
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+        codec = self.engine.decoder_model
+        sr = int(getattr(getattr(codec, "spec_transform", None), "sample_rate", 0) or codec.sample_rate or SAMPLE_RATE)
+        spans = [None] * len(parts)
+        offset = 0
+        for i in kept:
+            n = len(audio[i])
+            spans[i] = (round(offset * 1000 / sr), round((offset + n) * 1000 / sr))
+            offset += n
+        if offset == 0:
+            raise RuntimeError("S2 Pro produced no audio (check the text)")
+        duration_ms = write_wav(req.out_path, np.concatenate([audio[i] for i in kept]), sr)
+        report(1.0)
+        return {"durationMs": duration_ms, "seed": req.seed, "sampleRate": sr, "spans": spans}
 
 
 if __name__ == "__main__":

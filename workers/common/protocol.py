@@ -4,7 +4,13 @@ A worker only implements ``load(report)`` and ``generate(req, report)`` (and opt
 ``prepare(report)``: download the model files before ``load`` reads them). A transcription worker
 (tagged Transcription or Alignment) implements ``transcribe(req, report)`` instead of ``generate``:
 ``req.audio_path`` is a 16 kHz mono 16-bit WAV, ``req.text`` the text it should contain (if known), and
-it returns ``{"text", "words": [{"text", "startMs", "endMs", "confidence"}], "language"}``. This module handles
+it returns ``{"text", "words": [{"text", "startMs", "endMs", "confidence"}], "language"}``.
+
+A worker whose manifest declares ``fusion`` also implements ``generate_parts(req, report)``: ``req.parts`` is a
+list of :class:`Part` (segments to generate, and lines of context around them), ``req.settings`` the settings they
+share. It writes them all into ``req.out_path`` and returns what ``generate`` does, plus optionally
+``"spans": [(startMs, endMs) or None, ...]``, one per part, where it knows them. It raises :class:`Unfusable` for a
+combination it can't do; the app then generates the segments one by one. This module handles
 the rest: the ``hello`` handshake, newline-delimited JSON over stdin/stdout, redirecting stray
 ``print`` output to stderr, turning exceptions into ``error`` messages, cooperative cancellation,
 progress throttling, the ``.partial`` rename, and ``shutdown``. Models come from the app:
@@ -54,17 +60,39 @@ class Cancelled(Exception):
     """Raised from ``report()`` when the app cancelled the running request."""
 
 
+class Unfusable(Exception):
+    """Raised from ``generate_parts`` when the worker can't render these parts together (too many voices,
+    settings it can't mix, …). Not a failure: the app generates the segments one by one instead."""
+
+
+@dataclass
+class Part:
+    """One part of a fused generation (``Request.parts``)."""
+
+    role: str                   # "generate": a segment the app keeps; "context": a neighbouring line, cut away
+    speaker: str                # parts with the same key are the same voice ("s1", "s2" …)
+    text: str = ""
+    voice: Optional[str] = None  # a reference clip's path or a voice id, as Request.voice (None: pick one)
+    settings: dict = field(default_factory=dict)  # the voice's settings (manifest perVoice), context parts too
+    audio_path: Optional[str] = None  # context parts: the line's existing take (WAV), if it has one
+
+    @property
+    def is_context(self) -> bool:
+        return self.role == "context"
+
+
 @dataclass
 class Request:
     id: str
     text: Optional[str] = None  # the segment's text: spoken, or a description of the sound or music to make
     duration_sec: Optional[float] = None
     voice: Optional[str] = None
-    settings: dict = field(default_factory=dict)
+    settings: dict = field(default_factory=dict)  # with parts: only the settings all parts share
     seed: Optional[int] = None
     out_path: str = ""          # where the worker must write the WAV (already ends in .partial)
     final_path: str = ""        # the path the app asked for
     audio_path: str = ""        # transcribe: the audio to listen to (16 kHz mono 16-bit WAV)
+    parts: list = field(default_factory=list)  # a fused generation's parts (list of Part), in order
     cancelled: bool = False
 
 
@@ -400,6 +428,9 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 send({"type": "error", "id": mid, "message": f"unknown message type: {mtype}", "fatal": False})
         except Cancelled:
             send({"type": "error", "id": mid, "message": "cancelled", "fatal": False})
+        except Unfusable as e:
+            send({"type": "error", "id": mid, "message": str(e) or "can't render these parts together",
+                  "fatal": False, "code": "unfusable"})
         except Exception as e:  # noqa: BLE001
             message = f"{type(e).__name__}: {e}"
             fatal = "out of memory" in message.lower() or isinstance(e, (MemoryError, SystemError))
@@ -447,6 +478,20 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
         seed = random.randint(0, 2**31 - 1)
     seed = int(seed)
 
+    parts = [
+        Part(
+            role=str(p.get("role") or "generate"),
+            speaker=str(p.get("speaker") or ""),
+            text=p.get("text") or "",
+            voice=p.get("voice"),
+            settings=p.get("settings") or {},
+            audio_path=p.get("audioPath"),
+        )
+        for p in msg.get("parts") or []
+    ]
+    if parts and not hasattr(worker, "generate_parts"):
+        raise Unfusable("this worker doesn't render several parts together")
+
     req = Request(
         id=msg.get("id"),
         text=msg.get("text"),
@@ -456,6 +501,7 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
         seed=seed,
         out_path=final_path + ".partial",
         final_path=final_path,
+        parts=parts,
     )
     current["request"] = req
     os.makedirs(os.path.dirname(final_path) or ".", exist_ok=True)
@@ -463,7 +509,7 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
 
     report = _make_reporter(req.id, req)
     try:
-        result = worker.generate(req, report) or {}
+        result = (worker.generate_parts(req, report) if parts else worker.generate(req, report)) or {}
         if req.cancelled:
             raise Cancelled()
         if not os.path.exists(req.out_path):
@@ -477,14 +523,21 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
             pass
         raise
 
-    send({
+    done = {
         "type": "done",
         "id": req.id,
         "path": final_path,
         "durationMs": int(result.get("durationMs", 0)),
         "seed": int(result.get("seed", seed)),
         "sampleRate": int(result.get("sampleRate", 0)),
-    })
+    }
+    spans = result.get("spans")
+    if parts and spans:
+        if len(spans) != len(parts):
+            log(f"ignoring spans: {len(spans)} for {len(parts)} parts")
+        else:
+            done["spans"] = [None if s is None else {"startMs": int(s[0]), "endMs": int(s[1])} for s in spans]
+    send(done)
 
 
 def _handle_transcribe(worker: Any, msg: dict, current: dict) -> None:

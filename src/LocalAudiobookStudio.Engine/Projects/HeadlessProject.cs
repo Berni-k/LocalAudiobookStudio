@@ -20,7 +20,10 @@ public enum GenerateScope
     Failed,
 }
 
-/// <summary>One finished job of <see cref="HeadlessProject.GenerateAsync"/>.</summary>
+/// <summary>
+/// A job of <see cref="HeadlessProject.GenerateAsync"/> that finished segments: <see cref="Done"/> and <see cref="Total"/>
+/// count segments (a fused generation finishes several at once). <see cref="Selected"/>: all its new takes were selected.
+/// </summary>
 public sealed record GenerationEvent(GenerationJob Job, int Done, int Total, bool Selected);
 
 /// <param name="NotQueued">Segments that couldn't be queued, with why (an unknown speaker, empty text…).</param>
@@ -191,10 +194,10 @@ public sealed class HeadlessProject : IDisposable
         Action<GenerationEvent>? onFinished, CancellationToken ct)
     {
         var scheduler = Host.Scheduler;
-        var jobs = new List<GenerationJob>();
-        var where = new Dictionary<Guid, (Chapter chapter, TimelineItem item)>();
+        var wanted = new List<TimelineItem>();
         var notQueued = new List<string>();
         var errors = new List<string>();
+        List<GenerationJob> jobs;
         int locked = 0, recorded = 0;
         lock (_sync)
         {
@@ -203,64 +206,99 @@ public sealed class HeadlessProject : IDisposable
                 if (chapters != null && !chapters.Contains(ci)) continue;
                 var ch = Project.Chapters[ci];
                 var dirty = false;
-                for (int ii = 0; ii < ch.Items.Count; ii++)
+                foreach (var item in ch.Items)
                 {
-                    var item = ch.Items[ii];
                     if (!item.IsGenerated) continue;
                     var state = Engine.StateOf(item);
-                    var wanted = scope switch
+                    var inScope = scope switch
                     {
                         GenerateScope.All => true,
                         GenerateScope.Failed => state == SegmentAudioState.Failed,
                         _ => state != SegmentAudioState.Ready,
                     };
-                    if (!wanted) continue;
+                    if (!inScope) continue;
                     if (Engine.IsRecorded(item)) { recorded++; continue; }
                     if (item.Locked) { locked++; continue; }
-                    var job = Engine.BuildJob(item, ci, ii, JobPriority.Normal, out var error);
-                    if (job == null)
-                    {
-                        if (error != null) notQueued.Add($"{ci + 1}.{ii + 1}: {error}");
-                        continue;
-                    }
-                    jobs.Add(job);
-                    where[job.Id] = (ch, item);
+                    wanted.Add(item);
                     if (item.LastError != null) { item.LastError = null; dirty = true; }
                 }
                 if (dirty) ProjectStore.SaveChapter(Project, ch);
             }
+            jobs = Engine.BuildJobs(wanted, JobPriority.Normal, notQueued);
         }
-        if (jobs.Count == 0) return new GenerateSummary(0, 0, 0, 0, locked, recorded, notQueued, errors);
+        // Counted by segment: a fused generation finishes several, and what it can't do comes back as jobs of their own.
+        var pending = jobs.SelectMany(j => j.Items).ToHashSet();
+        var total = pending.Count;
+        if (total == 0) return new GenerateSummary(0, 0, 0, 0, locked, recorded, notQueued, errors);
 
         int done = 0, completed = 0, failed = 0, cancelled = 0;
         var all = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void Finished(GenerationJob job)
         {
-            if (!where.TryGetValue(job.Id, out var w)) return;
-            bool selected = false;
+            if (!ProjectEngine.SegmentsOf(job).Any(pending.Contains)) return;
+            var followUps = new List<GenerationJob>();
             lock (_sync)
             {
-                switch (job.State)
+                var finished = 0;
+                var selected = true;
+                var dirty = new HashSet<Chapter>();
+                void Done(Guid itemId) { if (pending.Remove(itemId)) finished++; }
+
+                if (Engine.OwnsFusion(job))
                 {
-                    case JobState.Completed:
+                    var outcome = Engine.FinishFusion(job);
+                    foreach (var (item, _, isSelected, _) in outcome.Takes)
+                    {
                         completed++;
-                        selected = Engine.ApplyCompletedTake(w.item, job);
-                        ProjectStore.SaveChapter(Project, w.chapter);
-                        break;
-                    case JobState.Failed:
+                        selected &= isSelected;
+                        Done(item.Id);
+                        if (Project.FindItem(item.Id) is (Chapter ch, _)) dirty.Add(ch);
+                    }
+                    foreach (var item in outcome.Failed)
+                    {
                         failed++;
-                        ProjectEngine.ApplyFailure(w.item, job);
-                        ProjectStore.SaveChapter(Project, w.chapter);
-                        errors.Add($"{job.Label}: {job.LastError}");
-                        break;
-                    default:
-                        cancelled++;
-                        break;
+                        errors.Add($"{job.Label}: {item.LastError}");
+                        Done(item.Id);
+                        if (Project.FindItem(item.Id) is (Chapter ch, _)) dirty.Add(ch);
+                    }
+                    foreach (var id in outcome.Cancelled) { cancelled++; Done(id); }
+                    if (ct.IsCancellationRequested)
+                        foreach (var id in outcome.FollowUps.SelectMany(ProjectEngine.SegmentsOf)) { cancelled++; Done(id); }
+                    else
+                        followUps.AddRange(outcome.FollowUps);
                 }
-                done++;
-                onFinished?.Invoke(new GenerationEvent(job, done, jobs.Count, selected));
-                if (done == jobs.Count) all.TrySetResult();
+                else if (Project.FindItem(job.ItemId) is (Chapter chapter, int index))
+                {
+                    var item = chapter.Items[index];
+                    switch (job.State)
+                    {
+                        case JobState.Completed:
+                            completed++;
+                            selected = Engine.ApplyCompletedTake(item, job);
+                            dirty.Add(chapter);
+                            break;
+                        case JobState.Failed:
+                            failed++;
+                            ProjectEngine.ApplyFailure(item, job);
+                            dirty.Add(chapter);
+                            errors.Add($"{job.Label}: {job.LastError}");
+                            break;
+                        default:
+                            cancelled++;
+                            break;
+                    }
+                    Done(item.Id);
+                }
+                foreach (var ch in dirty) ProjectStore.SaveChapter(Project, ch);
+                if (finished > 0)
+                {
+                    done += finished;
+                    onFinished?.Invoke(new GenerationEvent(job, done, total, selected));
+                }
+                if (pending.Count == 0) all.TrySetResult();
             }
+            // Not under the lock: a job that can't be queued fails at once, back into this handler.
+            if (followUps.Count > 0) scheduler.EnqueueMany(followUps);
         }
 
         scheduler.OnGenerated = Engine.SaveGeneratedTake;
@@ -278,7 +316,7 @@ public sealed class HeadlessProject : IDisposable
             scheduler.JobFailed -= Finished;
             if (scheduler.OnGenerated == Engine.SaveGeneratedTake) scheduler.OnGenerated = null;
         }
-        return new GenerateSummary(jobs.Count, completed, failed, cancelled, locked, recorded, notQueued, errors);
+        return new GenerateSummary(total, completed, failed, cancelled, locked, recorded, notQueued, errors);
     }
 
     // ================================================================== export

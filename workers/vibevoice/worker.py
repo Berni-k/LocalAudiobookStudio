@@ -4,10 +4,10 @@ Written against the community fork https://github.com/vibevoice-community/VibeVo
 952326d), which keeps the inference code Microsoft removed from its own repository. The API used
 here mirrors that fork's ``demo/inference_from_file.py``.
 
-VibeVoice is an LLM + diffusion model that clones a voice from a short reference clip. Each request
-is rendered as a one-speaker script ("Speaker 1: <text>") with one voice sample: the speaker's
-reference clip if it has one, otherwise a preset voice from the fork's ``demo/voices`` folder
-(downloaded once into the model cache).
+VibeVoice is an LLM + diffusion model that clones a voice from a short reference clip. A request is
+rendered as a script ("Speaker 1: <text>", or one line per part for several segments in one go) with a
+voice sample per speaker: the speaker's reference clip if it has one, otherwise a preset voice from the
+fork's ``demo/voices`` folder (downloaded once into the model cache).
 
 The fork was developed on transformers 4.51.3; the app runs it on 4.57 (shared with Qwen3-TTS), and
 ``_patch_transformers`` bridges the two changes it trips over.
@@ -19,7 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from common.protocol import ensure_model, log, model_file, run_worker, torch_device, write_wav  # noqa: E402
+from common.protocol import Unfusable, ensure_model, log, model_file, run_worker, torch_device, write_wav  # noqa: E402
 
 SAMPLE_RATE = 24000
 DEFAULT_MODEL = "vibevoice/VibeVoice-1.5B"
@@ -33,6 +33,12 @@ DEFAULT_VOICE = "en-Carter_man"
 # Speech is generated at 7.5 tokens per second and English is read at roughly 14 characters per
 # second, so a segment needs about 0.55 tokens per character. Only used for the progress bar.
 TOKENS_PER_CHAR = 0.55
+# Voices in one script: VibeVoice was trained on conversations of up to four speakers.
+MAX_SPEAKERS = 4
+
+
+def _clean(text):
+    return " ".join((text or "").split()).replace("’", "'")
 
 
 def _patch_transformers():
@@ -41,9 +47,13 @@ def _patch_transformers():
     1. ``_prepare_cache_for_generation`` lost its trailing ``device`` argument, which the fork still passes.
     2. The cache sizes itself from ``config.get_text_config()``; VibeVoice keeps the language model's
        settings (layer count etc.) in ``decoder_config``, which that lookup doesn't find.
+    3. ``DynamicCache.key_cache`` / ``value_cache`` became ``layers[i].keys`` / ``values``. The fork edits them in
+       place when the model starts a new stretch of speech (every speaker turn in a script, and now and then
+       within one line), which failed with "'DynamicCache' object has no attribute 'key_cache'".
     """
     import inspect
 
+    from transformers.cache_utils import Cache
     from transformers.generation.utils import GenerationMixin
     from vibevoice.modular.configuration_vibevoice import VibeVoiceConfig
     from vibevoice.modular.modeling_vibevoice_inference import VibeVoiceForConditionalGenerationInference as Model
@@ -57,6 +67,10 @@ def _patch_transformers():
 
     Model._prepare_cache_for_generation = prepare_cache
     VibeVoiceConfig.get_text_config = lambda self, *args, **kwargs: self.decoder_config
+    if not hasattr(Cache, "key_cache"):
+        # The layers' own tensors, so the fork's in-place edits land in the cache.
+        Cache.key_cache = property(lambda self: [layer.keys for layer in self.layers])
+        Cache.value_cache = property(lambda self: [layer.values for layer in self.layers])
 
 
 def _load_tokenizer_from(repo, folder):
@@ -144,14 +158,14 @@ class VibeVoiceWorker:
         self.model_id = model_id
         log(f"{model_id} loaded on {self.device} ({dtype}, {attn})")
 
-    def _voice_sample(self, req):
+    def _voice_sample(self, voice, settings):
         """The reference clip as 24 kHz mono float32: the speaker's clip, or a preset voice."""
         import librosa
         import numpy as np
 
-        path = (req.voice or "").strip()
+        path = (voice or "").strip()
         if not path:
-            name = str(req.settings.get("voice") or DEFAULT_VOICE)
+            name = str((settings or {}).get("voice") or DEFAULT_VOICE)
             path = self._preset_path(name)
         elif not os.path.isfile(path):
             raise FileNotFoundError(f"voice reference clip not found: {path}")
@@ -170,11 +184,34 @@ class VibeVoiceWorker:
         return model_file(VOICES, name + ".wav")
 
     def generate(self, req, report):
-        import torch
-
-        text = " ".join((req.text or "").split()).replace("’", "'")
+        text = _clean(req.text)
         if not text:
             raise ValueError("empty text")
+        return self._render(req, [(0, text)], [self._voice_sample(req.voice, req.settings)], report)
+
+    def generate_parts(self, req, report):
+        """A multi-speaker script, one "Speaker N:" line per part (context included: the model reads the whole
+        script, so lines after a segment shape it too). The output is one stream of speech with no marks between
+        the lines, so there are no spans: the app finds the parts by transcription."""
+        number, samples, lines = {}, [], []
+        for p in req.parts:
+            text = _clean(p.text)
+            if not text:
+                continue
+            if p.speaker not in number:
+                if len(number) == MAX_SPEAKERS:
+                    raise Unfusable(f"VibeVoice takes at most {MAX_SPEAKERS} voices in one script")
+                number[p.speaker] = len(number)
+                # Context parts carry their voice's own settings too (a preset voice), not the shared ones.
+                samples.append(self._voice_sample(p.voice, p.settings))
+            lines.append((number[p.speaker], text))
+        if not lines:
+            raise ValueError("empty text")
+        return self._render(req, lines, samples, report)
+
+    def _render(self, req, lines, samples, report):
+        """Renders a script of (speaker number, text) lines with one voice sample per speaker number."""
+        import torch
 
         model_id = str(req.settings.get("model") or DEFAULT_MODEL)
         if model_id != self.model_id:
@@ -182,11 +219,12 @@ class VibeVoiceWorker:
 
         cfg_scale = float(req.settings.get("cfgScale", 1.3))
         steps = int(req.settings.get("steps", 10))
-        voice = self._voice_sample(req)
 
+        # Numbered from 1 as upstream's examples; the processor counts from the lowest number, so voice
+        # sample i belongs to "Speaker i+1".
         inputs = self.processor(
-            text=[f"Speaker 1: {text}"],
-            voice_samples=[[voice]],
+            text=["\n".join(f"Speaker {n + 1}: {text}" for n, text in lines)],
+            voice_samples=[samples],
             padding=True,
             return_tensors="pt",
             return_attention_mask=True,
@@ -196,7 +234,7 @@ class VibeVoiceWorker:
                 inputs[k] = v.to(self.device)
 
         self.model.set_ddpm_inference_steps(num_steps=steps)
-        expected = max(8.0, len(text) * TOKENS_PER_CHAR)
+        expected = max(8.0, sum(len(text) for _, text in lines) * TOKENS_PER_CHAR)
 
         class Progress:
             """Stands in for tqdm inside model.generate() to report progress (and cancel)."""

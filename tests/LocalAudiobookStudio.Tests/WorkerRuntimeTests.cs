@@ -157,6 +157,36 @@ public sealed class WorkerRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void Fusion_is_read_and_checked()
+    {
+        using var tmp = new TempDir();
+        var dir = Path.Combine(tmp.Path, "duo");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "manifest.json"), """
+            { "id": "duo", "displayName": "Duo", "envGroup": "basic", "modelVersion": "1", "runtimeOrder": ["python", "hartsy"],
+              "fusion": { "speakers": 4, "context": ["text", "audio"], "spans": true },
+              "settings": [ { "key": "refText", "type": "string", "perVoice": true }, { "key": "steps", "type": "int" } ] }
+            """);
+        File.WriteAllText(Path.Combine(dir, "manifest.python.json"), "{}");
+        File.WriteAllText(Path.Combine(dir, "manifest.hartsy.json"), """{ "hartsyModel": "duo" }""");
+        var catalog = new WorkerCatalog(tmp.Path);
+
+        var python = catalog.Get("duo", WorkerRuntimes.Python)!;
+        Assert.Equal(4, python.Fusion!.Speakers);
+        Assert.True(python.Fusion.Spans);
+        Assert.True(python.Fusion.TakesContext(FusionContext.Audio));
+        Assert.True(python.Settings[0].PerVoice);
+        Assert.False(python.Settings[1].PerVoice);
+        // The bundled runtimes refuse fused requests, so an overlay that inherits fusion is an error.
+        Assert.Contains(catalog.LoadErrors, e => e.Contains("can't fuse generations"));
+
+        File.WriteAllText(Path.Combine(dir, "manifest.hartsy.json"), """{ "hartsyModel": "duo", "fusion": null }""");
+        catalog = new WorkerCatalog(tmp.Path);
+        Assert.Empty(catalog.LoadErrors);
+        Assert.Null(catalog.Get("duo", WorkerRuntimes.Hartsy)!.Fusion);
+    }
+
+    [Fact]
     public void Hidden_workers_are_left_out()
     {
         using var tmp = new TempDir();

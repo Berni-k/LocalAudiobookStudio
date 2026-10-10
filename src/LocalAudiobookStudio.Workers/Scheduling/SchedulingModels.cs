@@ -58,6 +58,26 @@ public sealed class GenerationJob
     /// <summary>App-specific data (for example the kind of job).</summary>
     public object? Tag { get; init; }
 
+    /// <summary>
+    /// For a fused generation: the segments it makes a take for (<see cref="ItemId"/> is the first). The worker's audio
+    /// goes to <see cref="FixedOutPath"/>; each member gets a take number of its own, which <see cref="AfterRun"/> fills.
+    /// </summary>
+    public IReadOnlyList<JobMember>? Members { get; init; }
+
+    /// <summary>The segments this job generates: its members, or its one item.</summary>
+    public IEnumerable<Guid> Items => Members?.Select(m => m.ItemId) ?? (ItemId == Guid.Empty ? [] : [ItemId]);
+
+    public bool Covers(Guid itemId) => itemId != Guid.Empty && (Members?.Any(m => m.ItemId == itemId) ?? ItemId == itemId);
+
+    /// <summary>Runs on the worker's task before the request is sent (e.g. decoding context audio for it).</summary>
+    public Func<GenerationJob, CancellationToken, Task>? BeforeRun { get; init; }
+
+    /// <summary>
+    /// Runs on the worker's task after the worker finished (after <see cref="GenerationScheduler.OnGenerated"/>),
+    /// before the job counts as done; failing it fails the job. Cutting a fused generation into takes happens here.
+    /// </summary>
+    public Func<GenerationJob, Task>? AfterRun { get; init; }
+
     // --- runtime state, owned by the scheduler ---
     public JobState State { get; internal set; } = JobState.Queued;
     public int Attempts { get; internal set; }
@@ -76,6 +96,18 @@ public sealed class GenerationJob
     public string? DeviceName { get; internal set; }
     internal CancellationTokenSource Cancellation { get; set; } = new();
     internal bool CancelRequested { get; set; }
+}
+
+/// <summary>A segment a fused generation makes a take for.</summary>
+public sealed class JobMember
+{
+    public Guid ItemId { get; init; }
+
+    /// <summary>Folder that receives the member's take.</summary>
+    public string SegmentDir { get; init; } = "";
+
+    /// <summary>Its take number, reserved when the job starts.</summary>
+    public int TakeNumber { get; internal set; }
 }
 
 public enum DeviceKind

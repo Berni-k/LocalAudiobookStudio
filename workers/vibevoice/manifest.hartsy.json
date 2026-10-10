@@ -1,6 +1,7 @@
 {
   "experimental": true,
   "hartsyModel": "vibevoice",
+  "fusion": null,
   "models": ["vibevoice-1.5b", "vibevoice-voices"],
   "unsupportedOptions": {
     "model": ["vibevoice/VibeVoice-7B"]

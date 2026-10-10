@@ -10,8 +10,10 @@ the upstream to check when updating. Models: `vibevoice/VibeVoice-1.5B` (default
 - **Preset voices:** without a clip, the **Preset voice** setting picks one of the fork's
   `demo/voices` clips. They are downloaded once into `<DataRoot>/models/vibevoice-voices`. The
   `*_bgm` presets (with background music) are left out.
-- Each segment is rendered on its own as `Speaker 1: <text>`; multi-speaker scripts aren't used,
-  because the app gives every segment its own take.
+- A single segment is rendered as `Speaker 1: <text>`. Batches and context (`generate_parts`) become a
+  multi-speaker script, one `Speaker N:` line per part with one voice sample per speaker (at most 4). Context
+  lines are rendered too, also those after the segments: the model reads the whole script. The output is one
+  stream of speech without marks between lines, so the app cuts it by transcription. Not on the Hartsy runtime.
 - **Environment** `torch2_11-cu128-tx4` (shared with Qwen3-TTS, see `workers/environments.json`):
   the fork pins `transformers==4.51.3`; the environment uses 4.57.3 and `worker.py` patches the two
   transformers changes the fork trips over (same audio for a seed as on 4.51.3). Not on transformers 5:

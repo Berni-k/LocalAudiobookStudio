@@ -158,6 +158,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             Settings = request.Settings,
             Seed = request.Seed,
             OutPath = request.OutPath,
+            Parts = request.Parts,
         };
         var done = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
         var path = done.Path ?? request.OutPath;
@@ -167,7 +168,9 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             await File.WriteAllBytesAsync(request.OutPath, Convert.FromBase64String(done.Audio), CancellationToken.None).ConfigureAwait(false);
             path = request.OutPath;
         }
-        return new GenerateResult(path, done.DurationMs ?? 0, done.Seed, done.SampleRate ?? 0);
+        // Spans that don't match the parts can't be trusted for any part: the app transcribes instead.
+        var spans = request.Parts != null && done.Spans?.Count == request.Parts.Count ? done.Spans : null;
+        return new GenerateResult(path, done.DurationMs ?? 0, done.Seed, done.SampleRate ?? 0, spans);
     }
 
     public async Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
@@ -297,7 +300,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
                 _ = ServeWorkerRequestAsync(msg);
                 return;
             case MessageTypes.Error:
-                var error = new WorkerErrorException(msg.Message ?? "Unknown worker error", msg.Fatal ?? false, msg.Trace);
+                var error = new WorkerErrorException(msg.Message ?? "Unknown worker error", msg.Fatal ?? false, msg.Trace, msg.Code);
                 if (msg.Trace != null) LogLine?.Invoke(msg.Trace);
                 if (msg.Id != null && _pending.TryGetValue(msg.Id, out var pe))
                 {

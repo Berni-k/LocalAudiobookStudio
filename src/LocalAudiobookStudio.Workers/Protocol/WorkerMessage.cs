@@ -77,9 +77,18 @@ public sealed class WorkerMessage
     /// <summary>Base64 WAV bytes, used by remote transports that don't share a filesystem.</summary>
     public string? Audio { get; set; }
 
+    /// <summary>
+    /// done, for a request with parts: where each part is in the audio, in the order of the parts (null where the
+    /// worker can't tell; the app then finds it by transcription). Omitted when the worker can't tell for any part.
+    /// </summary>
+    public List<PartSpan?>? Spans { get; set; }
+
     // error
     public bool? Fatal { get; set; }
     public string? Trace { get; set; }
+
+    /// <summary>What kind of error, when the app acts on it (<see cref="ErrorCodes"/>); null for any other.</summary>
+    public string? Code { get; set; }
 
     // voices
     public List<VoiceEntry>? Voices { get; set; }
@@ -95,6 +104,9 @@ public sealed class WorkerMessage
     public string? Voice { get; set; }
     public JsonObject? Settings { get; set; }
     public string? OutPath { get; set; }
+
+    /// <summary>generate: the parts of one fused generation (see <see cref="GenerateRequest.Parts"/>).</summary>
+    public List<GeneratePart>? Parts { get; set; }
 
     // needModel / needFile (worker → app) and their replies
     /// <summary>Matches a reply to the worker's request (the worker's own id; <see cref="Id"/> is the request it is handling).</summary>
@@ -124,9 +136,72 @@ public sealed class GenerateRequest
     /// <summary>Absolute path of a reference clip, or a worker-specific voice id.</summary>
     public string? Voice { get; init; }
 
+    /// <summary>The settings; with <see cref="Parts"/>, only those all parts share (the per-voice ones are on each part).</summary>
     public JsonObject Settings { get; init; } = new();
     public long? Seed { get; init; }
     public string OutPath { get; set; } = "";
+
+    /// <summary>
+    /// A fused generation, for workers whose manifest declares <c>fusion</c>: several segments (and lines of context
+    /// around them) rendered in one go, into one file. <see cref="Text"/> and <see cref="Voice"/> are then unused.
+    /// The worker may refuse a combination with an error of code <see cref="ErrorCodes.Unfusable"/>; the app then
+    /// generates the segments one by one.
+    /// </summary>
+    public List<GeneratePart>? Parts { get; init; }
+}
+
+/// <summary>
+/// One part of a fused generation. A <see cref="PartRoles.Generate"/> part is a segment whose audio the app keeps; a
+/// <see cref="PartRoles.Context"/> part is a neighbouring line the model hears or says for a natural delivery, cut away
+/// afterwards. Context parts have no generation settings, only their voice's: the worker renders them as it sees fit.
+/// </summary>
+public sealed class GeneratePart
+{
+    public string Role { get; set; } = PartRoles.Generate;
+
+    /// <summary>
+    /// Who says it: parts with the same key are the same voice in one generation ("s1", "s2" …). Only meaningful
+    /// within the request.
+    /// </summary>
+    public string Speaker { get; set; } = "";
+
+    public string? Text { get; set; }
+
+    /// <summary>
+    /// Absolute path of a reference clip, or a worker-specific voice id (as <see cref="GenerateRequest.Voice"/>). Null
+    /// for a context line whose speaker uses another worker: the worker picks a voice for it.
+    /// </summary>
+    public string? Voice { get; set; }
+
+    /// <summary>
+    /// The settings the manifest marks <c>perVoice</c> (a preset voice, a reference transcript): the voice's, for
+    /// context parts too (null when the speaker uses another worker).
+    /// </summary>
+    public JsonObject? Settings { get; set; }
+
+    /// <summary>
+    /// Context parts: the line's existing take (WAV), when it has one. A worker that takes audio context (manifest
+    /// <c>fusion.context</c> contains "audio") can condition on it instead of rendering the text again.
+    /// </summary>
+    public string? AudioPath { get; set; }
+}
+
+public static class PartRoles
+{
+    /// <summary>A segment to generate and keep.</summary>
+    public const string Generate = "generate";
+
+    /// <summary>A line around the segments, for context only; its audio is cut away.</summary>
+    public const string Context = "context";
+}
+
+/// <summary>Where one part of a fused generation is in its audio.</summary>
+public sealed record PartSpan(int StartMs, int EndMs);
+
+public static class ErrorCodes
+{
+    /// <summary>The worker can't fuse this combination of parts (too many voices, settings that differ, …): not a failure.</summary>
+    public const string Unfusable = "unfusable";
 }
 
 /// <summary>What the app asks a transcription or alignment worker to do.</summary>
@@ -147,19 +222,26 @@ public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double?
 /// <summary>The text a worker heard in an audio file, word by word.</summary>
 public sealed record TranscriptResult(string Text, IReadOnlyList<TranscriptWord> Words, string? Language);
 
-public sealed record GenerateResult(string Path, int DurationMs, long? Seed, int SampleRate);
+/// <param name="Spans">For a request with parts: where each part is, as the worker reported (see <see cref="WorkerMessage.Spans"/>).</param>
+public sealed record GenerateResult(string Path, int DurationMs, long? Seed, int SampleRate, IReadOnlyList<PartSpan?>? Spans = null);
 
 public sealed record HelloInfo(int Protocol, string Worker, string ModelVersion, string Device);
 
 public sealed record WorkerProgress(double Fraction, string? Message);
 
 /// <summary>A worker reported an error for a request. <see cref="Fatal"/> means the process must be restarted.</summary>
-public sealed class WorkerErrorException(string message, bool fatal, string? trace) : Exception(message)
+public sealed class WorkerErrorException(string message, bool fatal, string? trace, string? code = null) : Exception(message)
 {
     public bool Fatal { get; } = fatal;
     public string? Trace { get; } = trace;
 
+    /// <summary>The error's kind (<see cref="ErrorCodes"/>), if the worker gave one.</summary>
+    public string? Code { get; } = code;
+
     public bool IsOutOfMemory => Message.Contains("out of memory", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The worker refused to fuse the parts; generate them one by one instead.</summary>
+    public bool IsUnfusable => Code == ErrorCodes.Unfusable;
 }
 
 /// <summary>The worker process exited or stopped responding.</summary>

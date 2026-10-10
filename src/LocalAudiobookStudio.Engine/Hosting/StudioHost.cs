@@ -60,7 +60,13 @@ public sealed class StudioHost
     /// (so nothing that installs or checks workers).
     /// </summary>
     internal static StudioHost CreateForTests(WorkerCatalog catalog, GenerationScheduler scheduler, AppSettings? settings = null) =>
-        new(new StudioHostOptions { ReadOnlySettings = true }) { Catalog = catalog, Scheduler = scheduler, Settings = settings ?? new AppSettings() };
+        new(new StudioHostOptions { ReadOnlySettings = true })
+        {
+            Catalog = catalog, Scheduler = scheduler, Settings = settings ?? new AppSettings(), _fakeWorkers = true,
+        };
+
+    /// <summary>A host for tests: its scheduler runs fake workers, so every known worker counts as installed.</summary>
+    private bool _fakeWorkers;
 
     private void Initialize()
     {
@@ -183,7 +189,7 @@ public sealed class StudioHost
     {
         var m = Catalog.Get(workerId);
         if (m == null) return $"Unknown worker '{workerId}'. Check the speaker's worker in the Speakers dialog.";
-        if (!Environments.IsWorkerReady(workerId))
+        if (!_fakeWorkers && !Environments.IsWorkerReady(workerId))
             return $"{m.DisplayName} is not installed (or its self-test failed). Open Workers → Manage workers and install it.";
         return null;
     }

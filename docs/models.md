@@ -23,4 +23,25 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 
 **The app's MIT license does not cover the models.** Each model has its own license, and some don't allow commercial use. Check the model's page before publishing audio made with it. Gated models (Stable Audio 3) need you to accept their terms on Hugging Face and put a read-only access token in *Settings → Hugging Face token*.
 
+## Conversations and context
+
+Some workers can render several lines in one go, so a conversation sounds like one: **VibeVoice** (up to 4 voices,
+Python runtime) and **Fish Audio S2 Pro** (up to 5). Turn it on per speaker under *Speakers → Context*:
+
+- **Include context**: the segments before and after a segment that the model also gets, then cut away. Works with
+  every worker: one that renders a single voice reads them in the segment's voice. Fish S2 hears lines that already
+  have a take instead of generating them again.
+- **Batching** (VibeVoice and Fish S2 only): the longest run of neighbouring segments whose speakers also batch is generated together, within each
+  of their speakers' maximum segments and characters (any, by default). They need the same worker, the same settings
+  (voice settings such as the preset voice may differ) and the same transcription worker. With context included, it
+  goes around the batch, not between its segments.
+
+Context and batches only take in segments whose speakers allow it: context stops at a speaker without *Include
+context* (check it and set 0 before and 0 after to let a speaker's lines be context without getting any), a batch at
+one without *Batching*. Both look past pauses and background items, and stop at a clip.
+
+Each segment still gets its own take. Fish S2 says where each segment is in the result; for VibeVoice the speaker's
+transcription worker finds them. A segment that can't be found cleanly (a word missing at its start or end) is
+generated again on its own. Changing the context settings doesn't make takes stale.
+
 Each worker folder under [`workers/`](../workers) has a README with details. The ComfyUI bridge runs your own ComfyUI workflows instead of a built-in model; see [ComfyUI bridge](comfyui.md).

@@ -22,7 +22,7 @@ public sealed partial class ProjectSession
     /// </summary>
     public int Generate(IEnumerable<ItemViewModel> items, JobPriority priority, bool skipLocked)
     {
-        var jobs = new List<GenerationJob>();
+        var wanted = new List<TimelineItem>();
         var errors = new List<string>();
         var lockedSkipped = false;
         var recordedSkipped = false;
@@ -31,15 +31,15 @@ public sealed partial class ProjectSession
             if (!vm.IsGenerated) continue;
             if (vm.IsLocked) { lockedSkipped = true; continue; }
             if (IsRecorded(vm.Model)) { recordedSkipped = true; continue; } // recorded with the microphone, not generated
-            var job = BuildJob(vm, priority, out var error);
-            if (job != null) jobs.Add(job);
-            else if (error != null) errors.Add(error);
+            wanted.Add(vm.Model);
         }
+        // Neighbours whose speakers allow it go together, and with context (the speakers' Context settings).
+        var jobs = Engine.BuildJobs(wanted, priority, errors);
         if (jobs.Count > 0)
         {
             // Clear old errors so the row shows "queued" rather than "failed".
-            foreach (var j in jobs)
-                if (_itemVms.TryGetValue(j.ItemId, out var vm) && vm.Model.LastError != null)
+            foreach (var id in jobs.SelectMany(j => j.Items))
+                if (_itemVms.TryGetValue(id, out var vm) && vm.Model.LastError != null)
                 {
                     vm.Model.LastError = null;
                     MarkChapterDirty(vm.Chapter);
@@ -84,6 +84,7 @@ public sealed partial class ProjectSession
     private void OnJobCompleted(GenerationJob job)
     {
         if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
+        if (Engine.OwnsFusion(job)) { OnFusionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>
         {
@@ -96,6 +97,48 @@ public sealed partial class ProjectSession
             vm.RefreshAudio();
             RefreshItems([vm]);
             TranscribeTake(vm, job.TakeNumber);
+        });
+    }
+
+    /// <summary>
+    /// A fused generation (or the transcription that cuts one) ended, however: selects its members' takes, and queues
+    /// what comes next (the transcription that finds the segments, or members generated again on their own).
+    /// </summary>
+    private void OnFusionFinished(GenerationJob job)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var outcome = Engine.FinishFusion(job);
+            var refresh = new List<ItemViewModel>();
+            var notSelected = 0;
+            foreach (var id in ProjectEngine.SegmentsOf(job))
+                if (_itemVms.TryGetValue(id, out var vm)) vm.IsTranscribing = false;
+            foreach (var (item, take, selected, transcribed) in outcome.Takes)
+            {
+                if (!_itemVms.TryGetValue(item.Id, out var vm)) continue; // deleted meanwhile
+                if (selected) MarkChapterDirty(vm.Chapter);
+                else notSelected++;
+                vm.RefreshAudio();
+                refresh.Add(vm);
+                // Cut out by transcription: it was heard already, and its share of the transcript saved.
+                if (transcribed) vm.RefreshTranscript();
+                else TranscribeTake(vm, take);
+            }
+            foreach (var item in outcome.Failed)
+            {
+                if (!_itemVms.TryGetValue(item.Id, out var vm)) continue;
+                _log.LogWarning("Generation failed for {Item}: {Error}", item.Id, item.LastError);
+                MarkChapterDirty(vm.Chapter);
+                refresh.Add(vm);
+            }
+            if (refresh.Count > 0) RefreshItems(refresh);
+            if (notSelected > 0)
+                Notify($"{notSelected} new take(s) kept but not selected: the segments changed while they were generating.");
+            if (outcome.FollowUps.Count == 0) return;
+            // Finding the segments in the audio shows as transcribing on them.
+            foreach (var id in outcome.FollowUps.Where(f => f.Tag is SplitJobTag).SelectMany(ProjectEngine.SegmentsOf))
+                if (_itemVms.TryGetValue(id, out var vm)) vm.IsTranscribing = true;
+            AppHost.Scheduler.EnqueueMany(outcome.FollowUps);
         });
     }
 
@@ -217,6 +260,7 @@ public sealed partial class ProjectSession
     private void OnJobFailed(GenerationJob job)
     {
         if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
+        if (Engine.OwnsFusion(job)) { OnFusionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>
         {

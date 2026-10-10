@@ -256,9 +256,14 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                     failed.Add(job);
                     continue;
                 }
-                if (job.ItemId != Guid.Empty)
-                    _queue.RemoveAll(q => q.ItemId == job.ItemId && q.State == JobState.Queued);
-                _finished.RemoveAll(f => f.ItemId == job.ItemId && job.ItemId != Guid.Empty);
+                // A queued job the new one replaces: one for only segments the new one generates too (a queued
+                // fused job that also has other segments stays). Finished ones for any of them go from the list.
+                var items = job.Items.ToList();
+                if (items.Count > 0)
+                {
+                    _queue.RemoveAll(q => q.State == JobState.Queued && q.Items.Any() && q.Items.All(job.Covers));
+                    _finished.RemoveAll(f => items.Any(f.Covers));
+                }
                 job.Sequence = ++_sequence;
                 job.EnqueuedUtc = DateTime.UtcNow;
                 job.State = JobState.Queued;
@@ -317,8 +322,8 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         var set = itemIds.ToHashSet();
         List<Guid> ids;
         lock (_lock)
-            ids = _queue.Where(j => set.Contains(j.ItemId)).Select(j => j.Id)
-                .Concat(RunningJobs.Where(j => set.Contains(j.ItemId)).Select(j => j.Id))
+            ids = _queue.Where(j => j.Items.Any(set.Contains)).Select(j => j.Id)
+                .Concat(RunningJobs.Where(j => j.Items.Any(set.Contains)).Select(j => j.Id))
                 .ToList();
         foreach (var id in ids) Cancel(id);
     }
@@ -391,7 +396,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
     public bool IsQueuedOrRunning(Guid itemId)
     {
         lock (_lock)
-            return _queue.Any(j => j.ItemId == itemId) || RunningJobs.Any(j => j.ItemId == itemId);
+            return _queue.Any(j => j.Covers(itemId)) || RunningJobs.Any(j => j.Covers(itemId));
     }
 
     public int QueuedCount { get { lock (_lock) return _queue.Count; } }
@@ -421,9 +426,9 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             var ordered = _queue.ToList();
             ordered.Sort(SchedulingPolicy.Compare);
             for (int i = 0; i < ordered.Count; i++)
-                if (ordered[i].ItemId != Guid.Empty) d[ordered[i].ItemId] = (JobState.Queued, i + 1, 0);
+                foreach (var item in ordered[i].Items) d[item] = (JobState.Queued, i + 1, 0);
             foreach (var j in RunningJobs)
-                if (j.ItemId != Guid.Empty) d[j.ItemId] = (JobState.Running, 0, j.Progress);
+                foreach (var item in j.Items) d[item] = (JobState.Running, 0, j.Progress);
             return d;
         }
     }
@@ -602,9 +607,12 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             }
             RaiseChanged();
 
+            if (job.BeforeRun != null) await job.BeforeRun(job, job.Cancellation.Token).ConfigureAwait(false);
+
             if (job.Transcribe != null)
             {
                 job.Transcript = await conn.TranscribeAsync(job.Transcribe, progress, job.Cancellation.Token).ConfigureAwait(false);
+                if (job.AfterRun != null) await job.AfterRun(job).ConfigureAwait(false);
                 job.State = JobState.Completed;
                 job.FinishedUtc = DateTime.UtcNow;
                 JobCompleted?.Invoke(job);
@@ -617,6 +625,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 throw new WorkerErrorException($"The worker reported success but {result.Path} does not exist.", false, null);
             job.Result = result;
             if (OnGenerated != null) await OnGenerated(job, result).ConfigureAwait(false);
+            if (job.AfterRun != null) await job.AfterRun(job).ConfigureAwait(false);
             job.State = JobState.Completed;
             job.FinishedUtc = DateTime.UtcNow;
             JobCompleted?.Invoke(job);
@@ -748,7 +757,9 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
 
         job.Attempts++;
         job.LastError = message;
-        if (job.Attempts < Options.MaxAttempts)
+        // A refusal to fuse would only be refused again; whoever built the job generates the parts one by one.
+        var unfusable = ex is WorkerErrorException { IsUnfusable: true };
+        if (job.Attempts < Options.MaxAttempts && !unfusable)
         {
             lock (_lock)
             {
@@ -795,28 +806,48 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         {
             Directory.CreateDirectory(Path.GetDirectoryName(job.FixedOutPath)!);
             job.Request.OutPath = job.FixedOutPath;
+            // A fused generation's members each get a take number, written by the job's AfterRun.
+            foreach (var m in job.Members ?? [])
+                if (m.TakeNumber == 0) m.TakeNumber = ReserveTake(m.ItemId, m.SegmentDir);
             return;
         }
         var dir = job.SegmentDir ?? throw new InvalidOperationException("Job has no output folder.");
+        job.TakeNumber = ReserveTake(job.ItemId, dir);
+        job.Request.OutPath = Path.Combine(dir, $"take-{job.TakeNumber:0000}.wav");
+    }
+
+    /// <summary>The segment's next take number, held until the job ends.</summary>
+    private int ReserveTake(Guid itemId, string dir)
+    {
         Directory.CreateDirectory(dir);
         lock (_lock)
         {
             // Never a number used before (TakeStore.LastTakeFile), also when that take was deleted since.
             var max = Core.IO.TakeStore.HighestTakeNumber(dir);
-            if (!_reservedTakes.TryGetValue(job.ItemId, out var reserved)) _reservedTakes[job.ItemId] = reserved = new();
+            if (!_reservedTakes.TryGetValue(itemId, out var reserved)) _reservedTakes[itemId] = reserved = new();
             if (reserved.Count > 0) max = Math.Max(max, reserved.Max());
-            job.TakeNumber = max + 1;
-            reserved.Add(job.TakeNumber);
-            Core.IO.TakeStore.RecordTakeNumber(dir, job.TakeNumber);
+            reserved.Add(max + 1);
+            Core.IO.TakeStore.RecordTakeNumber(dir, max + 1);
+            return max + 1;
         }
-        job.Request.OutPath = Path.Combine(dir, $"take-{job.TakeNumber:0000}.wav");
     }
 
     private void ReleaseTake(GenerationJob job)
     {
-        if (job.TakeNumber == 0 || !_reservedTakes.TryGetValue(job.ItemId, out var set)) return;
-        set.Remove(job.TakeNumber);
-        if (set.Count == 0) _reservedTakes.Remove(job.ItemId);
+        Release(job.ItemId, job.TakeNumber);
+        // Numbers a retry reserves anew; the recorded number (RecordTakeNumber) keeps them from being reused.
+        foreach (var m in job.Members ?? [])
+        {
+            Release(m.ItemId, m.TakeNumber);
+            if (job.State != JobState.Completed) m.TakeNumber = 0;
+        }
+
+        void Release(Guid itemId, int take)
+        {
+            if (take == 0 || !_reservedTakes.TryGetValue(itemId, out var set)) return;
+            set.Remove(take);
+            if (set.Count == 0) _reservedTakes.Remove(itemId);
+        }
     }
 
     private static void TryDeletePartial(GenerationJob job)
