@@ -8,13 +8,16 @@ using LocalAudiobookStudio.Workers.Environments;
 
 namespace LocalAudiobookStudio.Cli.Commands;
 
-/// <summary>Commands that only look: workers, devices, how a text would be split, the version.</summary>
+/// <summary>Commands that only look: workers, devices, how a text would be split, the version (installing workers is in <see cref="WorkerSetupCommands"/>).</summary>
 public static class InfoCommands
 {
     /// <summary><c>las workers [id]</c>: the catalog with install state; one worker's settings and voices.</summary>
     public static async Task<int> WorkersAsync(CliContext ctx, IReadOnlyList<string> tokens)
     {
-        var a = CliArgs.Parse("workers", tokens);
+        var a = CliArgs.Parse("workers", tokens, new OptionSpec("--runtime"));
+        if (a.Positionals.Count > 0 && WorkerSetupCommands.Actions.Contains(a.Positionals[0].ToLowerInvariant()))
+            return await WorkerSetupCommands.RunAsync(ctx, a.Positionals[0].ToLowerInvariant(), a);
+        if (a.Has("--runtime")) throw new UsageException("workers: --runtime goes with install, repair or uninstall.");
         var host = await ctx.StartHostAsync();
         if (a.Positionals.Count == 0)
         {
@@ -52,6 +55,8 @@ public static class InfoCommands
             voiceCloning = m.VoiceCloning,
             length = m.LengthMode,
             voices = m.VoiceSetting?.Options,
+            transcribes = m.IsTranscriber,
+            languages = m.Languages.Count > 0 ? m.Languages : null,
             settings = m.Settings.Select(s => new
             {
                 key = s.Key,
@@ -67,12 +72,15 @@ public static class InfoCommands
         ctx.Out($"{m.DisplayName} ({m.Id}, {m.Runtime}) — {info.status}");
         var runtimes = host.Catalog.RuntimesOf(m.Id);
         if (runtimes.Count > 1)
-            ctx.Out("  runtimes (tts --runtime): " + string.Join(", ", runtimes.Select(r =>
+            ctx.Out($"  runtimes ({(m.IsTranscriber ? "transcribe" : "tts")} --runtime): " + string.Join(", ", runtimes.Select(r =>
                 $"{r.Runtime}{(host.Environments.IsRuntimeInstalled(r) ? " (installed)" : "")}{(r.Runtime == m.Runtime ? " *" : "")}")));
         if (info.whyNotReady != null) ctx.Out("  " + info.whyNotReady);
         if (!string.IsNullOrEmpty(m.Description)) ctx.Out("  " + m.Description);
-        ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
-        ctx.Out("  settings (--set key=value):");
+        if (m.IsTranscriber)
+            ctx.Out($"  transcribes audio (las transcribe -w {m.Id}){(m.Languages.Count > 0 ? "; languages: " + string.Join(", ", m.Languages) : "")}");
+        else
+            ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
+        if (m.Settings.Count > 0) ctx.Out("  settings (--set key=value):");
         foreach (var s in m.Settings)
         {
             var range = s.Min != null || s.Max != null ? $" [{s.Min}..{s.Max}]" : "";

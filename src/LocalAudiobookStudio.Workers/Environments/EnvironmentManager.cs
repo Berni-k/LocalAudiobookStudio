@@ -299,9 +299,12 @@ public sealed class EnvironmentManager
         }
         StatusChanged?.Invoke(group);
 
+        FileStream? groupLock = null;
         try
         {
             DataRoot.EnsureCreated();
+            groupLock = LockGroup(group, log);
+            if (groupLock == null) return false;
             var env = DataRoot.BaseEnvironment();
             var python = PythonVersionFor(group);
             var envDir = DataRoot.EnvDir(group);
@@ -389,12 +392,32 @@ public sealed class EnvironmentManager
         }
         finally
         {
+            groupLock?.Dispose();
             lock (_installing)
             {
                 _installing.Remove(group);
                 _installingWorkers.Remove(worker.Id);
             }
             StatusChanged?.Invoke(group);
+        }
+    }
+
+    /// <summary>
+    /// Locks an environment against other processes while it changes: the app and <c>las</c> share the data folder, and
+    /// two uv runs in one venv break it. Null (with a message in the log) when another process holds it.
+    /// </summary>
+    private FileStream? LockGroup(string group, Action<string> log)
+    {
+        Directory.CreateDirectory(DataRoot.Envs);
+        try
+        {
+            return new FileStream(Path.Combine(DataRoot.Envs, group + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite,
+                FileShare.None, 1, FileOptions.DeleteOnClose);
+        }
+        catch (IOException)
+        {
+            log($"ERROR: another program (the app or las) is changing the '{group}' environment. Try again when it is done.");
+            return null;
         }
     }
 
@@ -488,6 +511,8 @@ public sealed class EnvironmentManager
         lock (_installing)
             if (_installing.Contains(group)) { log($"An installation in the '{group}' environment is running; try again when it is done."); return Task.CompletedTask; }
 
+        using var groupLock = LockGroup(group, log);
+        if (groupLock == null) return Task.CompletedTask;
         var state = ReadState(group);
         var remaining = (state?.Installed ?? []).Where(id => !string.Equals(id, worker.Id, StringComparison.OrdinalIgnoreCase)).ToList();
         var dir = DataRoot.EnvDir(group);

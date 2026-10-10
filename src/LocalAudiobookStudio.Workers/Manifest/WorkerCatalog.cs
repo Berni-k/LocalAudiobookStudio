@@ -37,6 +37,12 @@ public sealed class WorkerCatalog
     public IReadOnlyList<WorkerManifest> All => _byId.Keys.Select(id => Get(id)!)
         .OrderByDescending(m => m.Priority).ThenBy(m => m.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
 
+    /// <summary>The workers that generate audio (a speaker's worker), in the order of <see cref="All"/>.</summary>
+    public IReadOnlyList<WorkerManifest> Generators => All.Where(m => !m.IsTranscriber).ToList();
+
+    /// <summary>The workers that transcribe or align audio, in the order of <see cref="All"/>.</summary>
+    public IReadOnlyList<WorkerManifest> Transcribers => All.Where(m => m.IsTranscriber).ToList();
+
     /// <summary>Every runtime of every worker.</summary>
     public IEnumerable<WorkerManifest> AllRuntimes => _byId.Values.SelectMany(v => v);
 

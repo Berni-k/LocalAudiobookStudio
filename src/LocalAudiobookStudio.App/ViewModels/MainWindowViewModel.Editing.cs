@@ -204,7 +204,7 @@ public sealed partial class MainWindowViewModel
         if (Session == null) return;
         var name = await Dialogs.Prompt("New speaker", "Name of the new speaker:");
         if (string.IsNullOrWhiteSpace(name)) return;
-        var worker = Session.Project.FindSpeaker(Session.Project.Defaults.Speaker)?.Worker ?? AppHost.Catalog.All.FirstOrDefault()?.Id ?? "kokoro";
+        var worker = Session.Project.FindSpeaker(Session.Project.Defaults.Speaker)?.Worker ?? AppHost.Catalog.Generators.FirstOrDefault()?.Id ?? "kokoro";
         var sp = Session.AddSpeaker(name.Trim(), worker, Session.Speakers.Count);
         Session.SetSpeaker(SelectedItems, sp.Id);
         StatusText = $"Created speaker {sp.DisplayName}. Configure its voice in the Speakers dialog.";

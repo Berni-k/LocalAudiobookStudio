@@ -39,6 +39,9 @@ internal sealed class ToneConnection(string workerId) : IWorkerConnection
         return Task.FromResult(new GenerateResult(request.OutPath, ms, request.Seed ?? 1, 24000));
     }
 
+    public Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct) =>
+        throw new NotSupportedException();
+
     public Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<VoiceEntry>>([]);
     public Task ShutdownAsync(TimeSpan grace) { Kill(); return Task.CompletedTask; }
 

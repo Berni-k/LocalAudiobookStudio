@@ -587,6 +587,7 @@ public sealed record WorkerTag(string Text)
     public bool IsVoiceDesign => Is("Voice design");
     public bool IsMusic => Is("Music");
     public bool IsSfx => Is("SFX");
+    public bool IsListening => Is(WorkerTags.Transcription) || Is(WorkerTags.Alignment);
     public bool IsExperimental => Is(Experimental);
     public bool IsBroken => Is(Broken);
 }

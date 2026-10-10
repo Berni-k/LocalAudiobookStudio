@@ -122,7 +122,7 @@ public sealed class StudioHost
 
     /// <summary>The worker new speakers and projects use: Kokoro when it is in the catalog, else the first speech worker.</summary>
     public string DefaultTtsWorker =>
-        Catalog.Get("kokoro") != null ? "kokoro" : Catalog.All.FirstOrDefault()?.Id ?? "kokoro";
+        Catalog.Get("kokoro") != null ? "kokoro" : Catalog.Generators.FirstOrDefault()?.Id ?? "kokoro";
 
     /// <summary>
     /// Saves a worker's settings. Its idle processes stop now and busy ones after their job, so the next

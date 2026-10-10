@@ -17,6 +17,8 @@ public static class MessageTypes
     public const string Done = "done";
     public const string Error = "error";
     public const string Voices = "voices";
+    /// <summary>The answer to <see cref="Transcribe"/>: the text heard, with word timings.</summary>
+    public const string Transcript = "transcript";
 
     /// <summary>
     /// The worker needs a model from models.json (<see cref="WorkerMessage.Model"/>) while it handles the request
@@ -34,6 +36,11 @@ public static class MessageTypes
     public const string Generate = "generate";
     public const string Cancel = "cancel";
     public const string ListVoices = "listVoices";
+    /// <summary>
+    /// Transcribe (or align) the audio at <see cref="WorkerMessage.AudioPath"/>, for workers tagged Transcription or
+    /// Alignment. <see cref="WorkerMessage.Text"/> is the text the audio should contain, if known.
+    /// </summary>
+    public const string Transcribe = "transcribe";
     public const string Shutdown = "shutdown";
 
     // App → worker, answering needModel / needFile
@@ -77,6 +84,11 @@ public sealed class WorkerMessage
     // voices
     public List<VoiceEntry>? Voices { get; set; }
 
+    // transcribe (app → worker: AudioPath, Text, Language, Settings) and transcript (worker → app: Text, Words, Language)
+    public string? AudioPath { get; set; }
+    public string? Language { get; set; }
+    public List<TranscriptWord>? Words { get; set; }
+
     // generate (app → worker)
     public string? Text { get; set; }
     public double? DurationSec { get; set; }
@@ -116,6 +128,27 @@ public sealed class GenerateRequest
     public long? Seed { get; init; }
     public string OutPath { get; set; } = "";
 }
+
+/// <summary>What the app asks a transcription or alignment worker to do.</summary>
+public sealed class TranscribeRequest
+{
+    /// <summary>A WAV file.</summary>
+    public string AudioPath { get; init; } = "";
+
+    /// <summary>The text the audio should contain: aligners need it; transcribers may ignore it.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>Language code ("en", "de"), or null to let the worker detect it.</summary>
+    public string? Language { get; init; }
+
+    public JsonObject Settings { get; init; } = new();
+}
+
+/// <summary>One word as heard, with where it is in the audio.</summary>
+public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double? Confidence = null);
+
+/// <summary>The text a worker heard in an audio file, word by word.</summary>
+public sealed record TranscriptResult(string Text, IReadOnlyList<TranscriptWord> Words, string? Language);
 
 public sealed record GenerateResult(string Path, int DurationMs, long? Seed, int SampleRate);
 

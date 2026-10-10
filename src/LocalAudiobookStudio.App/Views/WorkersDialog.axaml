@@ -13,7 +13,7 @@
     <!-- One capability tag: a small rounded bubble, tinted by the styles below. -->
     <DataTemplate x:Key="TagTemplate" x:DataType="vm:WorkerTag">
       <Border Classes="tag" Classes.voice="{Binding IsVoice}" Classes.clone="{Binding IsVoiceClone}" Classes.design="{Binding IsVoiceDesign}"
-              Classes.music="{Binding IsMusic}" Classes.sfx="{Binding IsSfx}" Classes.experimental="{Binding IsExperimental}" Classes.broken="{Binding IsBroken}">
+              Classes.music="{Binding IsMusic}" Classes.sfx="{Binding IsSfx}" Classes.listen="{Binding IsListening}" Classes.experimental="{Binding IsExperimental}" Classes.broken="{Binding IsBroken}">
         <TextBlock Text="{Binding Text}" FontSize="10" LineHeight="13" Foreground="{DynamicResource SemiColorText0}" />
       </Border>
     </DataTemplate>
@@ -49,6 +49,10 @@
     <Style Selector="Border.tag.sfx">
       <Setter Property="Background" Value="#1FF97316" />
       <Setter Property="BorderBrush" Value="#4DF97316" />
+    </Style>
+    <Style Selector="Border.tag.listen">
+      <Setter Property="Background" Value="#1F22C55E" />
+      <Setter Property="BorderBrush" Value="#4D22C55E" />
     </Style>
     <Style Selector="Border.tag.broken">
       <Setter Property="Background" Value="#33EF4444" />

@@ -36,6 +36,12 @@ public interface IWorkerConnection : IAsyncDisposable
     /// </summary>
     Task<GenerateResult> GenerateAsync(GenerateRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);
 
+    /// <summary>
+    /// Transcribes (or aligns) one audio file, for workers tagged Transcription or Alignment. Cancelling works as
+    /// for <see cref="GenerateAsync"/>.
+    /// </summary>
+    Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);
+
     Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct);
 
     /// <summary>Asks the worker to exit; kills it if it hasn't after <paramref name="grace"/>.</summary>

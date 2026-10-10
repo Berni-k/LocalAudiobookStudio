@@ -256,6 +256,15 @@ internal sealed class FakeConnection(string workerId, Func<GenerateRequest, int,
         return new GenerateResult(request.OutPath, 100, 1, 24000);
     }
 
+    /// <summary>"Hears" the request's text, one word per 100 ms.</summary>
+    public async Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
+    {
+        await Task.Delay(20, ct);
+        var words = (request.Text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select((w, i) => new TranscriptWord(w, i * 100, i * 100 + 80)).ToList();
+        return new TranscriptResult(request.Text ?? "", words, "en");
+    }
+
     public Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<VoiceEntry>>([]);
     public Task ShutdownAsync(TimeSpan grace) { Crash(); return Task.CompletedTask; }
 
@@ -311,6 +320,26 @@ public class GenerationSchedulerTests
         s.Enqueue(new GenerationJob { ItemId = itemId, WorkerId = "a", SegmentDir = dir });
         await WaitUntil(() => completed == 21);
         Assert.True(File.Exists(Path.Combine(dir, "take-0002.wav")));
+    }
+
+    [Fact]
+    public async Task TranscriptionJobsReturnTheTranscriptAndWriteNoTake()
+    {
+        using var tmp = new TempDir();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w), _ => WorkerHosting.AnyLocal);
+        s.ConfigureDevices(Gpus(1));
+        GenerationJob? done = null;
+        s.JobCompleted += j => done = j;
+        s.Enqueue(new GenerationJob
+        {
+            WorkerId = "asr",
+            Transcribe = new TranscribeRequest { AudioPath = Path.Combine(tmp.Path, "in.wav"), Text = "hello there" },
+        });
+        await WaitUntil(() => done != null);
+        Assert.Equal(JobState.Completed, done!.State);
+        Assert.Equal(["hello", "there"], done.Transcript!.Words.Select(w => w.Text));
+        Assert.Null(done.Result);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(tmp.Path));
     }
 
     [Fact]

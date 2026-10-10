@@ -173,6 +173,18 @@ public sealed class WorkerRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void Transcription_workers_are_not_offered_as_voices()
+    {
+        var catalog = new WorkerCatalog(Repo.Combine("workers"));
+        var parakeet = catalog.Get("parakeet")!;
+        Assert.True(parakeet.IsTranscriber);
+        Assert.Contains(parakeet, catalog.Transcribers);
+        Assert.DoesNotContain(catalog.Generators, m => m.Id == "parakeet");
+        Assert.Contains(catalog.Generators, m => m.Id == "kokoro");
+        Assert.Equal(WorkerRuntimes.Onnx, parakeet.Runtime);
+    }
+
+    [Fact]
     public void Workers_are_listed_by_priority_then_name()
     {
         var ids = new WorkerCatalog(Repo.Combine("workers")).All.Select(m => m.Id).ToList();

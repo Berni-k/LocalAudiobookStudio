@@ -5,6 +5,7 @@ internal static class Help
     public static string Text(string? topic) => topic?.ToLowerInvariant() switch
     {
         "tts" => Tts,
+        "transcribe" => Transcribe,
         "project" => Project,
         _ => Main,
     };
@@ -17,8 +18,12 @@ internal static class Help
 
         Commands:
           tts        Text to a WAV file, like the speaker preview (no project involved)
+          transcribe What a transcription worker hears in audio files, with word timings; compared with
+                     the text the audio should contain when you give it
           project    Run steps on a project: import, erase-takes, generate, export, status, …
-          workers    List workers and whether they're installed; 'workers <id>' shows settings and voices
+          workers    List workers and whether they're installed; 'workers <id>' shows settings and voices;
+                     'workers install <id…>' installs workers like the Workers window (--runtime <name> for
+                     another runtime than the chosen one), 'workers repair <id…>', 'workers uninstall <id…>'
           models     The models workers download: status, size on disk, which workers use them
                      ('models <id>', 'models download <id>', 'models delete <id>'; 'models pin <id>' fills
                      in a new model's files and hashes in workers/models.json)
@@ -32,7 +37,7 @@ internal static class Help
           --json          Print the result as JSON on stdout
           -v, --verbose   Show details and worker logs on stderr
           -q, --quiet     Only errors on stderr
-          -h, --help      Help ('las help tts', 'las help project')
+          -h, --help      Help ('las help tts', 'las help transcribe', 'las help project')
 
         Exit codes: 0 ok, 1 something failed, 2 wrong usage, 3 setup needed (worker, ffmpeg, project open in
         the app), 130 cancelled.
@@ -66,6 +71,32 @@ internal static class Help
           echo "Piped text" | las tts -o out.wav --voice am_michael
           las tts -i chapters/ -o audio/ --skip-existing
           las tts -p MyBook -s narrator -i intro.txt -o intro.wav
+
+        """;
+
+    private const string Transcribe = """
+        las transcribe <audio…> [options]
+
+        Transcribes audio files (WAV, Opus, MP3, or folders of them) with a worker tagged Transcription and
+        prints the text. With the text the audio should contain, it also lists the words that are missing,
+        extra or heard differently, and the word error rate. Case, punctuation and accents don't count.
+        A worker tagged Alignment (and not Transcription) finds the words of a given text instead: it needs
+        -t or -f, always prints the word timings, and reports no differences.
+
+          -t, --text <text>        The text the audio should contain (one audio file)
+          -f, --text-file <path>   The same from a file; for several audio files, a folder of <audio name>.txt
+              --words              Print every word with its start and end time
+          -l, --language <code>    Language of the audio (en, de, …), for workers that need it
+          -w, --worker <id>        Worker (default: the first installed transcription worker)
+              --runtime <name>     Runtime of the worker (onnx, onnx-cuda, …)
+              --set key=value      A worker setting (repeatable); see 'las workers <id>'
+          -r, --recursive          Include subfolders of input folders
+
+        Examples:
+          las transcribe take.wav --words
+          las tts "The quick brown fox." -o fox.wav
+          las transcribe fox.wav -t "The quick brown fox."
+          las --json transcribe audio/ -f texts/
 
         """;
 

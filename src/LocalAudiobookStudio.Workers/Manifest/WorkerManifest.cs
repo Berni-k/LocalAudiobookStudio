@@ -21,9 +21,22 @@ public sealed class WorkerManifest
 
     /// <summary>
     /// What the worker does, shown as small tags in the Workers window ("Voice", "Voice clone", "Music", "SFX").
-    /// Common ones get a colour there; any other text shows as a grey tag.
+    /// Common ones get a colour there; any other text shows as a grey tag. <see cref="WorkerTags.Transcription"/> and
+    /// <see cref="WorkerTags.Alignment"/> also say what the worker does: it listens to audio instead of making it.
     /// </summary>
     public List<string> Tags { get; set; } = new();
+
+    public bool HasTag(string tag) => Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Turns audio into text (<c>transcribe</c> requests) instead of generating audio. Such workers aren't offered
+    /// as a speaker's voice.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsTranscriber => HasTag(WorkerTags.Transcription) || HasTag(WorkerTags.Alignment);
+
+    /// <summary>Languages the worker understands (codes like "en", "de"), for transcribers; empty = not stated.</summary>
+    public List<string> Languages { get; set; } = new();
 
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
@@ -406,6 +419,16 @@ public static class WorkerRuntimes
         OnnxCuda => "ONNX Runtime (CUDA)",
         _ => runtime,
     };
+}
+
+/// <summary>Tags that change what the app does with a worker (the others are only shown).</summary>
+public static class WorkerTags
+{
+    /// <summary>Hears the words in audio, with their timings (speech recognition).</summary>
+    public const string Transcription = "Transcription";
+
+    /// <summary>Finds where the words of a known text are in audio (forced alignment).</summary>
+    public const string Alignment = "Alignment";
 }
 
 public static class DeviceNames

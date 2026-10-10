@@ -170,6 +170,20 @@ public sealed class StdioWorkerConnection : IWorkerConnection
         return new GenerateResult(path, done.DurationMs ?? 0, done.Seed, done.SampleRate ?? 0);
     }
 
+    public async Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
+    {
+        var msg = new WorkerMessage
+        {
+            Type = MessageTypes.Transcribe,
+            AudioPath = request.AudioPath,
+            Text = request.Text,
+            Language = request.Language,
+            Settings = request.Settings,
+        };
+        var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
+        return new TranscriptResult(reply.Text ?? "", reply.Words ?? [], reply.Language);
+    }
+
     public async Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct)
     {
         var reply = await RequestAsync(new WorkerMessage { Type = MessageTypes.ListVoices }, null, ct, false).ConfigureAwait(false);
@@ -276,6 +290,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             case MessageTypes.Ready:
             case MessageTypes.Done:
             case MessageTypes.Voices:
+            case MessageTypes.Transcript:
                 if (msg.Id != null && _pending.TryGetValue(msg.Id, out var pd)) pd.Tcs.TrySetResult(msg);
                 return;
             case MessageTypes.NeedModel:

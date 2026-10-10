@@ -74,7 +74,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     private void RebuildWorkers(Speaker? sp)
     {
         var list = new List<WorkerManifest> { NoWorker };
-        list.AddRange(AppHost.Catalog.All.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
+        list.AddRange(AppHost.Catalog.Generators.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
         if (sp != null && !string.IsNullOrEmpty(sp.Worker) && list.All(w => w.Id != sp.Worker))
             list.Add(AppHost.Catalog.Get(sp.Worker) ?? new WorkerManifest { Id = sp.Worker, DisplayName = sp.Worker + " (unknown worker)" });
         // Update in place: replacing the collection would make the dropdown push a null selection back.
@@ -312,7 +312,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(name)) return;
         // The shown worker if it is usable here, else the first installed worker, else None (record).
         var worker = Worker != null && (IsRecorded || !IsWorkerMissing) ? Worker.Id
-            : AppHost.Catalog.All.FirstOrDefault(w => AppHost.Environments.IsWorkerReady(w.Id))?.Id ?? "";
+            : AppHost.Catalog.Generators.FirstOrDefault(w => AppHost.Environments.IsWorkerReady(w.Id))?.Id ?? "";
         var sp = _session.AddSpeaker(name.Trim(), worker, _session.Speakers.Count);
         Selected = _session.SpeakerVm(sp.Id);
     }

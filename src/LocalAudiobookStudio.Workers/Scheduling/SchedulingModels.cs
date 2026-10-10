@@ -40,6 +40,12 @@ public sealed class GenerationJob
 
     public GenerateRequest Request { get; init; } = new();
 
+    /// <summary>
+    /// Set for a transcription job (a worker tagged Transcription or Alignment): the job sends this instead of
+    /// <see cref="Request"/>, writes no audio, and its result is <see cref="Transcript"/>.
+    /// </summary>
+    public TranscribeRequest? Transcribe { get; init; }
+
     /// <summary>Folder that receives take-NNNN.wav. Null when <see cref="FixedOutPath"/> is used.</summary>
     public string? SegmentDir { get; init; }
 
@@ -65,6 +71,7 @@ public sealed class GenerationJob
     public string? ProgressMessage { get; internal set; }
     public int TakeNumber { get; internal set; }
     public GenerateResult? Result { get; internal set; }
+    public TranscriptResult? Transcript { get; internal set; }
     /// <summary>The device it ran on, e.g. "GPU 0 (NVIDIA GeForce RTX 3090)" or "CPU".</summary>
     public string? DeviceName { get; internal set; }
     internal CancellationTokenSource Cancellation { get; set; } = new();

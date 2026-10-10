@@ -602,6 +602,15 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             }
             RaiseChanged();
 
+            if (job.Transcribe != null)
+            {
+                job.Transcript = await conn.TranscribeAsync(job.Transcribe, progress, job.Cancellation.Token).ConfigureAwait(false);
+                job.State = JobState.Completed;
+                job.FinishedUtc = DateTime.UtcNow;
+                JobCompleted?.Invoke(job);
+                return;
+            }
+
             PrepareOutput(job);
             var result = await conn.GenerateAsync(job.Request, progress, job.Cancellation.Token).ConfigureAwait(false);
             if (!File.Exists(result.Path))

@@ -185,16 +185,7 @@ public static class TtsCommand
 
         var manifest = host.Catalog.Get(workerId)
                        ?? throw new UsageException($"tts: unknown worker '{workerId}'. Workers: {string.Join(", ", host.Catalog.All.Select(m => m.Id))}.");
-        if (a.Get("--runtime") is { } runtime)
-        {
-            var runtimes = host.Catalog.RuntimesOf(manifest.Id);
-            var chosen = runtimes.FirstOrDefault(r => r.Runtime.Equals(runtime, StringComparison.OrdinalIgnoreCase))
-                         ?? throw new UsageException($"tts: {manifest.DisplayName} has no runtime '{runtime}'. Its runtimes: {string.Join(", ", runtimes.Select(r => r.Runtime))}.");
-            // In memory only: the CLI never saves the app's settings.
-            if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
-            values[WorkerRuntimes.SettingKey] = chosen.Runtime;
-            manifest = host.Catalog.Get(manifest.Id)!;
-        }
+        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "tts");
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
         baseSettings ??= manifest.DefaultSettings();
