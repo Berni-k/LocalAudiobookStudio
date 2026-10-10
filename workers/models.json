@@ -585,6 +585,46 @@
         "vocab.json": { "size": 1036558, "gitSha1": "0f3456460629e21d559c6daa23ab6ce3644e8271" }
       }
     },
+    "whisper-large-v3": {
+      "displayName": "Whisper large-v3",
+      "sources": [
+        { "repo": "openai/whisper-large-v3", "revision": "06f233fe06e710322aca913c1bc4249a0d71fce1" }
+      ],
+      "include": ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "model.safetensors", "normalizer.json", "preprocessor_config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json"],
+      "files": {
+        "added_tokens.json": { "size": 34648, "gitSha1": "1b33526d33aaa60d79f78ae8651dae50b730185a" },
+        "config.json": { "size": 1272, "gitSha1": "14c6c8cf48b64ebb1cb8b637e2b0fab3a9774972" },
+        "generation_config.json": { "size": 3903, "gitSha1": "f3294dfe3654ac4e362570867369ec48104af59f" },
+        "merges.txt": { "size": 493869, "gitSha1": "6038932a2a1f09a66991b1c2adae0d14066fa29e" },
+        "model.safetensors": { "size": 3087130976, "sha256": "a8e94b85976e5864ba3e9525c7e6c83b2a1eca42d4b797a0c7c24d778e40fd95" },
+        "normalizer.json": { "size": 52666, "gitSha1": "dd6ae819ad738ac1a546e9f9282ef325c33b9ea0" },
+        "preprocessor_config.json": { "size": 340, "gitSha1": "931c77a740890c46365c7ae0c9d350ba3cca908f" },
+        "special_tokens_map.json": { "size": 2072, "gitSha1": "3c18e97162d572f2b1d62e7e1c7b805f1be11dbe" },
+        "tokenizer.json": { "size": 2480617, "gitSha1": "3a5e2ba63acdcac9a19ba56cf9bd27f185bfff61" },
+        "tokenizer_config.json": { "size": 282843, "gitSha1": "06ffdc8308eae6bb7bd1fdd81e94b0a881a539ab" },
+        "vocab.json": { "size": 1036558, "gitSha1": "0f3456460629e21d559c6daa23ab6ce3644e8271" }
+      }
+    },
+    "whisper-small": {
+      "displayName": "Whisper small",
+      "sources": [
+        { "repo": "openai/whisper-small", "revision": "973afd24965f72e36ca33b3055d56a652f456b4d" }
+      ],
+      "include": ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "model.safetensors", "normalizer.json", "preprocessor_config.json", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json"],
+      "files": {
+        "added_tokens.json": { "size": 34604, "gitSha1": "e3d256c988462aa153dcabe2aa38b8e9b436c06f" },
+        "config.json": { "size": 1967, "gitSha1": "113bb3efe3a7396f2ea629eef12637bd8085238d" },
+        "generation_config.json": { "size": 3868, "gitSha1": "d3823179a367fa912e3b911b3d2e71ab2a028290" },
+        "merges.txt": { "size": 493869, "gitSha1": "6038932a2a1f09a66991b1c2adae0d14066fa29e" },
+        "model.safetensors": { "size": 966995080, "sha256": "1d7734884874f1a1513ed9aa760a4f8e97aaa02fd6d93a3a85d27b2ae9ca596b" },
+        "normalizer.json": { "size": 52666, "gitSha1": "dd6ae819ad738ac1a546e9f9282ef325c33b9ea0" },
+        "preprocessor_config.json": { "size": 184990, "gitSha1": "c2048dfa9fd94a052e62e908d2c4dfb18534b4d2" },
+        "special_tokens_map.json": { "size": 2194, "gitSha1": "bf69932dca4b3719b59fdd8f6cc1978109509f6c" },
+        "tokenizer.json": { "size": 2480466, "gitSha1": "1e95340ff836fad1b5932e800fb7b8c5e6d78a74" },
+        "tokenizer_config.json": { "size": 282683, "gitSha1": "d13b786c04765fb1a06492b53587752cd67665ea" },
+        "vocab.json": { "size": 835550, "gitSha1": "d7016e21da8776c8a9d577d0f559600f09a240eb" }
+      }
+    },
     "parakeet-tdt-0.6b-v3-onnx-int8": {
       "displayName": "Parakeet TDT 0.6B v3 (ONNX, 8-bit)",
       "sources": [
