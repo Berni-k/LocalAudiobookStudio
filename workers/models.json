@@ -683,6 +683,17 @@
         "nemo128.onnx": { "size": 139764, "sha256": "a9fde1486ebfcc08f328d75ad4610c67835fea58c73ba57e3209a6f6cf019e9f" },
         "vocab.txt": { "size": 93939, "gitSha1": "fc43e1c723e262df60b70e1919614417162d1fe2" }
       }
+    },
+    "mms-300m-fa-onnx": {
+      "displayName": "MMS-300M forced aligner (ONNX, 16-bit)",
+      "sources": [
+        { "repo": "tatsu020/mms-300m-fa-onnx", "revision": "137b953d5683c11e3fcfb19230b43fec40a02630" }
+      ],
+      "include": ["mms_300m_fa_fp16.onnx", "vocab.json"],
+      "files": {
+        "mms_300m_fa_fp16.onnx": { "size": 631499926, "sha256": "9823aa1e22dfc91fe1b1185ead5db5cab4512ce604ed18459b17a9eb92a00cd2" },
+        "vocab.json": { "size": 521, "gitSha1": "04e0322b42b12894246efecc4aa8212a713040a8" }
+      }
     }
   }
 }

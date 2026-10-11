@@ -14,6 +14,8 @@ internal static class Engines
         ["whisper"] = c => new WhisperEngine(c),
         // NeMo TDT transducers exported to ONNX (Parakeet TDT): preprocessor, encoder and decoder/joint graphs, on the CPU.
         ["tdt"] = c => new TdtEngine(c),
+        // CTC forced alignment (MMS-300M-FA exported to ONNX): finds when each word of a given text is spoken, on the CPU.
+        ["ctc-align"] = c => new CtcAlignEngine(c),
     };
 
     public static IEngine Create(EngineContext context) =>

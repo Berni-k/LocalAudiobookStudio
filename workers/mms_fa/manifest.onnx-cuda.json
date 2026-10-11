@@ -1,0 +1,7 @@
+{
+  "envGroup": "onnx1_30-cu13",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "The CUDA build also runs on the CPU, as fast as the CPU runtime."
+}

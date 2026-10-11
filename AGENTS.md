@@ -46,17 +46,41 @@ Rules that follow from this:
 
 ## Checking things with `las`
 
-`las` sits next to the app in the build output and uses the app's settings, installed workers and data folder.
+`las` is the engine without the GUI, so it is how an agent tries a change for real: real workers, real audio, the
+user's GPUs. `las help <command>` lists everything.
 
-- `las doctor` (system check), `las workers`, `las workers <id>` (settings and voices), `las devices`
-- `las workers install <id>` (also `repair`, `uninstall`; `--runtime <name>`): what the Workers window does, so a new
-  worker can be installed and tried without the GUI
-- `las tts "Hello" -o out.wav -w test_tone`: a quick pipeline check without a model download (install *Test tones*
-  once with `las workers install test_tone`; it only needs NumPy)
-- `las project <dir> import book.txt generate export -o book.m4b`: a whole project headless
-- `las transcribe out.wav -t "Hello" --words`: what a transcription worker hears, word timings, differences from the text
-- `--json` for machine-readable output. Exit codes: 0 ok, 1 failures, 2 usage, 3 setup needed, 130 cancelled.
-- A project can't be open in the app and in `las` at the same time (`.cache/open.lock`).
+**Where it is.** `las.exe` sits next to the app in the build output, with the `workers/` and `tools/` it runs:
+`src/LocalAudiobookStudio.App/bin/Debug/net10.0/las.exe` is the user's last build (it can be older than the source,
+and is locked while the app runs). To run the current source, build the app into a temporary folder
+(`dotnet build src/LocalAudiobookStudio.App -o <tmp>`), run `<tmp>/las.exe`, and delete the folder afterwards. Either
+way it uses the app's settings, data folder (`%LOCALAPPDATA%\LocalAudiobookStudio`: environments, models, logs) and the
+workers installed there, so whatever works in the app works here. Its log is the newest `logs/cli-*.log` there
+(`-v` shows worker logs on stderr too).
+
+**What it is good for:**
+- **Checking the machine and workers**: `las doctor`, `las devices`, `las workers` (installed or not),
+  `las workers <id>` (settings, voices). `las workers install <id>` does what the Workers window does.
+- **Making test audio**: `las tts "Some text." -o sample.wav` (`--voice`, `--set key=value`, `--seed`). Use **Kokoro**
+  (the default: HartsyInference, fast on the CPU and GPU, no Python, deterministic; voices like `af_heart`,
+  `am_michael`) for ordinary speech. For a pipeline check without any model, `-w test_tone` (install it once with
+  `las workers install test_tone`; it only needs NumPy).
+- **Listening to results**: `las transcribe file.wav --words` prints what was heard with word times; with
+  `-t "expected text"` it lists missing, extra and changed words. Use **Whisper** (internal GPU runtime) to judge *where*
+  words are: its word times are close (within tens of ms), ~100 languages. Use **Parakeet** (internal CPU runtime) to
+  check *what* was said: very fast and strict about words, but its times are loose (ends run on into pauses).
+- **Whole projects headless**: `las project <dir> import book.txt generate export -o book.m4b`, also `status`,
+  `erase-takes`, `generate --all`. For batching and context, make a scratch project in a temporary folder, then edit
+  its `speakers/<id>.json` (`worker`, `settings`, `transcriber`, `context`: `include`, `before`, `after`, `batch`) and
+  generate. **VibeVoice** (several voices, cut by transcription) and **Fish S2** (exact spans) are the fusing workers.
+  With the user's *Fused generation inspector* setting on, each one's input, whole output and transcript land in
+  `<project>/fused/<id>/` (`record.json`, `audio.wav`): read them to see how it was cut. Ask the user to turn the
+  setting on rather than editing their `settings.json`.
+- **Measuring against the audio**: when timings look wrong, read the WAV's loudness in 10–50 ms frames (Python with
+  the `basic` environment's interpreter, `envs/basic/Scripts/python.exe -I`) and compare it with the word times. That
+  is how whisper.cpp's DTW times were found to mark a token's end.
+
+`--json` gives machine-readable output. Exit codes: 0 ok, 1 failures, 2 usage, 3 setup needed, 130 cancelled. A project
+can't be open in the app and in `las` at the same time (`.cache/open.lock`): use scratch projects, not the user's.
 
 ## Conventions
 

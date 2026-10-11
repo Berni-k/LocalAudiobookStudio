@@ -1,0 +1,18 @@
+{
+  "id": "mms_fa",
+  "displayName": "MMS forced aligner",
+  "description": "Aligns speech to a known text with letter accuracy. Only knows the letters a to z (accents are dropped); numbers and other scripts get no timing. Does not check that the text is correct. Non-commercial license (CC-BY-NC).",
+  "tags": ["Alignment"],
+  "priority": 40,
+  "runtimeOrder": ["internal", "onnx", "onnx-cuda"],
+  "modelVersion": "v1",
+  "engineConfig": {
+    "models": {
+      "mms-300m-fa": { "model": "mms-300m-fa-onnx", "file": "mms_300m_fa_fp16.onnx", "vocab": "vocab.json" }
+    }
+  },
+  "approxVramGb": 1,
+  "devices": ["cuda", "cpu"],
+  "cpuNote": "Runs well on the CPU.",
+  "models": ["mms-300m-fa-onnx"]
+}

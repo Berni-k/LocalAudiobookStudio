@@ -1,0 +1,8 @@
+{
+  "envGroup": "onnx1_30-cpu",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "devices": ["cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Made for the CPU: a small environment without torch that starts in a few seconds."
+}

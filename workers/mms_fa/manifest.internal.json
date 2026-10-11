@@ -1,0 +1,6 @@
+{
+  "engine": "ctc-align",
+  "devices": ["cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Comes with the app (ONNX Runtime in the internal worker): nothing to install but the model."
+}

@@ -1,0 +1,2 @@
+# MMS forced aligner on ONNX Runtime (the onnx1_30-* environments bring onnxruntime itself, CPU or CUDA build).
+numpy

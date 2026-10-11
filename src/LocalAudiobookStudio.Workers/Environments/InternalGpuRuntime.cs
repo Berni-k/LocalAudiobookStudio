@@ -28,7 +28,7 @@ public static class InternalGpuRuntime
     /// Whisper model on whisper.cpp), "tdt" (NeMo TDT transducers such as Parakeet, exported to ONNX). See
     /// InternalWorker/Engines.cs.
     /// </summary>
-    public static readonly IReadOnlyList<string> Engines = ["whisper", "tdt"];
+    public static readonly IReadOnlyList<string> Engines = ["whisper", "tdt", "ctc-align"];
 
     private const string MarkerFile = ".installed";
 
