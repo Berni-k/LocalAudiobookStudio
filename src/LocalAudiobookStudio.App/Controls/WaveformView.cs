@@ -53,12 +53,42 @@ public sealed class WaveformView : Control
         AvaloniaProperty.Register<WaveformView, IWaveformHost?>(nameof(Host));
     public static readonly StyledProperty<double> PlaceholderDurationMsProperty =
         AvaloniaProperty.Register<WaveformView, double>(nameof(PlaceholderDurationMs));
+    public static readonly StyledProperty<bool> ZoomableProperty =
+        AvaloniaProperty.Register<WaveformView, bool>(nameof(Zoomable));
+    public static readonly DirectProperty<WaveformView, double> ViewStartMsProperty =
+        AvaloniaProperty.RegisterDirect<WaveformView, double>(nameof(ViewStartMs), o => o.ViewStartMs);
+    public static readonly DirectProperty<WaveformView, double> ViewEndMsProperty =
+        AvaloniaProperty.RegisterDirect<WaveformView, double>(nameof(ViewEndMs), o => o.ViewEndMs);
 
     static WaveformView()
     {
         AffectsRender<WaveformView>(PeaksProperty, TrimStartMsProperty, TrimEndMsProperty, GainDbProperty,
-            PlayheadMsProperty, ShowFullRangeProperty, FillProperty, PlaceholderDurationMsProperty);
+            PlayheadMsProperty, ShowFullRangeProperty, FillProperty, PlaceholderDurationMsProperty, ZoomableProperty);
         FocusableProperty.OverrideDefaultValue<WaveformView>(false);
+    }
+
+    /// <summary>
+    /// The whole file, zoomed with the plain wheel (around the mouse) and panned with Shift+wheel or a sideways wheel; no
+    /// trims shown. For a window about one file (the fused generation inspector), where the wheel has nothing else to do.
+    /// </summary>
+    public bool Zoomable { get => GetValue(ZoomableProperty); set => SetValue(ZoomableProperty, value); }
+
+    private double _viewStartMs, _viewEndMs;
+
+    /// <summary>The file time at the left edge, for overlays that must line up with the zoomed view.</summary>
+    public double ViewStartMs { get => _viewStartMs; private set => SetAndRaise(ViewStartMsProperty, ref _viewStartMs, value); }
+
+    /// <summary>The file time at the right edge.</summary>
+    public double ViewEndMs { get => _viewEndMs; private set => SetAndRaise(ViewEndMsProperty, ref _viewEndMs, value); }
+
+    private bool CanZoom => ShowFullRange || Zoomable;
+
+    /// <summary>Publishes the time range shown (after a zoom, a pan or new peaks).</summary>
+    private void UpdateViewRange()
+    {
+        var (from, to) = ViewRange();
+        ViewStartMs = from;
+        ViewEndMs = to;
     }
 
     public Peaks? Peaks { get => GetValue(PeaksProperty); set => SetValue(PeaksProperty, value); }
@@ -109,13 +139,13 @@ public sealed class WaveformView : Control
     {
         var d = DurationMs;
         if (d <= 0) return (0, 1);
-        if (!FullView)
+        if (!FullView && !Zoomable)
         {
             var from = Math.Clamp(EffTrimStart, 0, d);
             var to = Math.Clamp(d - EffTrimEnd, from + 1, d);
             return (from, to);
         }
-        if (!ShowFullRange || _zoom <= 1) return (0, d);
+        if (!CanZoom || _zoom <= 1) return (0, d);
         var span = d / _zoom;
         _scrollMs = Math.Clamp(_scrollMs, 0, d - span);
         return (_scrollMs, _scrollMs + span);
@@ -362,12 +392,16 @@ public sealed class WaveformView : Control
         InvalidateVisual();
     }
 
-    /// <summary>Ctrl+wheel zooms horizontally (inspector view only); plain wheel scrolls when zoomed.</summary>
+    /// <summary>
+    /// The inspector view: Ctrl+wheel zooms horizontally, plain wheel scrolls when zoomed. <see cref="Zoomable"/>: plain
+    /// wheel zooms, Shift+wheel (or a sideways wheel) scrolls.
+    /// </summary>
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
-        if (!ShowFullRange || Peaks == null) { base.OnPointerWheelChanged(e); return; }
+        if (!CanZoom || Peaks == null) { base.OnPointerWheelChanged(e); return; }
         var d = DurationMs;
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        var pan = Zoomable ? e.KeyModifiers.HasFlag(KeyModifiers.Shift) || e.Delta.X != 0 : !e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (!pan)
         {
             var anchor = XToMs(e.GetPosition(this).X);
             var old = _zoom;
@@ -380,7 +414,9 @@ public sealed class WaveformView : Control
         }
         else if (_zoom > 1)
         {
-            _scrollMs -= e.Delta.Y * (d / _zoom) * 0.1;
+            // Shift turns a vertical wheel into a sideways one on some systems: take whichever moved.
+            var delta = e.Delta.X != 0 ? e.Delta.X : e.Delta.Y;
+            _scrollMs -= delta * (d / _zoom) * 0.1;
             InvalidateVisual();
             e.Handled = true;
         }
@@ -388,6 +424,7 @@ public sealed class WaveformView : Control
         {
             base.OnPointerWheelChanged(e);
         }
+        UpdateViewRange();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -398,5 +435,6 @@ public sealed class WaveformView : Control
             _zoom = 1;
             _scrollMs = 0;
         }
+        if (change.Property == PeaksProperty || change.Property == ZoomableProperty) UpdateViewRange();
     }
 }

@@ -309,14 +309,16 @@ public sealed partial class MainWindowViewModel
     }
 
     /// <summary>Plays an audio file on its own (assets, voice references, speaker previews): WAV, Opus or MP3.</summary>
-    public Task PlayFileAsync(string path, double fromMs = 0)
+    /// <summary>Plays a file on its own, from <paramref name="fromMs"/> to <paramref name="toMs"/> (null: its end).</summary>
+    public Task PlayFileAsync(string path, double fromMs = 0, double? toMs = null)
     {
         if (_engine == null) return Task.CompletedTask;
         try
         {
             var info = Audio.Decoding.AudioDecoder.ReadInfo(path);
             var plan = new MixPlan([new MixItem(Guid.Empty, 0, info.DurationMs, path, 0, 0, 0, 0)], info.DurationMs);
-            _engine.Play(plan, Math.Clamp(fromMs, 0, plan.TotalMs), plan.TotalMs, PlaybackMode.Preview);
+            var from = Math.Clamp(fromMs, 0, plan.TotalMs);
+            _engine.Play(plan, from, Math.Clamp(toMs ?? plan.TotalMs, from, plan.TotalMs), PlaybackMode.Preview);
             _singleItem = null;
             StartClock();
         }

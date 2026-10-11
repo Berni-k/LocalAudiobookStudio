@@ -28,11 +28,21 @@
       </StackPanel>
     </Grid>
 
-    <!-- The whole output: click plays from there, drag scrubs. Segments' cuts are marked at the top, context at the bottom. -->
-    <Border DockPanel.Dock="Top" Height="150" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="4" ClipToBounds="True">
+    <!-- The whole output: click plays from there, drag scrubs, the wheel zooms (Shift+wheel pans). Segments' cuts are
+         marked at the top, context at the bottom. Behind it, where the transcription heard each word; along the bottom a
+         bar per word (hover: the word, click: play it). The overlays follow the waveform's zoom (ViewStartMs/ViewEndMs). -->
+    <Border DockPanel.Dock="Top" Height="160" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="4" ClipToBounds="True">
       <Panel>
-        <ctl:WaveformView Peaks="{Binding Peaks}" Host="{Binding}" PlayheadMs="{Binding PlayheadMs}" Fill="{DynamicResource WaveformBrush}" />
-        <ctl:FusionMarkersView Markers="{Binding Markers}" DurationMs="{Binding DurationMs}" />
+        <ctl:WordShadingView Words="{Binding Words}" DurationMs="{Binding DurationMs}"
+                             ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
+        <ctl:WaveformView x:Name="Wave" Peaks="{Binding Peaks}" Host="{Binding}" PlayheadMs="{Binding PlayheadMs}" Zoomable="True"
+                          Fill="{DynamicResource WaveformBrush}"
+                          ToolTip.Tip="Click to play from there, drag to scrub. Wheel zooms, Shift+wheel moves along." />
+        <ctl:FusionMarkersView Markers="{Binding Markers}" DurationMs="{Binding DurationMs}"
+                               ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
+        <ctl:WordBarsView Words="{Binding Words}" DurationMs="{Binding DurationMs}" PlayWordCommand="{Binding PlayWordCommand}"
+                          ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
+                          Height="10" VerticalAlignment="Bottom" />
       </Panel>
     </Border>
 

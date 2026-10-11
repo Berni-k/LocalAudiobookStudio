@@ -74,6 +74,9 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
 
     public string? TranscriptSource { get; }
     public TranscriptCheck? TranscriptCheck { get; }
+
+    /// <summary>The heard words with their times, shown on the waveform; null when nothing was transcribed.</summary>
+    public IReadOnlyList<HeardWord>? Words => Record.Transcript;
     public bool HasTranscript => TranscriptCheck != null;
     public string NoTranscriptText => "Not transcribed: the worker said where each part is.";
 
@@ -100,9 +103,13 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
     [RelayCommand]
     private Task PlayFromStart() => Play(0);
 
-    public async Task Play(double fromMs)
+    /// <summary>Plays one heard word (a bar under the waveform), to judge its timing.</summary>
+    [RelayCommand]
+    private Task PlayWord(HeardWord word) => Play(word.StartMs, word.EndMs);
+
+    public async Task Play(double fromMs, double? toMs = null)
     {
-        await _main.PlayFileAsync(AudioPath, fromMs);
+        await _main.PlayFileAsync(AudioPath, fromMs, toMs);
         IsPlaying = _main.FilePositionMs != null;
         if (IsPlaying) Follow();
     }
