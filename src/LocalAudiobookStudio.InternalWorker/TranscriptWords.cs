@@ -4,10 +4,11 @@ using LocalAudiobookStudio.HartsyWorker;
 namespace LocalAudiobookStudio.InternalWorker;
 
 /// <summary>
-/// A word as an engine heard it, in the file's time. <see cref="OpenEnd"/>: the engine doesn't know where it ends (the
-/// last word of a whisper.cpp segment); <see cref="TranscriptWords"/> finds it in the audio.
+/// A word as an engine heard it, in the file's time. <see cref="OpenEnd"/>: the engine doesn't know where it ends;
+/// <see cref="OpenStart"/>: where it starts (the first word of a whisper.cpp segment: <see cref="StartMs"/> is only
+/// where it can't start before). <see cref="TranscriptWords"/> finds them in the audio.
 /// </summary>
-internal sealed record HeardWord(string Text, long StartMs, long EndMs, double Confidence, bool OpenEnd = false);
+internal sealed record HeardWord(string Text, long StartMs, long EndMs, double Confidence, bool OpenEnd = false, bool OpenStart = false);
 
 /// <summary>
 /// What every transcribing engine does with its words before sending them: ends open words where the speech after them
@@ -19,8 +20,8 @@ internal static class TranscriptWords
     private const float SilentRatio = 0.03f;
 
     /// <summary>
-    /// How far around a word to look for its sound. Loose on purpose: word times are off by up to a few hundred ms
-    /// (Whisper's DTW often lands late), a word's quiet edges ("th", a final "s" mostly above 8 kHz) are near silence at
+    /// How far around a word to look for its sound. Loose on purpose: word times can be off by a few hundred ms (a
+    /// final full stop runs on, a model times a word badly), a word's quiet edges ("th", a final "s" mostly above 8 kHz) are near silence at
     /// 16 kHz, and keeping a doubtful word is better than losing a real one. Invented words sit in longer silences.
     /// </summary>
     private const double MarginSec = 0.5;
@@ -44,9 +45,16 @@ internal static class TranscriptWords
 
         var result = new List<JsonObject>();
         var dropped = new List<string>();
+        long previousEnd = 0;
         for (var i = 0; i < words.Count; i++)
         {
             var w = words[i];
+            // Starts where the speech up to its end starts, not before the word before it ends.
+            if (w.OpenStart)
+            {
+                var limit = Math.Max(w.StartMs, previousEnd);
+                w = w with { StartMs = Math.Clamp((long)Math.Round(1000 * AudioPieces.SpeechStart(levels, w.EndMs / 1000.0, limit / 1000.0, speech)), limit, Math.Max(limit, w.EndMs)) };
+            }
             var nextStart = i + 1 < words.Count ? words[i + 1].StartMs : audioMs;
             var end = w.OpenEnd
                 // Ends where the speech after it stops, before the next word at the latest.
@@ -66,6 +74,7 @@ internal static class TranscriptWords
                 ["endMs"] = end,
                 ["confidence"] = Math.Round(w.Confidence, 4),
             });
+            previousEnd = end;
         }
         if (dropped.Count > 0) Protocol.Log($"Dropped words heard in silence: {string.Join(" ", dropped)}");
         return result;

@@ -20,7 +20,9 @@ three clips in 7.8 s including start-up; `onnx-cuda` on an RTX 3090 took 11.6 s 
   language setting. Punctuation and capitals come out as the model writes them.
 - Word timings: a TDT model predicts each token's start frame and how many frames it lasts (80 ms frames). onnx-asr's
   own decoder drops the duration, so `worker.py` (and the built-in runtime) run the decoding loop themselves and keep
-  it. `worker.py` uses onnx-asr internals for that, hence the pinned version.
+  it. `worker.py` uses onnx-asr internals for that, hence the pinned version. Against the audio they are rougher
+  than Whisper's: a word's end often runs on to the next word's start (over the pause between lines), a line's first
+  word can start early in the pause before it, and now and then a word is off by half a second.
 - Takes longer than 30 s are cut at their quietest point between 20 and 30 s and recognised in parts; the model
   attends over the whole input and was trained on short utterances.
 - Worker setting **Model**: the 8-bit export (0.7 GB, default) or full precision (2.5 GB).

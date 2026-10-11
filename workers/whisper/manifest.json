@@ -1,7 +1,7 @@
 {
   "id": "whisper",
   "displayName": "Whisper",
-  "description": "About 100 languages; the language can be set or detected. Good at niche languages, but word timings are rougher than most other models.",
+  "description": "About 100 languages; the language can be set or detected. Good at niche languages, with close word timings.",
   "tags": ["Transcription"],
   "priority": 45,
   "runtimeOrder": ["internal", "internal-gpu", "python"],

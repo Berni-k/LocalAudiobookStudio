@@ -11,9 +11,11 @@ OpenAI's [Whisper](https://github.com/openai/whisper) (MIT) for transcription, o
 - A transcription worker (tag `Transcription`): it answers `transcribe` requests, not `generate`.
 - About 100 languages. The speaker setting **Language** (`las transcribe --set language=de`) is used when set;
   with Auto, Whisper detects it and reports it.
-- Word timings come from dynamic time warping over the model's alignment heads (both runtimes). They are rougher than
-  Parakeet's, typically within a word or so. whisper.cpp ends a segment's last word where the audio goes quiet:
-  its own segment end often falls on the word's start.
+- Word timings come from dynamic time warping over the model's alignment heads (both runtimes). whisper.cpp's DTW time
+  for a token is where it has been said (its end), so in the internal runtime a word ends at its last token's time and
+  starts where the word before it ended; a segment's first word starts where its sound does (found in the audio).
+  Measured against the audio, that is closer than Parakeet: within a few tens of ms, a final full stop running on a
+  little.
 - Takes longer than 20 s are cut at their quietest points and recognised in pieces: with word timings, Whisper
   drops the last words of a window packed with speech, and the pipeline's overlapping windows can repeat words.
 - Whisper writes what it thinks was meant: it tends to smooth over stutters and repeats, and can invent text over

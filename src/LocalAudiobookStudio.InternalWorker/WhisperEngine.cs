@@ -102,36 +102,44 @@ internal sealed class WhisperEngine : EngineBase
 
     /// <summary>
     /// A segment's tokens joined into words: a token starting with a space begins a word, punctuation stays on its
-    /// word, and whisper.cpp's special tokens ([_BEG_], [_TT_150]) are skipped. A word starts at its first token's DTW
-    /// time and ends where the next word starts; the segment's last word has an open end (found in the audio).
+    /// word, and whisper.cpp's special tokens ([_BEG_], [_TT_150]) are skipped.
     /// </summary>
+    /// <remarks>
+    /// A token's DTW time is where it has been said: its end, not its start (measured against the audio: taken as a
+    /// start, every word came out one word late). So a word ends at its last token's DTW time and starts where the word
+    /// before it ended. The segment's first word has no word before it: its start is open, found in the audio (where the
+    /// speech up to its end starts). Without DTW times, whisper.cpp's own t0/t1 are a token's start and end.
+    /// </remarks>
     private static IEnumerable<HeardWord> Words(SegmentData segment, long offsetMs)
     {
-        var parts = new List<(string Text, long StartMs, List<float> Probabilities)>();
+        var parts = new List<(string Text, long StartMs, long EndMs, bool OpenStart, List<float> Probabilities)>();
+        var segmentStartMs = offsetMs + (long)segment.Start.TotalMilliseconds;
         foreach (var token in segment.Tokens ?? [])
         {
             var text = token.Text ?? "";
             if (text.Length == 0 || text.StartsWith("[_", StringComparison.Ordinal) || text.StartsWith("<|", StringComparison.Ordinal)) continue;
-            // DTW timestamps (and whisper.cpp's own t0) are in centiseconds from the start of the piece.
-            var timeMs = offsetMs + 10 * (token.DtwTimestamp >= 0 ? token.DtwTimestamp : token.Start);
+            // DTW timestamps (and whisper.cpp's own t0/t1) are in centiseconds from the start of the piece.
+            var dtw = token.DtwTimestamp >= 0;
+            var endMs = offsetMs + 10 * (dtw ? token.DtwTimestamp : token.End);
             if (parts.Count == 0 || text.StartsWith(' '))
-                parts.Add((text, timeMs, [token.Probability]));
+            {
+                var startMs = !dtw ? offsetMs + 10 * token.Start : parts.Count > 0 ? parts[^1].EndMs : segmentStartMs;
+                parts.Add((text, startMs, endMs, OpenStart: dtw && parts.Count == 0, [token.Probability]));
+            }
             else
             {
                 var last = parts[^1];
                 last.Probabilities.Add(token.Probability);
-                parts[^1] = (last.Text + text, last.StartMs, last.Probabilities);
+                parts[^1] = (last.Text + text, last.StartMs, Math.Max(last.EndMs, endMs), last.OpenStart, last.Probabilities);
             }
         }
         // whisper.cpp marks non-speech in brackets ("[BLANK_AUDIO]", "(music)"): not words of any text.
         parts.RemoveAll(p => p.Text.Trim() is var w && (w.Length == 0 || (w[0] == '[' && w[^1] == ']') || (w[0] == '(' && w[^1] == ')')));
-        for (var i = 0; i < parts.Count; i++)
+        foreach (var p in parts)
         {
-            var last = i + 1 == parts.Count;
-            var start = parts[i].StartMs;
             // The geometric mean of the tokens' probabilities: low when whisper.cpp was unsure of any part.
-            var confidence = Math.Exp(parts[i].Probabilities.Average(p => Math.Log(Math.Max(p, 1e-6f))));
-            yield return new HeardWord(parts[i].Text.Trim(), start, last ? start : Math.Max(start, parts[i + 1].StartMs), confidence, OpenEnd: last);
+            var confidence = Math.Exp(p.Probabilities.Average(x => Math.Log(Math.Max(x, 1e-6f))));
+            yield return new HeardWord(p.Text.Trim(), p.StartMs, Math.Max(p.StartMs, p.EndMs), confidence, OpenStart: p.OpenStart);
         }
     }
 

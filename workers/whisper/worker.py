@@ -28,7 +28,7 @@ MODELS = {  # the "model" worker setting -> workers/models.json
 MAX_PIECE_SEC = 20.0
 MIN_PIECE_SEC = 10.0
 # A word whose loudest 20 ms within MARGIN_SEC of it is this far below the take's speech (about -30 dB) was heard in
-# silence. Loose on purpose, as in the internal worker: DTW times are often late, quiet word edges ("s", "th") are near
+# silence. Loose on purpose, as in the internal worker: word times can be off a little, quiet word edges ("s", "th") are near
 # silence at 16 kHz, and keeping a doubtful word is better than losing a real one.
 SILENT_RATIO = 0.03
 MARGIN_SEC = 0.5

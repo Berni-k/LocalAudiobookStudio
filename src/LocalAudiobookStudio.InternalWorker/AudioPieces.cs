@@ -116,6 +116,23 @@ internal static class AudioPieces
         return limitSec;
     }
 
+    /// <summary>
+    /// Where the speech that runs up to <paramref name="endSec"/> starts: going back from there, the first 160 ms of quiet
+    /// ends it; never before <paramref name="limitSec"/>.
+    /// </summary>
+    public static double SpeechStart(float[] levels, double endSec, double limitSec, float speech)
+    {
+        var first = Math.Max(0, (int)(limitSec * 50));
+        var last = Math.Min(levels.Length - 1, (int)(endSec * 50));
+        var quiet = 0;
+        for (var f = last; f >= first; f--)
+        {
+            if (levels[f] >= 0.03f * speech) { quiet = 0; continue; }
+            if (++quiet == 8) return Math.Min(endSec, (f + 8) / 50.0);
+        }
+        return limitSec;
+    }
+
     /// <summary>The loudest 20 ms frame between two times.</summary>
     public static float PeakLevel(float[] levels, double startSec, double endSec)
     {
