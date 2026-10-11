@@ -19,7 +19,8 @@ namespace LocalAudiobookStudio.Engine.Projects;
 public sealed record SegmentJobTag(ProjectEngine Engine, Guid ItemId);
 
 /// <summary>Identifies the job that transcribes a take; <see cref="WavPath"/> is the 16 kHz copy it listens to.</summary>
-public sealed record TranscriptJobTag(ProjectEngine Engine, Guid ItemId, int Take, string WavPath);
+/// <param name="ExpectedText">The segment's text the take is checked against (not what an aligner was given to time).</param>
+public sealed record TranscriptJobTag(ProjectEngine Engine, Guid ItemId, int Take, string WavPath, string ExpectedText);
 
 /// <summary>A segment's state on disk (the app adds queued and generating from the scheduler).</summary>
 public enum SegmentAudioState
@@ -291,6 +292,9 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
             Host.Log.LogInformation("Not transcribing {Item}: {Why}", item.Id, why);
             return null;
         }
+        // Heard by the transcription worker and, with an aligner, timed by it. A transcription worker that only aligns
+        // times the segment's own text (it can't check it).
+        var listeners = ListenersFor(speaker);
         var audio = Takes.TakeAudio(item.Id, take);
         if (!File.Exists(audio)) return null;
 
@@ -299,10 +303,29 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         var wav = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".wav");
         Transcription.PrepareAudio(audio, wav);
         var label = item.Text!.Length > 50 ? item.Text[..47] + "…" : item.Text;
-        return Transcription.Job(manifest, wav, item.Text, MergeSettings(speaker.TranscriberSettings, null, manifest),
-            $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
-            tag: new TranscriptJobTag(this, item.Id, take, wav), readingOrder: chapterIndex * 1_000_000L + itemIndex,
-            speakers: [speaker.DisplayName]);
+        // Never null: the transcription worker can run, so it hears the words or (aligning only) times the text.
+        return Transcription.Listen(listeners, wav, item.Text, $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
+            new TranscriptJobTag(this, item.Id, take, wav, item.Text), chapterIndex * 1_000_000L + itemIndex, [speaker.DisplayName]);
+    }
+
+    /// <summary>
+    /// Who listens to a speaker's audio: its transcription worker, when it hears words (tagged Transcription) and can run
+    /// here, and its aligner, when it uses one that can run here. A forced aligner chosen as the transcription worker hears
+    /// nothing: it is the aligner, timing the segment's text.
+    /// </summary>
+    public Listeners ListenersFor(Speaker speaker)
+    {
+        WorkerManifest? Usable(string id, Func<WorkerManifest, bool> can) =>
+            !string.IsNullOrEmpty(id) && Catalog.Get(id) is { } w && can(w) && Host.WhyWorkerCannotRun(w.Id) == null ? w : null;
+        // An aligner times a given text (the heard words) as it is: only a forced aligner can (AlignsText).
+        var hearer = Usable(speaker.Transcriber, w => w.CanTranscribe);
+        var (aligner, alignerSettings) = speaker.UseAligner && Usable(speaker.Aligner, w => w.AlignsText) is { } chosen
+            ? (chosen, speaker.AlignerSettings)
+            : hearer == null && Usable(speaker.Transcriber, w => w.AlignsText) is { } aligning
+                ? (aligning, speaker.TranscriberSettings)
+                : ((WorkerManifest?)null, new JsonObject());
+        return new Listeners(hearer, hearer != null ? MergeSettings(speaker.TranscriberSettings, null, hearer) : new JsonObject(),
+            aligner, aligner != null ? MergeSettings(alignerSettings, null, aligner) : new JsonObject());
     }
 
     public bool OwnsTranscript(GenerationJob job) => job.Tag is TranscriptJobTag tag && ReferenceEquals(tag.Engine, this);
@@ -319,15 +342,18 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         if (!Directory.Exists(Paths.SegmentAudioDir(tag.ItemId))) return null;
         new StoredTranscript
         {
-            Worker = job.WorkerId,
+            // Heard by one worker and timed by another: both.
+            Worker = job.ContinuesFrom is { } heard ? $"{heard.WorkerId} + {job.WorkerId}" : job.WorkerId,
             Language = transcript.Language,
             Words = Transcription.Heard(transcript),
         }.Save(Paths.TakeTranscript(tag.ItemId, tag.Take));
 
         // The verdict goes into the take's own file: it is read anyway, and it is what the take is judged by from now on.
-        if (job.Transcribe?.Text is { } text && Takes.Find(tag.ItemId, tag.Take) is { } info)
+        // Only for words that were heard: an aligner given the segment's text finds that text whatever was said.
+        var heardWords = job.Transcribe?.Mode != ListenMode.Align || job.ContinuesFrom != null;
+        if (heardWords && Takes.Find(tag.ItemId, tag.Take) is { } info)
         {
-            var check = Transcription.Check(text, transcript);
+            var check = Transcription.Check(tag.ExpectedText, transcript);
             info.TranscriptErrors = check.Errors;
             info.TranscriptWordCount = check.ExpectedCount;
             TakeStore.SaveTakeInfo(Paths, tag.ItemId, info);

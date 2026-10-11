@@ -1,0 +1,28 @@
+{
+  "id": "qwen3_asr",
+  "displayName": "Qwen3-ASR",
+  "description": "Fast on a GPU, accurate speech recognition from Qwen, with very close word timings from its forced aligner. Hears 30 languages, but times only Chinese, English, Cantonese, French, German, Italian, Japanese, Korean, Portuguese, Russian and Spanish.",
+  "tags": ["Transcription", "Alignment Forced"],
+  "priority": 42,
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "modelVersion": "v1",
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Several times slower than on a GPU.",
+  "approxVramGb": 4,
+  "models": ["qwen3-asr-0.6b", "qwen3-forced-aligner-0.6b"],
+  "settings": [
+    { "key": "language", "type": "enum", "label": "Language", "default": "Auto",
+      "description": "The language of the audio. Auto detects it, but naming the language is more reliable, especially for short takes. Word times exist for Chinese, English, Cantonese, French, German, Italian, Japanese, Korean, Portuguese, Russian and Spanish only.",
+      "options": [
+        "Auto", "ar", "cs", "da", "de", "el", "en", "es", "fa", "fi", "fil", "fr", "hi", "hu", "id", "it", "ja", "ko", "mk", "ms",
+        "nl", "pl", "pt", "ro", "ru", "sv", "th", "tr", "vi", "yue", "zh"
+      ],
+      "optionLabels": [
+        "Auto", "ar - Arabic", "cs - Czech", "da - Danish", "de - German", "el - Greek", "en - English", "es - Spanish", "fa - Persian", "fi - Finnish", "fil - Filipino", "fr - French", "hi - Hindi", "hu - Hungarian", "id - Indonesian", "it - Italian", "ja - Japanese", "ko - Korean", "mk - Macedonian", "ms - Malay",
+        "nl - Dutch", "pl - Polish", "pt - Portuguese", "ro - Romanian", "ru - Russian", "sv - Swedish", "th - Thai", "tr - Turkish", "vi - Vietnamese", "yue - Cantonese", "zh - Chinese"
+      ] }
+  ]
+}

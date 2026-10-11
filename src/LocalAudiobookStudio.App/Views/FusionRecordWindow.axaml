@@ -40,7 +40,10 @@
                           ToolTip.Tip="Click to play from there, drag to scrub. Wheel zooms, Shift+wheel moves along." />
         <ctl:FusionMarkersView Markers="{Binding Markers}" DurationMs="{Binding DurationMs}"
                                ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
-        <ctl:WordBarsView Words="{Binding Words}" DurationMs="{Binding DurationMs}" PlayWordCommand="{Binding PlayWordCommand}"
+        <ctl:WordLabelsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}"
+                            ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
+                            Height="14" Margin="0,0,0,10" VerticalAlignment="Bottom" />
+        <ctl:WordBarsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}" PlayWordCommand="{Binding PlayWordCommand}"
                           ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
                           Height="10" VerticalAlignment="Bottom" />
       </Panel>

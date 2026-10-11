@@ -30,6 +30,7 @@ public static class TranscribeCommand
         new("--mode"),
         new("--speakers"),
         new("--speaker-count"),
+        new("--aligner"),
         new("--recursive", "-r", HasValue: false),
     ];
 
@@ -52,7 +53,23 @@ public static class TranscribeCommand
 
         var host = await ctx.StartHostAsync();
         var (manifest, settings) = ResolveWorker(ctx, host, a);
-        var mode = ModeOf(manifest, a.Get("--mode"));
+        // --aligner: the worker hears the words (text only) and the aligner times what it heard, as for a speaker that
+        // uses an aligner in the app.
+        Listeners? listeners = null;
+        if (a.Get("--aligner") is { } alignerId)
+        {
+            if (a.Has("--mode")) throw new UsageException("transcribe: --aligner times what the worker hears; leave out --mode.");
+            if (!manifest.CanTranscribe)
+                throw new UsageException($"transcribe: with --aligner, -w must hear words (tagged Transcription); {manifest.DisplayName} doesn't.");
+            var alignerManifest = host.Catalog.Get(alignerId) is { AlignsText: true } found
+                ? found
+                : throw new UsageException($"transcribe: --aligner {alignerId} can't time a given text: it needs a forced aligner (tagged " +
+                                           $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
+            if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
+            listeners = new Listeners(manifest, settings, alignerManifest,
+                OneShot.MergeSettings(alignerManifest.DefaultSettings(), null, alignerManifest, Path.GetFullPath));
+        }
+        var mode = listeners != null ? ListenMode.TranscribeAlign : ModeOf(manifest, a.Get("--mode"));
         // Aligning finds the words of a given text: without the text it has nothing to do, and comparing its words
         // with that text would always "match". What it gives is the timing, so the words are always shown.
         var aligner = mode == ListenMode.Align;
@@ -73,7 +90,7 @@ public static class TranscribeCommand
         try
         {
             return await TranscribeAsync(ctx, host, manifest, settings, mode, (a.Has("--words") || aligner) && mode != ListenMode.Transcribe,
-                aligner, units, temp, speakers, speakerCount);
+                aligner, units, temp, speakers, speakerCount, listeners);
         }
         finally
         {
@@ -149,21 +166,13 @@ public static class TranscribeCommand
         var can = mode switch
         {
             ListenMode.Transcribe => manifest.CanTranscribe,
-            ListenMode.Align => manifest.ListenMode == ListenMode.Align,
-            _ => manifest.ListenMode == ListenMode.TranscribeAlign,
+            ListenMode.Align => manifest.AlignsText,
+            _ => manifest.CanTranscribe && manifest.CanAlign,
         };
         if (!can)
-            throw new UsageException($"transcribe: {manifest.DisplayName} can't do --mode {requested} (it is tagged {string.Join(", ", manifest.Tags)}; " +
-                                     $"it does {ModeName(manifest.ListenMode)}).");
+            throw new UsageException($"transcribe: {manifest.DisplayName} can't do --mode {requested} (it is tagged {string.Join(", ", manifest.Tags)}).");
         return mode;
     }
-
-    private static string ModeName(ListenMode mode) => mode switch
-    {
-        ListenMode.Transcribe => "transcribe",
-        ListenMode.Align => "align",
-        _ => "transcribe-align",
-    };
 
     /// <summary>The worker (--worker, else the first installed transcriber) and its settings with the --set overrides.</summary>
     private static (WorkerManifest manifest, JsonObject settings) ResolveWorker(CliContext ctx, StudioHost host, CliArgs a)
@@ -198,10 +207,10 @@ public static class TranscribeCommand
     // ------------------------------------------------------------------ transcribing
 
     private static async Task<int> TranscribeAsync(CliContext ctx, StudioHost host, WorkerManifest manifest, JsonObject settings,
-        ListenMode mode, bool showWords, bool aligner, List<Unit> units, string temp, List<string>? speakers, int? speakerCount)
+        ListenMode mode, bool showWords, bool aligner, List<Unit> units, string temp, List<string>? speakers, int? speakerCount,
+        Listeners? listeners)
     {
         var jobs = new List<GenerationJob>();
-        var owner = new Dictionary<Guid, Unit>();
         for (int i = 0; i < units.Count; i++)
         {
             var unit = units[i];
@@ -215,21 +224,24 @@ public static class TranscribeCommand
                 unit.Error = $"Can't read the audio: {ex.Message}";
                 continue;
             }
-            var job = Transcription.Job(manifest, unit.Wav, unit.Expected, settings, Path.GetFileName(unit.Audio),
-                JobPriority.Normal, tag: "las-transcribe", readingOrder: i, mode: mode, speakers: speakers, speakerCount: speakerCount);
+            // The unit is the job's tag: with an aligner, the job that finishes is the one that continues this one.
+            var job = listeners != null
+                ? Transcription.Listen(listeners, unit.Wav, unit.Expected, Path.GetFileName(unit.Audio), JobPriority.Normal, unit, i,
+                    speakers, speakerCount: speakerCount)!
+                : Transcription.Job(manifest, unit.Wav, unit.Expected, settings, Path.GetFileName(unit.Audio),
+                    JobPriority.Normal, tag: unit, readingOrder: i, mode: mode, speakers: speakers, speakerCount: speakerCount);
             jobs.Add(job);
-            owner[job.Id] = unit;
         }
 
         var sync = new object();
         var done = 0;
         var all = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var sw = Stopwatch.StartNew();
-        ctx.Info($"{manifest.DisplayName}: {units.Count} file(s)");
+        ctx.Info($"{listeners?.Names ?? manifest.DisplayName}: {units.Count} file(s)");
 
         void Finished(GenerationJob job)
         {
-            if (!owner.TryGetValue(job.Id, out var unit)) return;
+            if (job.Tag is not Unit unit || !units.Contains(unit)) return;
             lock (sync)
             {
                 done++;
@@ -240,7 +252,7 @@ public static class TranscribeCommand
                 else
                 {
                     unit.Transcript = job.Transcript;
-                    unit.Seconds = (job.FinishedUtc - job.StartedUtc)?.TotalSeconds ?? 0;
+                    unit.Seconds = (job.FinishedUtc - (job.ContinuesFrom ?? job).StartedUtc)?.TotalSeconds ?? 0;
                     if (unit.Expected != null && !aligner) unit.Check = Transcription.Check(unit.Expected, job.Transcript);
                 }
                 Report(ctx, unit, showWords, units.Count > 1);

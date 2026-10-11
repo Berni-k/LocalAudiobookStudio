@@ -162,12 +162,18 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
      each is a request (all answered with a `transcript`; it gets a 16 kHz mono WAV, `req.audio_path`, and the expected
      text, `req.text`):
      - `Transcription`: hears the words. `transcribe` → `transcribe(req, report)` returns the text.
-     - `Alignment`: gives word times. Alone, it times a known text's words (forced alignment): `align` →
-       `align(req, report)` returns the words of `req.text` with their times. Copy `mms_fa`.
-     - both: hears the words and times them: `transcribeAlign` → `transcribe_align(req, report)` returns the text and
-       the timed words (it also answers `transcribe`). Whisper and Parakeet. Copy `parakeet`.
-     The app asks for the most a worker's tags allow (`WorkerManifest.ListenMode`); cutting fused generations needs
-     word times (`Alignment`). A worker that tells voices apart is also tagged `Multi-speaker`: each word it returns may
+     - `Transcription` and `Alignment`: hears the words and times them: `transcribeAlign` →
+       `transcribe_align(req, report)` returns the text and the timed words (it also answers `transcribe`). Whisper,
+       Parakeet, Granite. Copy `parakeet`. (`Alignment` without `Transcription` is a load error.)
+     - `Alignment Forced`: times a given text's words without changing them (forced alignment): `align` →
+       `align(req, report)` returns the words of `req.text` with their times. Alone (`mms_fa`, copy it), or with
+       `Transcription` (`qwen3_asr`): that is the full set, as its forced aligner times its own transcript too, so it
+       also implements `transcribe_align` and needs no `Alignment` tag.
+     The app asks for the most a worker's tags allow in one request (`WorkerManifest.ListenMode`); cutting fused
+     generations needs word times. A speaker can also use an aligner (Speakers window, Alignment; only workers tagged
+     `Alignment Forced`, `AlignsText`): its transcription worker hears the words, then the aligner times the text it
+     heard (`Listeners`, `Transcription.Listen`: a job whose `Then` queues the aligner's job, which finishes in its
+     place). `las transcribe -w parakeet --aligner mms_fa` does the same. A worker that tells voices apart is also tagged `Multi-speaker`: each word it returns may
      have a `speaker`, any label it likes (`S0`, `S1`). Requests may carry `speakers` (names, in the order they first
      speak) and `speakerCount` (`req.speakers`, `req.speaker_count`): hints any worker may ignore. A language is an ordinary `language` enum setting (`Auto` plus codes, read from
      `req.settings`), as in `whisper`; a model that detects the language itself has none.

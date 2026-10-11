@@ -30,7 +30,7 @@
                   <MenuItem Header="Everything" Command="{Binding PasteAllCommand}"
                             ToolTip.Tip="Model, voice and settings, transcription and context: all but the name, colour and aliases" />
                   <MenuItem Header="Model, voice and settings" Command="{Binding PasteGenerationCommand}" />
-                  <MenuItem Header="Transcription" Command="{Binding PasteTranscriptionCommand}" />
+                  <MenuItem Header="Transcription and alignment" Command="{Binding PasteTranscriptionCommand}" />
                   <MenuItem Header="Context" Command="{Binding PasteContextCommand}" />
                 </MenuItem>
               </ContextMenu>
@@ -134,6 +134,44 @@
                 </StackPanel>
               </Grid>
               <ContentControl Content="{Binding TranscriberSettings}" />
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Alignment: a worker that times the words more accurately than the transcription worker (for cutting
+               fused generations). Switched on by the checkbox in its header; when off, a note says whether the
+               transcription worker times the words itself (green) or nothing does (yellow). -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
+                <CheckBox IsChecked="{Binding UseAligner}" VerticalAlignment="Center"
+                          ToolTip.Tip="Use a separate worker for word times, where they matter most: cutting batches and context apart">
+                  <TextBlock Text="Alignment" Classes="groupTitle" />
+                </CheckBox>
+                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" IsVisible="{Binding HasAlignerNote}">
+                  <PathIcon Data="{StaticResource IconCheck}" Width="12" Height="12" Foreground="#2EA043" />
+                  <TextBlock Text="{Binding AlignerNote}" Classes="caption" Foreground="#2EA043" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" IsVisible="{Binding HasAlignerWarning}">
+                  <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" />
+                  <TextBlock Text="{Binding AlignerWarning}" Classes="caption warning" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Classes="form" IsVisible="{Binding ShowAligner}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Worker" Classes="formLabel" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <ComboBox ItemsSource="{Binding Aligners}" SelectedItem="{Binding Aligner}" HorizontalAlignment="Stretch"
+                              Classes.missing="{Binding IsAlignerMissing}" PlaceholderText="Install a forced aligner (MMS, Qwen3-ASR) in Workers" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsAlignerMissing}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding MissingAlignerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding AlignerInfo}" Classes="caption" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+                <ContentControl Content="{Binding AlignerSettings}" />
+              </StackPanel>
             </StackPanel>
           </Border>
 

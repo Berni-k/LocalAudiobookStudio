@@ -1,0 +1,7 @@
+# torch comes from the shared environment (workers/environments.json), which also pins transformers. Qwen3-ASR is
+# built into transformers 5.13 and newer; the qwen-asr package is not used (it pins transformers 4.57 and its own
+# copy of the model code breaks on 5). nagisa and soynlp split Japanese and Korean text into words for the aligner.
+transformers
+numpy
+nagisa
+soynlp

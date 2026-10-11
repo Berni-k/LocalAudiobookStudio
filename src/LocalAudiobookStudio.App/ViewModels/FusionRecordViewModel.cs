@@ -53,6 +53,9 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
         {
             TranscriptSource = string.Join("\n", r.Parts.Select(p => p.Text));
             TranscriptCheck = TranscriptCheck.Compare(TranscriptSource, words);
+            // A heard word is wrong when a difference that was heard (another word, an extra one) falls on its time.
+            var errors = TranscriptCheck.Words.Where(c => c.IsError && c.Heard != null).ToList();
+            WrongWords = words.Where(w => errors.Any(c => c.StartMs < w.EndMs && c.EndMs > w.StartMs || c.StartMs == w.StartMs)).ToHashSet();
         }
         LoadPeaks();
     }
@@ -77,6 +80,9 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
 
     /// <summary>The heard words with their times, shown on the waveform; null when nothing was transcribed.</summary>
     public IReadOnlyList<HeardWord>? Words => Record.Transcript;
+
+    /// <summary>The heard words that don't match the text (their bars are red).</summary>
+    public IReadOnlySet<HeardWord>? WrongWords { get; }
     public bool HasTranscript => TranscriptCheck != null;
     public string NoTranscriptText => "Not transcribed: the worker said where each part is.";
 

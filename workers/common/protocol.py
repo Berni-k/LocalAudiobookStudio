@@ -6,10 +6,12 @@ generating implements what its tags say, in place of ``generate`` (``req.audio_p
 ``req.text`` the text it should contain, if known):
 
 - tag Transcription: ``transcribe(req, report)`` returns ``{"text", "language"}``, the words heard;
-- tag Alignment: ``align(req, report)`` returns ``{"words": [{"text", "startMs", "endMs", "confidence"}]}``, the times
-  of ``req.text``'s words (it needs the text, and doesn't check that they were said);
-- both tags: ``transcribe_align(req, report)`` returns ``{"text", "words", "language"}``, the words heard with their
-  times. A ``transcribe`` request goes to it when there is no ``transcribe`` (its words are dropped).
+- tags Transcription and Alignment: ``transcribe_align(req, report)`` returns ``{"text", "words", "language"}``, the
+  words heard with their times. A ``transcribe`` request goes to it when there is no ``transcribe`` (its words are
+  dropped);
+- tag Alignment Forced: ``align(req, report)`` returns ``{"words": [{"text", "startMs", "endMs", "confidence"}]}``, the
+  times of ``req.text``'s words as written (it needs the text, and doesn't check that they were said). With
+  Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript.
 
 A worker tagged Multi-speaker tells voices apart: each word it returns may have a ``"speaker"``, any label it likes
 ("S0", "S1"), the same for one voice within the transcript. ``req.speakers`` (names, in the order they first speak)
@@ -559,7 +561,7 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
         missing = "doesn't transcribe audio (tag Transcription)"
     elif mtype == "align":
         method = getattr(worker, "align", None)
-        missing = "doesn't align a known text (tag Alignment alone)"
+        missing = "doesn't align a known text (tag Alignment Forced)"
     else:
         method = getattr(worker, "transcribe_align", None)
         missing = "doesn't time the words it hears (tags Transcription and Alignment)"

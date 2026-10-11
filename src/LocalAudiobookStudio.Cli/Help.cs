@@ -83,15 +83,19 @@ internal static class Help
         the word error rate. Case, punctuation and accents don't count.
 
         What a worker does depends on its tags, and is what it is asked for unless --mode says otherwise:
-          transcribe-align  Transcription and Alignment (Whisper, Parakeet): the words heard, with their times
+          transcribe-align  Transcription with Alignment (Whisper, Parakeet) or Alignment Forced (Qwen3-ASR):
+                            the words heard, with their times
           transcribe        Transcription: the words heard, without times
-          align             Alignment alone (MMS forced aligner): the times of a given text's words. It needs
-                            -t or -f, always prints the word timings, and reports no differences.
+          align             Alignment Forced (MMS, Qwen3-ASR): the times of a given text's words. It needs
+                            -t or -f, always prints the word timings, and reports no differences. The default
+                            only for a worker that does nothing else.
 
           -t, --text <text>        The text the audio should contain (one audio file)
           -f, --text-file <path>   The same from a file; for several audio files, a folder of <audio name>.txt
               --words              Print every word with its start and end time
               --mode <mode>        transcribe, align or transcribe-align (default: the most the worker does)
+              --aligner <id>       The worker hears the words, then this aligner (tagged Alignment) times what
+                                   was heard: the app's speaker setting Alignment
               --speakers <a,b>     Who may be speaking, in order; --speaker-count <n> how many voices. Hints
                                    for workers tagged Multi-speaker, which say who said each word ([S0] …)
           -w, --worker <id>        Worker (default: the first installed transcription worker)

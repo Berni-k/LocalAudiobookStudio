@@ -624,6 +624,37 @@
         "tokenizer_config.json": { "size": 561, "gitSha1": "3fab6534454db1fde84264009ca9baeaa8bd2f49" }
       }
     },
+    "qwen3-asr-0.6b": {
+      "displayName": "Qwen3-ASR 0.6B",
+      "sources": [
+        { "repo": "Qwen/Qwen3-ASR-0.6B-hf", "revision": "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c" }
+      ],
+      "include": ["chat_template.jinja", "config.json", "generation_config.json", "model.safetensors", "processor_config.json", "tokenizer.json", "tokenizer_config.json"],
+      "files": {
+        "chat_template.jinja": { "size": 1434, "gitSha1": "491fff331513a97316daf53591c7b9b9da53ef8c" },
+        "config.json": { "size": 2398, "gitSha1": "3b4221f651b59ec21f545e5852b4d6cb23420b09" },
+        "generation_config.json": { "size": 165, "gitSha1": "3ed98c80087572bad932a83279c5602e58bbfc5c" },
+        "model.safetensors": { "size": 1564928088, "sha256": "d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35" },
+        "processor_config.json": { "size": 487, "gitSha1": "a07dff48032bed341260501d6688036c6fd7f3ef" },
+        "tokenizer.json": { "size": 11429653, "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05" },
+        "tokenizer_config.json": { "size": 998, "gitSha1": "aa62b6c06ab8a704dc0895420fb1d2515954a49c" }
+      }
+    },
+    "qwen3-forced-aligner-0.6b": {
+      "displayName": "Qwen3 Forced Aligner 0.6B",
+      "sources": [
+        { "repo": "Qwen/Qwen3-ForcedAligner-0.6B-hf", "revision": "c07281df297b9905d24a508279258cccf987a064" }
+      ],
+      "include": ["chat_template.jinja", "config.json", "model.safetensors", "processor_config.json", "tokenizer.json", "tokenizer_config.json"],
+      "files": {
+        "chat_template.jinja": { "size": 551, "gitSha1": "1d6020e0ee6f66499d674a3fc2bbae5a99482c0e" },
+        "config.json": { "size": 248029, "gitSha1": "74b91ca23584bdebd82ffaaeb21f72444baa2dd8" },
+        "model.safetensors": { "size": 1835545960, "sha256": "00568245ceca5af1991d28562a75fe1ddc9bfeb041c27fda66947ea05c47fb86" },
+        "processor_config.json": { "size": 487, "gitSha1": "a07dff48032bed341260501d6688036c6fd7f3ef" },
+        "tokenizer.json": { "size": 11429842, "sha256": "cadfb9cbd9ff8f4e309075ec6a71b063295ff796afb4b5dbc0fd2873fbb301f2" },
+        "tokenizer_config.json": { "size": 998, "gitSha1": "aa62b6c06ab8a704dc0895420fb1d2515954a49c" }
+      }
+    },
     "whisper-small": {
       "displayName": "Whisper small",
       "sources": [

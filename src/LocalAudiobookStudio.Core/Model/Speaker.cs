@@ -28,6 +28,18 @@ public sealed class Speaker
     /// <summary>Settings for <see cref="Transcriber"/>, edited from its manifest like <see cref="Settings"/>.</summary>
     public JsonObject TranscriberSettings { get; set; } = new();
 
+    /// <summary>
+    /// Word times come from <see cref="Aligner"/> rather than <see cref="Transcriber"/>: a worker tagged Alignment that
+    /// times words more accurately (cutting fused generations). Off: the transcriber's own times, if it gives any.
+    /// </summary>
+    public bool UseAligner { get; set; }
+
+    /// <summary>Worker id of the aligner (kept while <see cref="UseAligner"/> is off, so turning it back on keeps the choice).</summary>
+    public string Aligner { get; set; } = "";
+
+    /// <summary>Settings for <see cref="Aligner"/>.</summary>
+    public JsonObject AlignerSettings { get; set; } = new();
+
     public List<string> MarkerAliases { get; set; } = new();
 
     /// <summary>

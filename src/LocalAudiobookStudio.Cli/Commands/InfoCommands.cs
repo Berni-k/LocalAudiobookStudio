@@ -83,7 +83,8 @@ public static class InfoCommands
                 ListenMode.TranscribeAlign => $"  hears words and their times: transcribe-align, or transcribe (las transcribe -w {m.Id})",
                 ListenMode.Align => $"  times the words of a given text: align (las transcribe -w {m.Id} -t \"…\")",
                 _ => $"  hears words, without times: transcribe (las transcribe -w {m.Id})",
-            } + (m.TellsSpeakers ? "; says who said each word" : ""));
+            } + (m.AlignsText && m.CanTranscribe ? $"; also times a given text: align (--mode align, or --aligner {m.Id})" : "")
+              + (m.TellsSpeakers ? "; says who said each word" : ""));
         else
             ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
         if (m.Settings.Count > 0) ctx.Out("  settings (--set key=value):");

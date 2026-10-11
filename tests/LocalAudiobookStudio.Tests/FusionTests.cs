@@ -129,7 +129,9 @@ public sealed class FusionTests : IAsyncDisposable
         Worker("picky", $$"""{{Fusing}}, "fusion": { "speakers": 3, "context": ["text"], "spans": true }""");
         Worker("tone", """ "envGroup": "basic", "modelVersion": "v1" """);
         Worker("listen", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Alignment"] """);
-        Worker("aligner", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Alignment"] """);
+        Worker("aligner", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Alignment Forced"] """);
+        // Hears and times a given text, so it also times what it hears (like Qwen3-ASR).
+        Worker("allround", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Alignment Forced"] """);
         Worker("hearer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription"] """);
         lock (FusionConnection.Requests) FusionConnection.Requests.Clear();
         lock (FusionConnection.Listens) FusionConnection.Listens.Clear();
@@ -428,11 +430,77 @@ public sealed class FusionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task AnAlignerTimesWhatTheTranscriberHeard()
+    {
+        // The transcription worker only hears words; the aligner times them.
+        using var p = await Open("duet", transcriber: "hearer");
+        foreach (var sp in p.Project.Speakers.Values) { sp.UseAligner = true; sp.Aligner = "aligner"; }
+        var lines = Lines(p);
+
+        var r = await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+
+        Assert.Equal(6, r.Completed);
+        List<TranscribeRequest> listens;
+        lock (FusionConnection.Listens) listens = FusionConnection.Listens.ToList();
+        // Each batch: heard first (text only), then the aligner is given what was heard, not the segments' text.
+        var heard = listens.Where(l => l.Mode == ListenMode.Transcribe).ToList();
+        var timed = listens.Where(l => l.Mode == ListenMode.Align).ToList();
+        Assert.Equal(heard.Count, timed.Count);
+        Assert.NotEmpty(heard);
+        // (The fake hears what it is given as the expected text, so heard and timed texts are the parts' text.)
+        Assert.All(timed, t => Assert.Contains(heard, h => h.Text == t.Text && h.AudioPath == t.AudioPath));
+        // The heard words, timed, are the takes' transcripts.
+        var take = p.Engine.Takes.Selected(lines[0])!;
+        Assert.Equal(TakeFusion.Transcript, take.Fusion!.Split);
+        Assert.True(File.Exists(p.Project.Paths.TakeTranscript(lines[0].Id, take.Take)));
+        Assert.Equal(0, take.TranscriptErrors);
+    }
+
+    [Fact]
     public void TagsSayWhatAWorkerIsAskedFor()
     {
         Assert.Equal(ListenMode.TranscribeAlign, _host.Catalog.Get("listen")!.ListenMode);
         Assert.Equal(ListenMode.Align, _host.Catalog.Get("aligner")!.ListenMode);
         Assert.Equal(ListenMode.Transcribe, _host.Catalog.Get("hearer")!.ListenMode);
+        // Only a worker tagged Alignment Forced times a given text as it is; Alignment alone times what it hears.
+        Assert.True(_host.Catalog.Get("aligner")!.AlignsText);
+        Assert.False(_host.Catalog.Get("listen")!.AlignsText);
+        var allround = _host.Catalog.Get("allround")!;
+        Assert.Equal(ListenMode.TranscribeAlign, allround.ListenMode);
+        Assert.True(allround.AlignsText);
+        Assert.Empty(_host.Catalog.LoadErrors);
+    }
+
+    [Fact]
+    public void AlignmentWithoutTranscriptionIsAnError()
+    {
+        using var tmp = new TempDir();
+        Directory.CreateDirectory(Path.Combine(tmp.Path, "odd"));
+        File.WriteAllText(Path.Combine(tmp.Path, "odd", "manifest.json"),
+            """{ "id": "odd", "displayName": "odd", "envGroup": "basic", "modelVersion": "v1", "tags": ["Alignment"] }""");
+        Assert.Contains(new WorkerCatalog(tmp.Path).LoadErrors, e => e.Contains("Alignment Forced"));
+    }
+
+    [Fact]
+    public async Task AWorkerThatAlsoForceAlignsCanBeTheAligner()
+    {
+        using var p = await Open("duet", transcriber: "hearer");
+        var speaker = p.Project.Speakers["anna"];
+        speaker.UseAligner = true;
+        speaker.Aligner = "allround";
+        Assert.Equal("allround", p.Engine.ListenersFor(speaker).Aligner!.Id);
+    }
+
+    [Fact]
+    public async Task AWorkerThatTranscribesIsNoAligner()
+    {
+        using var p = await Open("duet", transcriber: "hearer");
+        var speaker = p.Project.Speakers["anna"];
+        speaker.UseAligner = true;
+        speaker.Aligner = "listen";
+        Assert.Null(p.Engine.ListenersFor(speaker).Aligner);
+        speaker.Aligner = "aligner";
+        Assert.Equal("aligner", p.Engine.ListenersFor(speaker).Aligner!.Id);
     }
 
     [Fact]

@@ -197,6 +197,11 @@ public sealed class WorkerCatalog
             foreach (var id in m.Models.Where(id => Models.Get(id) == null))
                 LoadErrors.Add($"{file}: \"models\" names '{id}', which isn't in {ModelCatalog.FileName}");
             CheckFusion(m, file);
+            // Alignment times what the worker hears: without Transcription it has nothing to time. An aligner of a
+            // given text is tagged Alignment Forced.
+            if (m.CanAlign && !m.CanTranscribe)
+                LoadErrors.Add($"{file}: tag \"{WorkerTags.Alignment}\" needs \"{WorkerTags.Transcription}\"; " +
+                               $"a worker that times a given text is tagged \"{WorkerTags.ForcedAlignment}\"");
             return m;
         }
         catch (Exception ex)

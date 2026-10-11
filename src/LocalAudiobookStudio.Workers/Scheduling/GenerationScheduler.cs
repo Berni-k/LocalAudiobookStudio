@@ -612,6 +612,17 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             if (job.Transcribe != null)
             {
                 job.Transcript = await conn.TranscribeAsync(job.Transcribe, progress, job.Cancellation.Token).ConfigureAwait(false);
+                if (job.Transcript.Language == null && job.ContinuesFrom?.Transcript?.Language is { } language)
+                    job.Transcript = job.Transcript with { Language = language };
+                // Continued by another job (an aligner timing what was heard): that one finishes in this one's place.
+                if (job.Then?.Invoke(job) is { } next)
+                {
+                    next.ContinuesFrom = job;
+                    job.State = JobState.Completed;
+                    job.FinishedUtc = DateTime.UtcNow;
+                    EnqueueMany([next]);
+                    return;
+                }
                 if (job.AfterRun != null) await job.AfterRun(job).ConfigureAwait(false);
                 job.State = JobState.Completed;
                 job.FinishedUtc = DateTime.UtcNow;

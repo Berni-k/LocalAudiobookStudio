@@ -60,8 +60,8 @@ public sealed class FusionMarkersView : Control
     private static readonly IPen ContextEdge = new Pen(new SolidColorBrush(Color.FromRgb(150, 150, 150)), 1, new DashStyle([3, 3], 0));
     private static readonly IBrush LabelBack = new SolidColorBrush(Color.FromArgb(170, 0, 0, 0));
 
-    /// <summary>The height of the word bars along the bottom of the inspector's waveform.</summary>
-    private const double WordBarsHeight = 12;
+    /// <summary>The height of the word bars and their words along the bottom of the inspector's waveform.</summary>
+    private const double WordBarsHeight = 26;
 
     public override void Render(DrawingContext ctx)
     {
@@ -84,7 +84,7 @@ public sealed class FusionMarkersView : Control
                 Trimming = TextTrimming.CharacterEllipsis,
             };
             if (x1 - x0 < 16) continue;
-            // Context labels sit at the bottom, above the strip of word bars (WordBarsView).
+            // Context labels sit at the bottom, above the word bars and their words (WordBarsView, WordLabelsView).
             var y = m.IsSegment ? 1 : h - text.Height - 3 - WordBarsHeight;
             ctx.FillRectangle(LabelBack, new Rect(x0 + 1, y, text.Width + 6, text.Height + 2), 2);
             ctx.DrawText(text, new Point(x0 + 4, y + 1));

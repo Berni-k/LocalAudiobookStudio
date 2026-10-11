@@ -22,40 +22,52 @@ public sealed class WorkerManifest
 
     /// <summary>
     /// What the worker does, shown as small tags in the Workers window ("Voice", "Voice clone", "Music", "SFX").
-    /// Common ones get a colour there; any other text shows as a grey tag. <see cref="WorkerTags.Transcription"/> and
-    /// <see cref="WorkerTags.Alignment"/> also say what the worker does: it listens to audio instead of making it.
+    /// Common ones get a colour there; any other text shows as a grey tag. <see cref="WorkerTags.Transcription"/>,
+    /// <see cref="WorkerTags.Alignment"/> and <see cref="WorkerTags.ForcedAlignment"/> also say what the worker does: it
+    /// listens to audio instead of making it.
     /// </summary>
     public List<string> Tags { get; set; } = new();
 
     public bool HasTag(string tag) => Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Listens to audio instead of generating it (tagged Transcription, Alignment or both). Such workers aren't offered
-    /// as a speaker's voice.
+    /// Listens to audio instead of generating it (tagged Transcription, Alignment Forced, or both). Such workers aren't
+    /// offered as a speaker's voice.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsTranscriber => CanTranscribe || CanAlign;
+    public bool IsTranscriber => CanTranscribe || CanAlign || AlignsText;
 
     /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CanTranscribe => HasTag(WorkerTags.Transcription);
 
-    /// <summary>Gives word times (tag Alignment): of a known text (<c>align</c>), or with Transcription, of the words heard.</summary>
+    /// <summary>
+    /// Times the words it hears (<c>transcribeAlign</c>): tagged Transcription with Alignment, or with Alignment Forced
+    /// (a forced aligner times its own transcript too).
+    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool CanAlign => HasTag(WorkerTags.Alignment);
+    public bool CanAlign => HasTag(WorkerTags.Alignment) || CanTranscribe && HasTag(WorkerTags.ForcedAlignment);
+
+    /// <summary>
+    /// Times a given text's words without changing them (forced alignment, <c>align</c>; tag Alignment Forced): it can be
+    /// a speaker's aligner, timing what its transcription worker heard.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool AlignsText => HasTag(WorkerTags.ForcedAlignment);
 
     /// <summary>Says who said each word it returns (tag Multi-speaker).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool TellsSpeakers => HasTag(WorkerTags.MultiSpeaker);
 
     /// <summary>
-    /// The most this worker can be asked for: the words heard with their times when it is tagged both Transcription and
-    /// Alignment (<c>transcribeAlign</c>), else what its one tag says.
+    /// The most this worker can be asked for in one request: the words heard with their times when it is tagged
+    /// Transcription and Alignment (<c>transcribeAlign</c>), the words heard with Transcription alone, the times of a given
+    /// text when it only aligns (Alignment Forced).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public ListenMode ListenMode => CanTranscribe && CanAlign ? ListenMode.TranscribeAlign
-        : CanAlign ? ListenMode.Align
-        : ListenMode.Transcribe;
+        : CanTranscribe ? ListenMode.Transcribe
+        : ListenMode.Align;
 
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
@@ -535,10 +547,17 @@ public static class WorkerTags
     public const string Transcription = "Transcription";
 
     /// <summary>
-    /// Gives word times: finds a known text's words in audio (forced alignment, <c>align</c>). With
-    /// <see cref="Transcription"/> too, it times the words it hears (<c>transcribeAlign</c>).
+    /// Times the words it hears (<c>transcribeAlign</c>). Only with <see cref="Transcription"/>: on its own it would
+    /// have nothing to time. A worker that times a given text is <see cref="ForcedAlignment"/>.
     /// </summary>
     public const string Alignment = "Alignment";
+
+    /// <summary>
+    /// Times a given text's words without changing them (forced alignment, <c>align</c>): it can be a speaker's aligner.
+    /// Alone (MMS), or with <see cref="Transcription"/> (Qwen3-ASR), which then also times the words it hears
+    /// (<c>transcribeAlign</c>) without the <see cref="Alignment"/> tag.
+    /// </summary>
+    public const string ForcedAlignment = "Alignment Forced";
 
     /// <summary>
     /// Tells voices apart: each word it returns says who said it (a label of its own, "S0", "S1"). With Transcription or

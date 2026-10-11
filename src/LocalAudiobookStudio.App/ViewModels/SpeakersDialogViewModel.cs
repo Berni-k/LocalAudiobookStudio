@@ -116,6 +116,51 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         SyncList(Transcribers, list);
     }
 
+    /// <summary>
+    /// The aligner dropdown: installed forced aligners (tagged Alignment Forced: they time the heard words as they are),
+    /// plus the speaker's own if it isn't installed. Whisper and Parakeet time only what they hear themselves.
+    /// </summary>
+    public ObservableCollection<WorkerManifest> Aligners { get; } = new();
+
+    private void RebuildAligners(Speaker? sp)
+    {
+        var list = AppHost.Catalog.Transcribers.Where(w => w.AlignsText && AppHost.Environments.IsWorkerReady(w.Id)).ToList();
+        if (sp != null && !string.IsNullOrEmpty(sp.Aligner) && list.All(w => w.Id != sp.Aligner))
+            list.Add(AppHost.Catalog.Get(sp.Aligner) ?? new WorkerManifest { Id = sp.Aligner, DisplayName = sp.Aligner + " (unknown worker)" });
+        SyncList(Aligners, list);
+    }
+
+    public bool IsAlignerMissing => UseAligner && Aligner != null && !AppHost.Environments.IsWorkerReady(Aligner.Id);
+    public string MissingAlignerText => Aligner == null ? "" : $"{Aligner.DisplayName} is not installed. Install it in Workers, or pick another.";
+    public string AlignerInfo => Aligner?.Description ?? "";
+    public bool ShowAligner => UseAligner;
+
+    /// <summary>
+    /// The transcription worker times words itself: the words it hears (Alignment, or Alignment Forced with
+    /// Transcription), or as a forced aligner chosen as the transcription worker, the segment's text.
+    /// </summary>
+    private bool TranscriberAligns => HasTranscriber && (Transcriber!.CanAlign || Transcriber.AlignsText);
+
+    /// <summary>Without an aligner, next to its checkbox: the transcription worker times the words (green).</summary>
+    public string? AlignerNote => !UseAligner && TranscriberAligns ? $"{Transcriber!.DisplayName} times the words." : null;
+
+    /// <summary>Without an aligner, next to its checkbox: nothing times the words (yellow).</summary>
+    public string? AlignerWarning => UseAligner || TranscriberAligns ? null
+        : HasTranscriber ? $"No aligner: {Transcriber!.DisplayName} doesn't time words."
+        : "No aligner: no transcription worker times the words.";
+
+    public bool HasAlignerNote => AlignerNote != null;
+    public bool HasAlignerWarning => AlignerWarning != null;
+
+    /// <summary>Something times the speaker's words: the aligner it uses, else its transcription worker.</summary>
+    private bool TimesWords => UseAligner && Aligner is { AlignsText: true } && !IsAlignerMissing || TranscriberAligns;
+
+    private static readonly string[] AlignmentNames =
+    [
+        nameof(IsAlignerMissing), nameof(MissingAlignerText), nameof(AlignerInfo), nameof(ShowAligner),
+        nameof(AlignerNote), nameof(AlignerWarning), nameof(HasAlignerNote), nameof(HasAlignerWarning),
+    ];
+
     public bool HasTranscriber => Transcriber != null && !ReferenceEquals(Transcriber, NoTranscriber);
     public bool IsTranscriberMissing => HasTranscriber && !AppHost.Environments.IsWorkerReady(Transcriber!.Id);
     public string MissingTranscriberText => Transcriber == null ? "" : $"{Transcriber.DisplayName} is not installed. Install it in Workers, or pick another.";
@@ -140,6 +185,9 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private SettingsEditorViewModel? _settings;
     [ObservableProperty] private WorkerManifest? _transcriber;
     [ObservableProperty] private SettingsEditorViewModel? _transcriberSettings;
+    [ObservableProperty] private bool _useAligner;
+    [ObservableProperty] private WorkerManifest? _aligner;
+    [ObservableProperty] private SettingsEditorViewModel? _alignerSettings;
     [ObservableProperty] private bool _contextInclude;
     [ObservableProperty] private decimal _contextBefore;
     [ObservableProperty] private decimal _contextAfter;
@@ -357,17 +405,15 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     /// them. Only shown when there is a transcription worker (else <see cref="ContextSplitError"/>).
     /// </summary>
     public string? ContextSplitWarning =>
-        NeedsTranscription && TranscriberTimesWords ? $"{Worker!.DisplayName} doesn't time the segments, so transcription separates them." : null;
+        NeedsTranscription && TimesWords ? $"{Worker!.DisplayName} doesn't time the segments, so transcription separates them." : null;
 
     /// <summary>
-    /// Transcription would have to separate the segments, and there is no transcription worker, or one that can't time
-    /// words (not tagged Alignment).
+    /// Transcription would have to separate the segments, and nothing times the words: no aligner, and no transcription
+    /// worker or one that can't time words (not tagged Alignment).
     /// </summary>
-    public string? ContextSplitError => !NeedsTranscription || TranscriberTimesWords ? null
-        : HasTranscriber ? $"{Transcriber!.DisplayName} doesn't time words, so the segments can't be separated: context and batching are ignored."
-        : "No transcription worker is set, so the segments can't be separated: context and batching are ignored.";
-
-    private bool TranscriberTimesWords => HasTranscriber && Transcriber!.CanAlign;
+    public string? ContextSplitError => !NeedsTranscription || TimesWords ? null
+        : HasTranscriber ? $"Neither an aligner nor {Transcriber!.DisplayName} times words, so the segments can't be separated: context and batching are ignored."
+        : "No transcription worker or aligner is set, so the segments can't be separated: context and batching are ignored.";
 
     /// <summary>Context or batching is on, and the worker doesn't say where the segments are (a worker that doesn't fuse never does).</summary>
     private bool NeedsTranscription =>
@@ -413,6 +459,10 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 : string.IsNullOrEmpty(sp.Transcriber) ? NoTranscriber
                 : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
             TranscriberSettings = BuildTranscriberSettings();
+            RebuildAligners(sp);
+            UseAligner = sp?.UseAligner == true;
+            Aligner = sp == null || string.IsNullOrEmpty(sp.Aligner) ? null : Aligners.FirstOrDefault(w => w.Id == sp.Aligner);
+            AlignerSettings = BuildAlignerSettings();
             var context = sp?.Context ?? new SpeakerContext();
             ContextInclude = context.Include;
             ContextBefore = context.Before;
@@ -443,6 +493,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (Selected == null || Transcriber == null || !HasTranscriber) return null;
         var sp = Selected.Model;
         return BuildEditor(sp, Transcriber, sp.TranscriberSettings, () => TranscriberSettings = BuildTranscriberSettings(), null);
+    }
+
+    private SettingsEditorViewModel? BuildAlignerSettings()
+    {
+        if (Selected == null || !UseAligner || Aligner == null) return null;
+        var sp = Selected.Model;
+        return BuildEditor(sp, Aligner, sp.AlignerSettings, () => AlignerSettings = BuildAlignerSettings(), null);
     }
 
     /// <summary>The settings form for one of the speaker's workers, writing into <paramref name="values"/>.</summary>
@@ -540,9 +597,35 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Commit();
     }
 
+    partial void OnUseAlignerChanged(bool value)
+    {
+        foreach (var n in AlignmentNames.Concat(ContextWarnings)) OnPropertyChanged(n);
+        if (_loading || Selected == null) return;
+        Selected.Model.UseAligner = value;
+        Commit();
+        // Turned on without a choice yet: the first aligner that isn't the transcription worker (more accurate times is
+        // the point), else the first.
+        if (value && Aligner == null)
+            Aligner = Aligners.FirstOrDefault(w => w.Id != Transcriber?.Id) ?? Aligners.FirstOrDefault();
+        AlignerSettings = BuildAlignerSettings();
+    }
+
+    partial void OnAlignerChanged(WorkerManifest? value)
+    {
+        foreach (var n in AlignmentNames.Concat(ContextWarnings)) OnPropertyChanged(n);
+        if (_loading || Selected == null || value == null) return;
+        var sp = Selected.Model;
+        if (sp.Aligner == value.Id) return;
+        sp.Aligner = value.Id;
+        sp.AlignerSettings = value.DefaultSettings();
+        Commit();
+        Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
+    }
+
     partial void OnTranscriberChanged(WorkerManifest? value)
     {
-        foreach (var n in new[] { nameof(HasTranscriber), nameof(IsTranscriberMissing), nameof(MissingTranscriberText), nameof(TranscriberInfo) }.Concat(ContextWarnings))
+        foreach (var n in new[] { nameof(HasTranscriber), nameof(IsTranscriberMissing), nameof(MissingTranscriberText), nameof(TranscriberInfo) }
+                     .Concat(AlignmentNames).Concat(ContextWarnings))
             OnPropertyChanged(n);
         if (_loading || Selected == null || value == null) return;
         var sp = Selected.Model;
@@ -605,6 +688,9 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             Settings = (JsonObject)sp.Settings.DeepClone(),
             Transcriber = sp.Transcriber,
             TranscriberSettings = (JsonObject)sp.TranscriberSettings.DeepClone(),
+            UseAligner = sp.UseAligner,
+            Aligner = sp.Aligner,
+            AlignerSettings = (JsonObject)sp.AlignerSettings.DeepClone(),
             Context = sp.Context.Clone(),
         };
         OnPropertyChanged(nameof(CanPasteSettings));
@@ -630,6 +716,9 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         {
             sp.Transcriber = from.Transcriber;
             sp.TranscriberSettings = (JsonObject)from.TranscriberSettings.DeepClone();
+            sp.UseAligner = from.UseAligner;
+            sp.Aligner = from.Aligner;
+            sp.AlignerSettings = (JsonObject)from.AlignerSettings.DeepClone();
         }
         if (context) sp.Context = from.Context.Clone();
         Commit();

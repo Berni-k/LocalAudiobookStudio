@@ -69,6 +69,17 @@ public sealed class GenerationJob
 
     public bool Covers(Guid itemId) => itemId != Guid.Empty && (Members?.Any(m => m.ItemId == itemId) ?? ItemId == itemId);
 
+    /// <summary>
+    /// For a listening job: the job that continues it, made from its result (an aligner timing the words a transcriber
+    /// heard), or null to end here. When there is one, this job ends quietly (no <see cref="AfterRun"/>, no
+    /// <see cref="GenerationScheduler.JobCompleted"/>) and the next one finishes in its place; give it the same
+    /// <see cref="Tag"/> so it is handled the same way.
+    /// </summary>
+    public Func<GenerationJob, GenerationJob?>? Then { get; init; }
+
+    /// <summary>The job this one continues (<see cref="Then"/>): its transcript's language carries over.</summary>
+    public GenerationJob? ContinuesFrom { get; internal set; }
+
     /// <summary>Runs on the worker's task before the request is sent (e.g. decoding context audio for it).</summary>
     public Func<GenerationJob, CancellationToken, Task>? BeforeRun { get; init; }
 

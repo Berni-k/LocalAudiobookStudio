@@ -40,9 +40,17 @@ public sealed class FusedJobTag(ProjectEngine engine)
 
     public int ContextCount => PartTexts.Count - Members.Count;
 
-    /// <summary>The members' transcription worker and its settings (null: none, the worker's spans must do).</summary>
-    public string? Transcriber { get; init; }
-    public JsonObject TranscriberSettings { get; init; } = new();
+    /// <summary>
+    /// Who listens to the whole when the worker gives no spans: the members' transcription worker hears the words and
+    /// their aligner, if they use one, times what it heard (<see cref="Transcription.Listen"/>).
+    /// </summary>
+    public Listeners Listeners { get; init; } = Listeners.None;
+
+    /// <summary>
+    /// The words heard are each member's transcript: they were heard (not only a given text timed) by the members'
+    /// own transcription worker. Otherwise the takes are transcribed afterwards like any other.
+    /// </summary>
+    public bool KeepsTranscripts { get; init; }
 
     /// <summary>Context parts heard from their take: the part and the take's audio (decoded to WAV before the run).</summary>
     public List<(GeneratePart Part, string Audio)> ContextAudio { get; init; } = [];
@@ -103,11 +111,11 @@ public sealed partial class ProjectEngine
 {
     /// <summary>A segment that can take part in a fused generation, with what it would be generated with.</summary>
     private sealed record FusionPlan(TimelineItem Item, int Chapter, int Index, Speaker Speaker, WorkerManifest Manifest,
-        JsonObject Settings, JsonObject Shared, JsonObject PerVoice, string SharedKey, string? Transcriber, JsonObject TranscriberSettings)
+        JsonObject Settings, JsonObject Shared, JsonObject PerVoice, string SharedKey, Listeners Listeners)
     {
         public bool CanJoin(FusionPlan o) =>
             Manifest.Id == o.Manifest.Id && Manifest.Runtime == o.Manifest.Runtime && SharedKey == o.SharedKey
-            && Transcriber == o.Transcriber && InputHasher.Canonicalize(TranscriberSettings) == InputHasher.Canonicalize(o.TranscriberSettings);
+            && Listeners.Key == o.Listeners.Key;
     }
 
     /// <summary>
@@ -195,23 +203,15 @@ public sealed partial class ProjectEngine
         var settings = MergeSettings(speaker.Settings, item.SettingsOverride, manifest);
         if (manifest.UnsupportedChoice(settings) != null) return null;
 
-        // Cutting by transcription needs word times: a worker tagged Alignment (it hears and times the words, or with
-        // Alignment alone, times the parts' known text). One that only transcribes can't say where the parts are.
-        string? transcriber = null;
-        var transcriberSettings = new JsonObject();
-        if (!string.IsNullOrEmpty(speaker.Transcriber) && Catalog.Get(speaker.Transcriber) is { CanAlign: true } t
-            && Host.WhyWorkerCannotRun(t.Id) == null)
-        {
-            transcriber = t.Id;
-            transcriberSettings = MergeSettings(speaker.TranscriberSettings, null, t);
-        }
-        if (transcriber == null && fusion?.Spans != true) return null;
+        // Cutting by transcription needs word times: an aligner, or a transcription worker that times words. One that only
+        // transcribes can't say where the parts are.
+        var listeners = ListenersFor(speaker);
+        if (!listeners.TimesWords && fusion?.Spans != true) return null;
 
         var (shared, perVoice) = SplitSettings(settings, manifest);
         var key = (JsonObject)shared.DeepClone();
         foreach (var def in manifest.SettingsFor(settings, Paths.Resolve).Where(d => d.Type == SettingTypes.Seed)) key.Remove(def.Key);
-        return new FusionPlan(item, chapter, index, speaker, manifest, settings, shared, perVoice, InputHasher.Canonicalize(key),
-            transcriber, transcriberSettings);
+        return new FusionPlan(item, chapter, index, speaker, manifest, settings, shared, perVoice, InputHasher.Canonicalize(key), listeners);
     }
 
     /// <summary>A segment's settings as a fused request takes them: those all parts share, and those of its voice.</summary>
@@ -310,8 +310,8 @@ public sealed partial class ProjectEngine
             Members = members,
             Parts = parts,
             RecordId = Host.Settings.KeepFusedGenerations ? DateTime.Now.ToString("yyyyMMdd-HHmmss-") + Guid.NewGuid().ToString("N")[..6] : null,
-            Transcriber = first.Transcriber,
-            TranscriberSettings = first.TranscriberSettings,
+            Listeners = first.Listeners,
+            KeepsTranscripts = first.Listeners is { Hearer: { } hearer, TimesWords: true } && group.All(p => p.Speaker.Transcriber == hearer.Id),
             ContextAudio = contextAudio,
             FusedPath = Path.Combine(Paths.CacheDir, "fused", Guid.NewGuid().ToString("N") + ".wav"),
         };
@@ -393,7 +393,7 @@ public sealed partial class ProjectEngine
                 tag.Taken.Add(new FusedTake(m.ItemId, info.Take, m.InputHash, false));
             }
         }
-        else if (tag.Transcriber != null)
+        else if (tag.Listeners.TimesWords)
         {
             tag.TranscriptWav = Path.ChangeExtension(tag.FusedPath, ".16k.wav");
             Transcription.PrepareAudio(tag.FusedPath, tag.TranscriptWav);
@@ -493,13 +493,19 @@ public sealed partial class ProjectEngine
                 continue;
             }
             var info = SaveMemberTake(generation, tag, m, audio, start, end, fusion);
+            if (!tag.KeepsTranscripts)
+            {
+                // Timed by an aligner (or another worker than the speaker's transcriber): transcribed afterwards.
+                lock (tag.Taken) tag.Taken.Add(new FusedTake(m.ItemId, info.Take, m.InputHash, false));
+                continue;
+            }
 
             // Its share of the transcript, timed from the start of its own file, saved as its transcription.
             // A word belongs where its middle is: Parakeet runs a word's end on into the pause after it, and can start the
             // next line's first word early, in that pause, before the cut. Its times are kept within the take.
             var mine = heard.Where(w => (w.StartMs + w.EndMs) / 2 >= start && (w.StartMs + w.EndMs) / 2 < end)
                 .Select(w => w with { StartMs = Math.Max(w.StartMs, start) - start, EndMs = Math.Min(w.EndMs, end) - start }).ToList();
-            new StoredTranscript { Worker = job.WorkerId, Language = transcript.Language, Words = mine }
+            new StoredTranscript { Worker = tag.Listeners.Names, Language = transcript.Language, Words = mine }
                 .Save(Paths.TakeTranscript(m.ItemId, info.Take));
             var own2 = TranscriptCheck.Compare(m.Text, mine);
             info.TranscriptErrors = own2.Errors;
@@ -603,7 +609,7 @@ public sealed partial class ProjectEngine
             Settings = (JsonObject)gen.Request.Settings.DeepClone(),
             RequestText = gen.Request.Parts == null ? gen.Request.Text : null,
             Split = tag.Transcript != null ? TakeFusion.Transcript : TakeFusion.Worker,
-            Transcriber = tag.Transcript != null ? tag.Transcriber : null,
+            Transcriber = tag.Transcript != null ? tag.Listeners.Names : null,
             Transcript = tag.Transcript,
             Error = split is { State: JobState.Failed } ? $"The transcription failed: {split.LastError}" : null,
         };
@@ -637,26 +643,14 @@ public sealed partial class ProjectEngine
     }
 
     /// <summary>The job that transcribes a fused generation so <see cref="CutByTranscript"/> can cut it.</summary>
-    private GenerationJob SplitJob(GenerationJob fused, FusedJobTag tag) => new()
-    {
-        WorkerId = tag.Transcriber!,
-        Priority = fused.Priority,
-        ReadingOrder = fused.ReadingOrder,
-        Label = $"{fused.Label}: finding the segments",
-        Tag = new SplitJobTag(tag),
-        Transcribe = new TranscribeRequest
-        {
-            // An aligner times the parts' text as given; one that also transcribes says what it heard, which is how a
-            // part that wasn't said shows.
-            Mode = Catalog.Get(tag.Transcriber!)?.ListenMode ?? ListenMode.TranscribeAlign,
-            AudioPath = tag.TranscriptWav!,
-            Text = string.Join("\n", tag.PartTexts),
-            Settings = tag.TranscriberSettings,
-            Speakers = Voices(tag),
-            SpeakerCount = Voices(tag).Count,
-        },
-        AfterRun = CutByTranscript,
-    };
+    /// <remarks>
+    /// The transcription worker says what was heard (which is how a part that wasn't said shows) and an aligner, if the
+    /// members use one, times those words; an aligner alone times the parts' text as given.
+    /// </remarks>
+    private GenerationJob SplitJob(GenerationJob fused, FusedJobTag tag) =>
+        Transcription.Listen(tag.Listeners, tag.TranscriptWav!, string.Join("\n", tag.PartTexts), $"{fused.Label}: finding the segments",
+            fused.Priority, new SplitJobTag(tag), fused.ReadingOrder, Voices(tag), afterRun: CutByTranscript)
+        ?? throw new InvalidOperationException("a fused generation without spans has nobody to listen to it"); // TimesWords was checked when it was planned
 
     /// <summary>The voices of a fused generation by name, in the order they first speak (a hint for the transcription).</summary>
     private List<string> Voices(FusedJobTag tag) =>
