@@ -44,6 +44,7 @@ public sealed partial class ProjectSession
                     vm.Model.LastError = null;
                     MarkChapterDirty(vm.Chapter);
                 }
+            ShowFusion(jobs);
             AppHost.Scheduler.EnqueueMany(jobs);
         }
         if (errors.Count > 0)
@@ -53,6 +54,14 @@ public sealed partial class ProjectSession
         else if (recordedSkipped && jobs.Count == 0 && !skipLocked)
             Notify("This speaker has no model: use the record button on the segment to record it.");
         return jobs.Count;
+    }
+
+    /// <summary>Marks the segments of these jobs with how they take part in a fused generation (none for an ordinary job).</summary>
+    private void ShowFusion(IEnumerable<GenerationJob> jobs)
+    {
+        foreach (var job in jobs)
+            foreach (var id in ProjectEngine.SegmentsOf(job))
+                if (_itemVms.TryGetValue(id, out var vm)) vm.Fusion = ProjectEngine.RolesOf(job, id);
     }
 
     /// <summary>Queues every stale, failed or not-yet-generated item (reading order), skipping locked ones.</summary>
@@ -112,7 +121,7 @@ public sealed partial class ProjectSession
             var refresh = new List<ItemViewModel>();
             var notSelected = 0;
             foreach (var id in ProjectEngine.SegmentsOf(job))
-                if (_itemVms.TryGetValue(id, out var vm)) vm.IsTranscribing = false;
+                if (_itemVms.TryGetValue(id, out var vm)) { vm.IsTranscribing = false; vm.Fusion = null; }
             foreach (var (item, take, selected, transcribed) in outcome.Takes)
             {
                 if (!_itemVms.TryGetValue(item.Id, out var vm)) continue; // deleted meanwhile
@@ -138,6 +147,7 @@ public sealed partial class ProjectSession
             // Finding the segments in the audio shows as transcribing on them.
             foreach (var id in outcome.FollowUps.Where(f => f.Tag is SplitJobTag).SelectMany(ProjectEngine.SegmentsOf))
                 if (_itemVms.TryGetValue(id, out var vm)) vm.IsTranscribing = true;
+            ShowFusion(outcome.FollowUps.Where(f => f.Tag is SplitJobTag));
             AppHost.Scheduler.EnqueueMany(outcome.FollowUps);
         });
     }

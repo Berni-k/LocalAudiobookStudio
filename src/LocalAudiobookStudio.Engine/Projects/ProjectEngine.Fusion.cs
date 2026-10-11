@@ -91,6 +91,12 @@ public sealed class FusedJobTag(ProjectEngine engine)
 /// <summary>Identifies the job that transcribes a fused generation to cut it into takes.</summary>
 public sealed record SplitJobTag(FusedJobTag Fused);
 
+/// <summary>
+/// How one segment takes part in a fused generation, for the row's indicators: context lines before it (the first
+/// segment of the generation) or after it (the last), and batch mates before and after it.
+/// </summary>
+public readonly record struct FusionRoles(bool ContextBefore, bool ContextAfter, bool BatchBefore, bool BatchAfter);
+
 /// <summary>What a fused generation's end means for the project (worked out on the model's thread).</summary>
 public sealed class FusionOutcome
 {
@@ -240,17 +246,17 @@ public sealed partial class ProjectEngine
 
         // Context goes around the whole batch, never between its segments: the first one's speaker decides what comes
         // before, the last one's what comes after.
-        var before = new List<TimelineItem>();
-        var after = new List<TimelineItem>();
+        var before = new List<ContextLine>();
+        var after = new List<ContextLine>();
         if (fusion == null || fusion.Context.Count > 0)
         {
             // Plain text in one voice: any speaker's line fits.
             var limits = new ContextLimits(group.Select(p => p.Item.Speaker).ToHashSet(), fusion?.Speakers ?? int.MaxValue,
                 group.Sum(p => p.Item.Text!.Length), fusion?.MaxChars ?? manifest.MaxChars);
             var (bc, ac) = (first.Speaker.Context, group[^1].Speaker.Context);
-            if (bc.HasContext) Gather(before, bc.Before, bc.MaxChars, limits, Enumerable.Range(0, first.Index).Reverse().Select(i => items[i]));
+            if (bc.HasContext) Gather(before, bc.Before, bc.MaxChars, limits, Enumerable.Range(0, first.Index).Reverse().Select(i => items[i]), keepEnd: true);
             before.Reverse();
-            if (ac.HasContext) Gather(after, ac.After, ac.MaxChars, limits, Enumerable.Range(lastIndex + 1, items.Count - lastIndex - 1).Select(i => items[i]));
+            if (ac.HasContext) Gather(after, ac.After, ac.MaxChars, limits, Enumerable.Range(lastIndex + 1, items.Count - lastIndex - 1).Select(i => items[i]), keepEnd: false);
         }
         if (group.Count == 1 && before.Count + after.Count == 0) return null;
         if (fusion == null) return TextContextJob(first, before, after, priority);
@@ -281,10 +287,10 @@ public sealed partial class ProjectEngine
     /// Context for a worker that doesn't fuse: an ordinary request whose text is the context lines and the segment in a
     /// row, all in the segment's voice and settings. The worker can't say where the segment is, so transcription finds it.
     /// </summary>
-    private GenerationJob TextContextJob(FusionPlan plan, List<TimelineItem> before, List<TimelineItem> after, JobPriority priority)
+    private GenerationJob TextContextJob(FusionPlan plan, List<ContextLine> before, List<ContextLine> after, JobPriority priority)
     {
         // Not sent as parts: they describe the lines the one text is made of, for cutting and the record.
-        GeneratePart Line(TimelineItem i, string role) => new() { Role = role, Speaker = i.Speaker ?? "", Text = i.Text };
+        GeneratePart Line(ContextLine l, string role) => new() { Role = role, Speaker = l.Item.Speaker ?? "", Text = l.Text };
         var parts = before.Select(i => Line(i, PartRoles.Context))
             .Append(new GeneratePart { Speaker = plan.Item.Speaker ?? "", Text = plan.Item.Text, Voice = ResolveVoice(plan.Speaker.Voice) })
             .Concat(after.Select(i => Line(i, PartRoles.Context))).ToList();
@@ -341,14 +347,16 @@ public sealed partial class ProjectEngine
     /// worker: another worker's voice means nothing to this one. Its take, when it is current and the worker can hear
     /// context, is decoded for it before the run.
     /// </summary>
-    private GeneratePart ContextPart(TimelineItem item, WorkerManifest manifest, List<(GeneratePart, string)> contextAudio)
+    private GeneratePart ContextPart(ContextLine line, WorkerManifest manifest, List<(GeneratePart, string)> contextAudio)
     {
-        var part = new GeneratePart { Role = PartRoles.Context, Speaker = item.Speaker ?? "", Text = item.Text };
+        var item = line.Item;
+        var part = new GeneratePart { Role = PartRoles.Context, Speaker = item.Speaker ?? "", Text = line.Text };
         if (Project.FindSpeaker(item.Speaker) is { } speaker && speaker.Worker == manifest.Id)
         {
             part.Voice = ResolveVoice(speaker.Voice);
             part.Settings = SplitSettings(MergeSettings(speaker.Settings, item.SettingsOverride, manifest), manifest).PerVoice;
         }
+        // A shortened line still sends its whole take: the worker trims the audio itself if it needs to.
         if (manifest.Fusion!.TakesContext(FusionContext.Audio) && StateOf(item) == SegmentAudioState.Ready && item.SelectedTake is int take)
             contextAudio.Add((part, Takes.TakeAudio(item.Id, take)));
         return part;
@@ -521,6 +529,21 @@ public sealed partial class ProjectEngine
     /// <summary>The segments a job is for: its own, or for the transcription that cuts a fused generation, that one's.</summary>
     public static IEnumerable<Guid> SegmentsOf(GenerationJob job) =>
         job.Tag is SplitJobTag s ? s.Fused.Members.Select(m => m.ItemId) : job.Items;
+
+    /// <summary>How <paramref name="itemId"/> takes part in a fused generation job (or its cutting transcription); null for any other job.</summary>
+    public static FusionRoles? RolesOf(GenerationJob job, Guid itemId)
+    {
+        var tag = job.Tag switch { FusedJobTag f => f, SplitJobTag s => s.Fused, _ => null };
+        if (tag == null) return null;
+        var k = tag.Members.FindIndex(m => m.ItemId == itemId);
+        if (k < 0) return null;
+        var last = tag.Members.Count - 1;
+        return new FusionRoles(
+            ContextBefore: k == 0 && tag.Members[0].Part > 0,
+            ContextAfter: k == last && tag.Parts.Count - 1 - tag.Members[last].Part > 0,
+            BatchBefore: k > 0,
+            BatchAfter: k < last);
+    }
 
     /// <summary>Whether the job is one of this project's fused generations, or the transcription that cuts one.</summary>
     public bool OwnsFusion(GenerationJob job) => job.Tag switch
@@ -778,23 +801,32 @@ public sealed partial class ProjectEngine
     /// <summary>What a fused generation may still take in: its voices so far and how many it may have, its characters.</summary>
     private sealed class ContextLimits(HashSet<string?> voices, int maxVoices, int chars, int maxChars)
     {
-        public bool Fits(TimelineItem line) =>
-            chars + line.Text!.Length <= maxChars && (voices.Contains(line.Speaker) || voices.Count < maxVoices);
+        /// <summary>How many more characters the generation takes.</summary>
+        public int Room => maxChars - chars;
 
-        public void Add(TimelineItem line)
+        public bool AllowsVoice(string? speaker) => voices.Contains(speaker) || voices.Count < maxVoices;
+
+        public void Add(string? speaker, int length)
         {
-            chars += line.Text!.Length;
-            voices.Add(line.Speaker);
+            chars += length;
+            voices.Add(speaker);
         }
     }
+
+    /// <summary>A line of context: the segment it comes from and the text sent for it (shortened when the segment's whole text doesn't fit).</summary>
+    private readonly record struct ContextLine(TimelineItem Item, string Text);
+
+    /// <summary>The fewest characters worth sending as a shortened line of context.</summary>
+    private const int MinContextChars = 20;
 
     /// <summary>
     /// Adds up to <paramref name="lines"/> spoken lines from <paramref name="candidates"/> (nearest first) to
     /// <paramref name="into"/>, looking past <see cref="Transparent"/> items. Stops at a clip, at a segment whose speaker
-    /// doesn't include context (that is also what lets a speaker's lines be context for others), and at the first line
-    /// that would go past <paramref name="maxChars"/> on this side or past what the worker takes in one go.
+    /// doesn't include context (that is also what lets a speaker's lines be context for others), and at a line whose
+    /// voice the worker can't take. A line that would go past <paramref name="maxChars"/> on this side or past what the
+    /// worker takes in one go is shortened at a word instead of dropped (<see cref="Shorten"/>), and is the last one.
     /// </summary>
-    private void Gather(List<TimelineItem> into, int lines, int maxChars, ContextLimits limits, IEnumerable<TimelineItem> candidates)
+    private void Gather(List<ContextLine> into, int lines, int maxChars, ContextLimits limits, IEnumerable<TimelineItem> candidates, bool keepEnd)
     {
         var chars = 0;
         foreach (var c in candidates)
@@ -803,10 +835,46 @@ public sealed partial class ProjectEngine
             if (Transparent(c)) continue;
             if (c.Kind != ItemKind.Tts || Project.FindSpeaker(c.Speaker)?.Context.Include != true) break;
             if (string.IsNullOrWhiteSpace(c.Text)) continue;
-            if (chars + c.Text!.Length > maxChars || !limits.Fits(c)) break;
-            chars += c.Text.Length;
-            limits.Add(c);
-            into.Add(c);
+            if (!limits.AllowsVoice(c.Speaker)) break;
+            var text = c.Text!;
+            var room = Math.Min(maxChars - chars, limits.Room);
+            if (text.Length > room)
+            {
+                if (Shorten(text, room, keepEnd) is not { } shorter) break;
+                text = shorter;
+            }
+            chars += text.Length;
+            limits.Add(c.Speaker, text.Length);
+            into.Add(new ContextLine(c, text));
+            if (text.Length < c.Text!.Length) break; // the room is used up
         }
+    }
+
+    /// <summary>
+    /// <paramref name="text"/> cut down to at most <paramref name="room"/> characters at a word: the end of it when
+    /// <paramref name="keepEnd"/> (context before a segment is nearest at its end), else the start. Null when too little would be left.
+    /// </summary>
+    internal static string? Shorten(string text, int room, bool keepEnd)
+    {
+        if (room < MinContextChars) return null;
+        string cut;
+        if (keepEnd)
+        {
+            var slice = text[^room..];
+            // Cut at a word start: the slice starts on one when the character before it is a space.
+            var startsWord = char.IsWhiteSpace(text[text.Length - room - 1]);
+            var i = startsWord ? 0 : slice.IndexOfAny([' ', '\t', '\r', '\n']);
+            if (i < 0) return null;
+            cut = slice[i..].Trim();
+        }
+        else
+        {
+            var slice = text[..room];
+            var endsWord = char.IsWhiteSpace(text[room]);
+            var i = endsWord ? slice.Length : slice.LastIndexOfAny([' ', '\t', '\r', '\n']);
+            if (i < 0) return null;
+            cut = slice[..i].Trim();
+        }
+        return cut.Length >= MinContextChars ? cut : null;
     }
 }

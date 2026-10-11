@@ -255,8 +255,27 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
     /// <summary>Something is going on (queued, generating, transcribing): the text is a prominent badge.</summary>
     public bool IsOverlayActive => IsTranscribing || Status is ItemStatus.Queued or ItemStatus.Generating;
 
+    /// <summary>
+    /// How this segment takes part in the fused generation it is queued in (context lines around it, batch mates), or
+    /// null. Shown with the badge, as arrows pointing at where the others are: up for before, down for after.
+    /// </summary>
+    [ObservableProperty] private Engine.Projects.FusionRoles? _fusion;
+
+    partial void OnFusionChanged(Engine.Projects.FusionRoles? value) => RaiseOverlay();
+
+    // A batch already includes the context between its segments, so on a side where a batch mate is, only batch shows;
+    // context shows where it points outwards (above the first segment, below the last).
+    public bool ShowContextAbove => IsOverlayActive && Fusion is { ContextBefore: true, BatchBefore: false };
+    public bool ShowContextBelow => IsOverlayActive && Fusion is { ContextAfter: true, BatchAfter: false };
+    public bool ShowBatchAbove => IsOverlayActive && Fusion is { BatchBefore: true };
+    public bool ShowBatchBelow => IsOverlayActive && Fusion is { BatchAfter: true };
+
     private void RaiseOverlay()
     {
+        OnPropertyChanged(nameof(ShowContextAbove));
+        OnPropertyChanged(nameof(ShowContextBelow));
+        OnPropertyChanged(nameof(ShowBatchAbove));
+        OnPropertyChanged(nameof(ShowBatchBelow));
         OnPropertyChanged(nameof(OverlayText));
         OnPropertyChanged(nameof(ShowOverlay));
         OnPropertyChanged(nameof(IsOverlayActive));
