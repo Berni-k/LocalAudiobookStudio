@@ -76,10 +76,13 @@ internal sealed class FusionConnection(string workerId) : IWorkerConnection
             var said = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             for (int i = 0; i < said.Length; i++)
                 if (!said[i].Contains("mumble"))
+                    // Like Parakeet, a line's first word can start early, in the pause before it.
                     words.Add(new TranscriptWord(said[i].StartsWith("river") ? "ocean" : said[i],
-                        at + ms * i / said.Length, at + ms * (i + 1) / said.Length - 10));
+                        at + ms * i / said.Length - (i == 0 && at > 0 ? GapMs * 2 / 3 : 0), at + ms * (i + 1) / said.Length - 10));
             at += ms + GapMs;
         }
+        // Like Parakeet, a word runs on to the next one's start: the pause after a part is heard as part of its last word.
+        for (int i = 0; i + 1 < words.Count; i++) words[i] = words[i] with { EndMs = words[i + 1].StartMs };
         return Task.FromResult(new TranscriptResult(request.Text ?? "", words, "en"));
     }
 
@@ -246,7 +249,7 @@ public sealed class FusionTests : IAsyncDisposable
 
         var job = Assert.Single(p.Engine.BuildJobs([lines[3]], JobPriority.Normal, []));
         Assert.Null(job.Request.Parts);
-        Assert.Equal("Out walking by the river. The bells rang twice. You never tell me anything.", job.Request.Text);
+        Assert.Equal("Out walking by the river.\n\nThe bells rang twice.\n\nYou never tell me anything.", job.Request.Text);
         Assert.Equal(lines[3].Id, Assert.Single(job.Members!).ItemId);
 
         // Transcription finds the line again.
@@ -380,6 +383,11 @@ public sealed class FusionTests : IAsyncDisposable
         Assert.NotEmpty(record.Transcript!);
         Assert.Equal(["narrator", "anna", "ben"], record.Parts.Select(x => x.Speaker));
         Assert.All(record.Parts, x => Assert.True(x.CutEndMs > x.CutStartMs));
+        // The narrator's take keeps 3/4 of the pause after its line (23 characters of tone), and Anna's the last 3/4 of
+        // it, although the transcript runs the narrator's last word on to Anna's first.
+        var pauseStart = 23 * 20;
+        Assert.InRange(record.Parts[0].CutEndMs!.Value, pauseStart + FusionConnection.GapMs * 3 / 4 - 20, pauseStart + FusionConnection.GapMs * 3 / 4 + 20);
+        Assert.InRange(record.Parts[1].CutStartMs!.Value, pauseStart + FusionConnection.GapMs / 4 - 20, pauseStart + FusionConnection.GapMs / 4 + 20);
         Assert.Equal(p.Engine.Takes.Selected(lines[1])!.Take, record.Parts[1].Take);
 
         // The other batch's last line wasn't cut out, and says why.

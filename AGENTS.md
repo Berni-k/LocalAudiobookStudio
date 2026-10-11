@@ -92,7 +92,7 @@ Rules that follow from this:
   `ProjectEngine.Fusion.cs` cuts the result into takes. It may return `spans` (one `(startMs, endMs)` or `None` per part; otherwise the app transcribes to cut)
   and raises `Unfusable` for a combination it can't do (no retry; the app generates one by one). Workers without
   `fusion` never see parts (the bundled .NET workers refuse them); context still works for them: the app sends the
-  context lines and the segment as one ordinary text and trims with transcription. Batching needs `fusion.speakers` > 1.
+  context lines and the segment as one ordinary text (a blank line between them) and trims with transcription. Batching needs `fusion.speakers` > 1.
   Fused generation inspector: with its setting on (`AppSettings.KeepFusedGenerations`) each one is kept in the
   project's `fused/<id>/` (`audio.wav` and `record.json`: `FusionRecord` with the parts, spans, cuts, notes and
   transcript); its takes link it (`TakeFusion.Record`) and open it in `FusionRecordWindow`.

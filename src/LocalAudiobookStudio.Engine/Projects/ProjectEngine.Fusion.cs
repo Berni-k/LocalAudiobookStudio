@@ -289,7 +289,8 @@ public sealed partial class ProjectEngine
         var member = new FusedMember(plan.Item.Id, before.Count, plan.Item.Text!, ComputeHash(plan.Item));
         var request = new GenerateRequest
         {
-            Text = string.Join(" ", parts.Select(p => p.Text)),
+            // A blank line between the lines, so the model reads each as a paragraph of its own.
+            Text = string.Join("\n\n", parts.Select(p => p.Text)),
             Voice = ResolveVoice(plan.Speaker.Voice),
             Settings = plan.Settings,
             Seed = OneShot.SeedFrom(plan.Settings),
@@ -442,15 +443,16 @@ public sealed partial class ProjectEngine
         tag.Transcript = heard;
         var check = TranscriptCheck.Compare(joined, heard);
         var words = ranges.Select(r => check.Words.Where(w => w.TextStart >= r.Start && w.TextStart < r.End).ToList()).ToList();
-        (int Start, int End)? Heard(int part)
+        HeardSpan? Heard(int part)
         {
             var ok = words[part].Where(w => w.Kind is WordMatch.Match or WordMatch.Close or WordMatch.Substituted).ToList();
-            return ok.Count == 0 ? null : (ok[0].StartMs, ok[^1].EndMs);
+            return ok.Count == 0 ? null : new HeardSpan(ok[0].StartMs, ok[^1].EndMs, ok[^1].StartMs, ok[0].EndMs);
         }
         var spans = Enumerable.Range(0, ranges.Count).Select(Heard).ToList();
 
         var audio = AudioDecoder.Decode(tag.FusedPath);
         var durationMs = (int)audio.DurationMs;
+        var levels = new FrameLevels(audio);
         var fusion = new TakeFusion { Segments = tag.Members.Count, Context = tag.ContextCount, Split = TakeFusion.Transcript, Record = tag.RecordId };
         foreach (var m in tag.Members)
         {
@@ -469,11 +471,18 @@ public sealed partial class ProjectEngine
                 tag.Uncut.Add(m.ItemId);
                 continue;
             }
-            // The cuts: halfway to the nearest heard part on each side (the file's ends where there is none).
+            // The cuts: in the pause just outside this part's own words, keeping 3/4 of it, so whatever comes before or
+            // after is left out even when the transcription missed it (a context line not heard at all). The pause is
+            // looked for near the edge words only, not past the neighbours' words. Without one, in the quietest stretch
+            // between this part and the nearest heard one (the file's ends where there is none).
             var prev = Enumerable.Range(0, m.Part).Reverse().Select(i => spans[i]).FirstOrDefault(s => s != null);
             var next = Enumerable.Range(m.Part + 1, ranges.Count - m.Part - 1).Select(i => spans[i]).FirstOrDefault(s => s != null);
-            var start = prev is { } p ? (p.End + span.Start) / 2 : 0;
-            var end = next is { } n ? (span.End + n.Start) / 2 : durationMs;
+            var before = levels.LongestPause(Math.Max(prev?.LastWordStart ?? 0, span.Start - FrameLevels.PauseSearchMs),
+                span.FirstWordEnd, span.Start);
+            var after = levels.LongestPause(span.LastWordStart,
+                Math.Min(next?.FirstWordEnd ?? durationMs, span.End + FrameLevels.PauseSearchMs), span.End);
+            var start = before is { } b ? b.Start + (b.End - b.Start) / 4 : prev is { } p ? levels.CutBetween(p, span) : 0;
+            var end = after is { } a ? a.Start + (a.End - a.Start) * 3 / 4 : next is { } n ? levels.CutBetween(span, n) : durationMs;
             if (prev is { } p2 && p2.End > span.Start || next is { } n2 && span.End > n2.Start || end <= start)
             {
                 Host.Log.LogInformation("Not cutting out \"{Text}\": its words overlap a neighbour's", m.Text);
@@ -484,8 +493,10 @@ public sealed partial class ProjectEngine
             var info = SaveMemberTake(generation, tag, m, audio, start, end, fusion);
 
             // Its share of the transcript, timed from the start of its own file, saved as its transcription.
-            var mine = heard.Where(w => w.StartMs >= start && w.EndMs <= end)
-                .Select(w => w with { StartMs = w.StartMs - start, EndMs = w.EndMs - start }).ToList();
+            // A word belongs where its middle is: Parakeet runs a word's end on into the pause after it, and can start the
+            // next line's first word early, in that pause, before the cut. Its times are kept within the take.
+            var mine = heard.Where(w => (w.StartMs + w.EndMs) / 2 >= start && (w.StartMs + w.EndMs) / 2 < end)
+                .Select(w => w with { StartMs = Math.Max(w.StartMs, start) - start, EndMs = Math.Min(w.EndMs, end) - start }).ToList();
             new StoredTranscript { Worker = job.WorkerId, Language = transcript.Language, Words = mine }
                 .Save(Paths.TakeTranscript(m.ItemId, info.Take));
             var own2 = TranscriptCheck.Compare(m.Text, mine);
@@ -644,6 +655,112 @@ public sealed partial class ProjectEngine
         if (job != null) { outcome.FollowUps.Add(job); return; }
         item.LastError = error ?? "Could not be generated.";
         outcome.Failed.Add(item);
+    }
+
+    /// <summary>
+    /// Where a part's heard words are: from its first word's start to its last word's end, with its last word's start and
+    /// its first word's end (how far a cut next to it may reach in).
+    /// </summary>
+    private sealed record HeardSpan(int Start, int End, int LastWordStart, int FirstWordEnd);
+
+    /// <summary>
+    /// The loudness of a fused generation in 10 ms frames, for putting a cut in the pause between two parts. Word times
+    /// from transcription are rough: Parakeet works in 80 ms steps and runs a word's end on to the next word's start, so
+    /// halfway between them can land in a word.
+    /// </summary>
+    private sealed class FrameLevels
+    {
+        private const int FrameMs = 10;
+        private readonly float[] _rms;
+        private readonly float _quiet;
+
+        public FrameLevels(DecodedAudio audio)
+        {
+            var perFrame = Math.Max(1, audio.SampleRate * FrameMs / 1000) * audio.Channels;
+            _rms = new float[(audio.Samples.Length + perFrame - 1) / perFrame];
+            for (var f = 0; f < _rms.Length; f++)
+            {
+                double sum = 0;
+                var end = Math.Min(audio.Samples.Length, (f + 1) * perFrame);
+                for (var i = f * perFrame; i < end; i++) sum += audio.Samples[i] * audio.Samples[i];
+                _rms[f] = (float)Math.Sqrt(sum / Math.Max(1, end - f * perFrame));
+            }
+            // Quiet: 20 dB below the speech (its loud frames), and never below digital silence.
+            var sorted = _rms.Order().ToArray();
+            var speech = sorted.Length == 0 ? 0 : sorted[(int)(sorted.Length * 0.9)];
+            _quiet = Math.Max(speech * 0.1f, 1e-4f);
+        }
+
+        /// <summary>Shorter quiet stretches are within speech (a stop consonant, a breath), not a pause between lines.</summary>
+        private const int MinPauseFrames = 120 / FrameMs;
+
+        private bool Quiet(int frame) => _rms[frame] < _quiet;
+
+        /// <summary>How far from a part's edge word its pause is looked for: word times can be off by half a second.</summary>
+        public const int PauseSearchMs = 2000;
+
+        /// <summary>
+        /// The longest pause (quiet for at least 120 ms) that reaches into <paramref name="fromMs"/>–<paramref name="toMs"/>,
+        /// whole (it may extend past them); of two as long, the one nearer <paramref name="nearMs"/>. Null when there is none.
+        /// The longest rather than the nearest: a line's pause is longer than the gaps within it, and the word times that
+        /// say where the line starts can be off.
+        /// </summary>
+        public (int Start, int End)? LongestPause(int fromMs, int toMs, int nearMs)
+        {
+            if (_rms.Length == 0) return null;
+            var to = Math.Clamp(toMs / FrameMs, 0, _rms.Length - 1);
+            (int Start, int End)? best = null;
+            for (var f = Math.Clamp(fromMs / FrameMs, 0, _rms.Length - 1); f <= to; f++)
+            {
+                if (!Quiet(f)) continue;
+                var (start, end) = Run(f);
+                f = end;
+                if (end - start < MinPauseFrames) continue;
+                var run = (start * FrameMs, end * FrameMs);
+                if (best is not { } b || end - start > (b.End - b.Start) / FrameMs
+                    || end - start == (b.End - b.Start) / FrameMs && Distance(run, nearMs) < Distance(b, nearMs))
+                    best = run;
+            }
+            return best;
+        }
+
+        private static int Distance((int Start, int End) run, int ms) =>
+            ms < run.Start ? run.Start - ms : ms > run.End ? ms - run.End : 0;
+
+        /// <summary>The quiet frames around <paramref name="frame"/> (a quiet one): first, and one past the last.</summary>
+        private (int Start, int End) Run(int frame)
+        {
+            var start = frame;
+            while (start > 0 && Quiet(start - 1)) start--;
+            var end = frame + 1;
+            while (end < _rms.Length && Quiet(end)) end++;
+            return (start, end);
+        }
+
+        /// <summary>
+        /// The cut between part <paramref name="a"/> and the following part <paramref name="b"/>: the middle of the
+        /// longest quiet stretch from <paramref name="a"/>'s last word's start to <paramref name="b"/>'s first word's end
+        /// (the nearer to halfway between their words, of two as long), or halfway when there is no quiet at all.
+        /// </summary>
+        public int CutBetween(HeardSpan a, HeardSpan b)
+        {
+            var halfway = (a.End + b.Start) / 2;
+            var from = Math.Clamp(Math.Min(a.LastWordStart, halfway) / FrameMs, 0, _rms.Length);
+            var to = Math.Clamp(Math.Max(b.FirstWordEnd, halfway) / FrameMs, from, _rms.Length);
+            (int Start, int Length) best = (-1, 0);
+            for (var f = from; f < to;)
+            {
+                if (_rms[f] >= _quiet) { f++; continue; }
+                var run = f;
+                while (f < to && _rms[f] < _quiet) f++;
+                var length = f - run;
+                var middle = (run + f) * FrameMs / 2;
+                if (length > best.Length || length == best.Length
+                    && Math.Abs(middle - halfway) < Math.Abs((best.Start * 2 + best.Length) * FrameMs / 2 - halfway))
+                    best = (run, length);
+            }
+            return best.Start < 0 ? halfway : (best.Start * 2 + best.Length) * FrameMs / 2;
+        }
     }
 
     /// <summary>What a fused generation may still take in: its voices so far and how many it may have, its characters.</summary>

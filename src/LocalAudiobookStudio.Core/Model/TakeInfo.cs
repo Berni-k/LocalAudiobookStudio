@@ -85,7 +85,7 @@ public sealed class FusionRecord
     /// <summary>The settings all parts shared (for a worker that doesn't fuse: the segment's settings).</summary>
     public System.Text.Json.Nodes.JsonObject Settings { get; set; } = new();
 
-    /// <summary>For a worker that doesn't fuse: the one text it was sent, context and segment in a row.</summary>
+    /// <summary>For a worker that doesn't fuse: the one text it was sent, context and segment as paragraphs.</summary>
     public string? RequestText { get; set; }
 
     public List<FusionRecordPart> Parts { get; set; } = [];
