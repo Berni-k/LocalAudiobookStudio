@@ -116,7 +116,7 @@ class MmsFaWorker:
         report(1.0, "Ready")
         log(f"MMS forced aligner loaded on {self.device}, providers {self.session.get_providers()}")
 
-    def transcribe(self, req, report):
+    def align(self, req, report):
         if not (req.text or "").strip():
             raise ValueError("this worker aligns a known text: the request has none")
         audio = read_wav(req.audio_path)

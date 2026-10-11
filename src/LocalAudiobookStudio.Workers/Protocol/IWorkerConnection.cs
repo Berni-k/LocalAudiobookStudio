@@ -37,7 +37,8 @@ public interface IWorkerConnection : IAsyncDisposable
     Task<GenerateResult> GenerateAsync(GenerateRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);
 
     /// <summary>
-    /// Transcribes (or aligns) one audio file, for workers tagged Transcription or Alignment. Cancelling works as
+    /// Listens to one audio file as <see cref="TranscribeRequest.Mode"/> says (transcribe, align or both), for workers tagged
+    /// Transcription or Alignment. Words of a text-only transcription come without times (0). Cancelling works as
     /// for <see cref="GenerateAsync"/>.
     /// </summary>
     Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);

@@ -5,7 +5,8 @@ using System.Text.RegularExpressions;
 namespace LocalAudiobookStudio.Core.Transcripts;
 
 /// <summary>A word a transcription worker heard, with where it is in the audio.</summary>
-public sealed record HeardWord(string Text, int StartMs, int EndMs, double? Confidence = null);
+/// <param name="Speaker">Who said it, when the transcription worker tells voices apart (Multi-speaker): its own label ("S0").</param>
+public sealed record HeardWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null);
 
 public enum WordMatch
 {

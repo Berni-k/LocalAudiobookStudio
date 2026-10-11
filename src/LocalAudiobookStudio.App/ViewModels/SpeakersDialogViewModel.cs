@@ -357,12 +357,17 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     /// them. Only shown when there is a transcription worker (else <see cref="ContextSplitError"/>).
     /// </summary>
     public string? ContextSplitWarning =>
-        NeedsTranscription && HasTranscriber ? $"{Worker!.DisplayName} doesn't time the segments, so transcription separates them." : null;
+        NeedsTranscription && TranscriberTimesWords ? $"{Worker!.DisplayName} doesn't time the segments, so transcription separates them." : null;
 
-    /// <summary>Transcription would have to separate the segments, and there is no transcription worker.</summary>
-    public string? ContextSplitError => NeedsTranscription && !HasTranscriber
-        ? "No transcription worker is set, so the segments can't be separated: context and batching are ignored."
-        : null;
+    /// <summary>
+    /// Transcription would have to separate the segments, and there is no transcription worker, or one that can't time
+    /// words (not tagged Alignment).
+    /// </summary>
+    public string? ContextSplitError => !NeedsTranscription || TranscriberTimesWords ? null
+        : HasTranscriber ? $"{Transcriber!.DisplayName} doesn't time words, so the segments can't be separated: context and batching are ignored."
+        : "No transcription worker is set, so the segments can't be separated: context and batching are ignored.";
+
+    private bool TranscriberTimesWords => HasTranscriber && Transcriber!.CanAlign;
 
     /// <summary>Context or batching is on, and the worker doesn't say where the segments are (a worker that doesn't fuse never does).</summary>
     private bool NeedsTranscription =>

@@ -69,15 +69,16 @@ internal sealed class WhisperEngine : EngineBase
         Protocol.Send("ready", id);
     }
 
-    public override Task TranscribeAsync(string? id, JsonObject msg)
+    public override Task ListenAsync(string? id, JsonObject msg, ListenMode mode)
     {
+        RequireHearing(mode);
         var factory = _factory ?? throw new InvalidOperationException("the model isn't loaded");
         var language = LanguageOf(msg);
         var threads = int.TryParse(Environment.GetEnvironmentVariable("LAS_CPU_THREADS"), out var t) && t > 0
             ? t
             : Math.Max(1, Environment.ProcessorCount / 2);
         // Whisper invents text over silence now and then: words heard in silence are dropped.
-        return TranscribeInPiecesAsync(id, msg, MinPieceSec, MaxPieceSec, dropSilentWords: true, async (piece, offsetMs, ct) =>
+        return TranscribeInPiecesAsync(id, msg, mode, MinPieceSec, MaxPieceSec, dropSilentWords: true, async (piece, offsetMs, ct) =>
         {
             var builder = factory.CreateBuilder()
                 .WithLanguage(language ?? "auto")

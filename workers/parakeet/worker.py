@@ -87,7 +87,7 @@ class ParakeetWorker:
         report(1.0, "Ready")
         log(f"Parakeet ({self.precision}) loaded on {self.device}, providers {self.asr._encoder.get_providers()}")
 
-    def transcribe(self, req, report):
+    def transcribe_align(self, req, report):
         audio = read_wav(req.audio_path)
         pieces = quiet_pieces(audio, MIN_CHUNK_SEC, MAX_CHUNK_SEC)
         words = []

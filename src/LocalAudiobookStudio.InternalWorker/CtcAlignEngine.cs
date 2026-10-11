@@ -66,11 +66,13 @@ internal sealed class CtcAlignEngine(EngineContext context) : EngineBase(context
         Protocol.Send("ready", id);
     }
 
-    public override Task TranscribeAsync(string? id, JsonObject msg)
+    public override Task ListenAsync(string? id, JsonObject msg, ListenMode mode)
     {
+        if (mode != ListenMode.Align)
+            throw new NotSupportedException("this worker doesn't hear words: it only aligns a known text (an align request)");
         var text = (string?)msg["text"];
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("this worker aligns a known text: the request has none");
-        var path = (string?)msg["audioPath"] ?? throw new ArgumentException("transcribe request has no audioPath");
+        var path = (string?)msg["audioPath"] ?? throw new ArgumentException("the align request has no audioPath");
         using var request = Begin(id);
         var audio = AudioPieces.ReadWav(path);
         var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);

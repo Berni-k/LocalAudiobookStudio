@@ -61,10 +61,13 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
         Protocol.Send("ready", id);
     }
 
-    public override Task TranscribeAsync(string? id, JsonObject msg) =>
+    public override Task ListenAsync(string? id, JsonObject msg, ListenMode mode)
+    {
+        RequireHearing(mode);
         // A transducer only writes what it hears: no silence check, which could only lose real words.
-        TranscribeInPiecesAsync(id, msg, MinPieceSec, MaxPieceSec, dropSilentWords: false, (piece, offsetMs, ct) =>
+        return TranscribeInPiecesAsync(id, msg, mode, MinPieceSec, MaxPieceSec, dropSilentWords: false, (piece, offsetMs, ct) =>
             Task.FromResult<(IEnumerable<HeardWord>, string?)>((Recognize(piece, offsetMs, ct), null)));
+    }
 
     /// <summary>Words of one piece, with times in the whole file.</summary>
     private List<HeardWord> Recognize(float[] audio, long offsetMs, CancellationToken ct)

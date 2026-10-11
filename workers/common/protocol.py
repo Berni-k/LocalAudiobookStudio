@@ -1,10 +1,19 @@
 """Shared worker protocol helper (protocol version 2).
 
 A worker only implements ``load(report)`` and ``generate(req, report)`` (and optionally
-``prepare(report)``: download the model files before ``load`` reads them). A transcription worker
-(tagged Transcription or Alignment) implements ``transcribe(req, report)`` instead of ``generate``:
-``req.audio_path`` is a 16 kHz mono 16-bit WAV, ``req.text`` the text it should contain (if known), and
-it returns ``{"text", "words": [{"text", "startMs", "endMs", "confidence"}], "language"}``.
+``prepare(report)``: download the model files before ``load`` reads them). A worker that listens instead of
+generating implements what its tags say, in place of ``generate`` (``req.audio_path`` is a 16 kHz mono 16-bit WAV,
+``req.text`` the text it should contain, if known):
+
+- tag Transcription: ``transcribe(req, report)`` returns ``{"text", "language"}``, the words heard;
+- tag Alignment: ``align(req, report)`` returns ``{"words": [{"text", "startMs", "endMs", "confidence"}]}``, the times
+  of ``req.text``'s words (it needs the text, and doesn't check that they were said);
+- both tags: ``transcribe_align(req, report)`` returns ``{"text", "words", "language"}``, the words heard with their
+  times. A ``transcribe`` request goes to it when there is no ``transcribe`` (its words are dropped).
+
+A worker tagged Multi-speaker tells voices apart: each word it returns may have a ``"speaker"``, any label it likes
+("S0", "S1"), the same for one voice within the transcript. ``req.speakers`` (names, in the order they first speak)
+and ``req.speaker_count`` say who and how many, when the app knows; a hint that any worker may ignore.
 
 A worker whose manifest declares ``fusion`` also implements ``generate_parts(req, report)``: ``req.parts`` is a
 list of :class:`Part` (segments to generate, and lines of context around them), ``req.settings`` the settings they
@@ -93,6 +102,8 @@ class Request:
     final_path: str = ""        # the path the app asked for
     audio_path: str = ""        # transcribe: the audio to listen to (16 kHz mono 16-bit WAV)
     parts: list = field(default_factory=list)  # a fused generation's parts (list of Part), in order
+    speakers: list = field(default_factory=list)  # listening: who may be speaking (names, in order), when known; a hint
+    speaker_count: Optional[int] = None  # listening: how many voices there are, when known; a hint
     cancelled: bool = False
 
 
@@ -419,8 +430,8 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 send({"type": "ready", "id": mid})
             elif mtype == "generate":
                 _handle_generate(worker, msg, current)
-            elif mtype == "transcribe":
-                _handle_transcribe(worker, msg, current)
+            elif mtype in ("transcribe", "align", "transcribeAlign"):
+                _handle_listen(worker, mtype, msg, current)
             elif mtype == "listVoices":
                 voices = worker.list_voices() if hasattr(worker, "list_voices") else []
                 send({"type": "voices", "id": mid, "voices": voices})
@@ -540,9 +551,20 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
     send(done)
 
 
-def _handle_transcribe(worker: Any, msg: dict, current: dict) -> None:
-    if not hasattr(worker, "transcribe"):
-        raise RuntimeError("this worker doesn't transcribe audio")
+def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
+    """``transcribe`` (the words heard), ``align`` (the times of a known text's words) or ``transcribeAlign`` (both),
+    each answered with a ``transcript``."""
+    if mtype == "transcribe":
+        method = getattr(worker, "transcribe", None) or getattr(worker, "transcribe_align", None)
+        missing = "doesn't transcribe audio (tag Transcription)"
+    elif mtype == "align":
+        method = getattr(worker, "align", None)
+        missing = "doesn't align a known text (tag Alignment alone)"
+    else:
+        method = getattr(worker, "transcribe_align", None)
+        missing = "doesn't time the words it hears (tags Transcription and Alignment)"
+    if method is None:
+        raise RuntimeError(f"this worker {missing}")
     audio_path = msg.get("audioPath") or ""
     if not os.path.isfile(audio_path):
         raise FileNotFoundError(f"no audio at {audio_path}")
@@ -551,17 +573,24 @@ def _handle_transcribe(worker: Any, msg: dict, current: dict) -> None:
         text=msg.get("text"),
         settings=msg.get("settings") or {},
         audio_path=audio_path,
+        speakers=list(msg.get("speakers") or []),
+        speaker_count=msg.get("speakerCount"),
     )
+    if mtype == "align" and not (req.text or "").strip():
+        raise ValueError("an align request needs the text to align")
     current["request"] = req
-    result = worker.transcribe(req, _make_reporter(req.id, req)) or {}
+    result = method(req, _make_reporter(req.id, req)) or {}
     if req.cancelled:
         raise Cancelled()
+    if mtype == "transcribe":
+        result = dict(result, words=[])  # text only, as asked
     words = [
         {
             "text": str(w["text"]),
             "startMs": int(w["startMs"]),
             "endMs": int(w["endMs"]),
             **({"confidence": float(w["confidence"])} if w.get("confidence") is not None else {}),
+            **({"speaker": str(w["speaker"])} if w.get("speaker") is not None else {}),
         }
         for w in result.get("words") or []
     ]

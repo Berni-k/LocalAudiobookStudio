@@ -14,8 +14,8 @@ The built-in runtime uses the same graphs (plus the export's `nemo128.onnx` mel 
 Kokoro clips (5.8, 22 and 64 s), 8-bit model, 12-core CPU: built-in 1.1 s for 22 s of speech and 3.0 s for 64 s, all
 three clips in 7.8 s including start-up; `onnx-cuda` on an RTX 3090 took 11.6 s (the 8-bit model gains little on the GPU).
 
-- A transcription worker (tag `Transcription`): it answers `transcribe` requests, not `generate`. It hears the words
-  in a take and when each starts and ends; the app compares them with the segment's text.
+- Tagged `Transcription` and `Alignment`: it answers `transcribeAlign` (and `transcribe`), not `generate`. It hears
+  the words in a take and when each starts and ends; the app compares them with the segment's text.
 - 25 European languages; the model detects the language itself (it doesn't report which), so it has no
   language setting. Punctuation and capitals come out as the model writes them.
 - Word timings: a TDT model predicts each token's start frame and how many frames it lasts (80 ms frames). onnx-asr's

@@ -65,7 +65,7 @@ class WhisperWorker:
         report(1.0, "Ready")
         log(f"Whisper {self.model_key} loaded on {device}")
 
-    def transcribe(self, req, report):
+    def transcribe_align(self, req, report):
         import numpy as np
 
         audio = read_wav(req.audio_path)

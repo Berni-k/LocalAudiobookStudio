@@ -195,9 +195,11 @@ public sealed partial class ProjectEngine
         var settings = MergeSettings(speaker.Settings, item.SettingsOverride, manifest);
         if (manifest.UnsupportedChoice(settings) != null) return null;
 
+        // Cutting by transcription needs word times: a worker tagged Alignment (it hears and times the words, or with
+        // Alignment alone, times the parts' known text). One that only transcribes can't say where the parts are.
         string? transcriber = null;
         var transcriberSettings = new JsonObject();
-        if (!string.IsNullOrEmpty(speaker.Transcriber) && Catalog.Get(speaker.Transcriber) is { IsTranscriber: true } t
+        if (!string.IsNullOrEmpty(speaker.Transcriber) && Catalog.Get(speaker.Transcriber) is { CanAlign: true } t
             && Host.WhyWorkerCannotRun(t.Id) == null)
         {
             transcriber = t.Id;
@@ -439,7 +441,7 @@ public sealed partial class ProjectEngine
         var ranges = new List<(int Start, int End)>();
         var at = 0;
         foreach (var t in tag.PartTexts) { ranges.Add((at, at + t.Length)); at += t.Length + 1; }
-        var heard = transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence)).ToList();
+        var heard = Transcription.Heard(transcript);
         tag.Transcript = heard;
         var check = TranscriptCheck.Compare(joined, heard);
         var words = ranges.Select(r => check.Words.Where(w => w.TextStart >= r.Start && w.TextStart < r.End).ToList()).ToList();
@@ -642,9 +644,24 @@ public sealed partial class ProjectEngine
         ReadingOrder = fused.ReadingOrder,
         Label = $"{fused.Label}: finding the segments",
         Tag = new SplitJobTag(tag),
-        Transcribe = new TranscribeRequest { AudioPath = tag.TranscriptWav!, Text = string.Join("\n", tag.PartTexts), Settings = tag.TranscriberSettings },
+        Transcribe = new TranscribeRequest
+        {
+            // An aligner times the parts' text as given; one that also transcribes says what it heard, which is how a
+            // part that wasn't said shows.
+            Mode = Catalog.Get(tag.Transcriber!)?.ListenMode ?? ListenMode.TranscribeAlign,
+            AudioPath = tag.TranscriptWav!,
+            Text = string.Join("\n", tag.PartTexts),
+            Settings = tag.TranscriberSettings,
+            Speakers = Voices(tag),
+            SpeakerCount = Voices(tag).Count,
+        },
         AfterRun = CutByTranscript,
     };
+
+    /// <summary>The voices of a fused generation by name, in the order they first speak (a hint for the transcription).</summary>
+    private List<string> Voices(FusedJobTag tag) =>
+        tag.Parts.Select(p => p.Speaker).Distinct()
+            .Select(id => Project.FindSpeaker(id)?.DisplayName is { Length: > 0 } name ? name : id).ToList();
 
     /// <summary>A member generated again on its own, without context; or failed, when it can't be queued.</summary>
     private void Fallback(Guid itemId, JobPriority priority, FusionOutcome outcome)

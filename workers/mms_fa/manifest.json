@@ -1,7 +1,7 @@
 {
   "id": "mms_fa",
   "displayName": "MMS forced aligner",
-  "description": "Aligns speech to a known text with letter accuracy. Only knows the letters a to z (accents are dropped); numbers and other scripts get no timing. Does not check that the text is correct. Non-commercial license (CC-BY-NC).",
+  "description": "Aligns speech to a known text with letter accuracy. Supports over 1,100 languages using the letters a to z (accents are dropped); numbers and other scripts get no timing. Does not check that the text is correct. Non-commercial license (CC-BY-NC).",
   "tags": ["Alignment"],
   "priority": 40,
   "runtimeOrder": ["internal", "onnx", "onnx-cuda"],

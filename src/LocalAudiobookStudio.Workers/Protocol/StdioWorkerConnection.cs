@@ -177,13 +177,25 @@ public sealed class StdioWorkerConnection : IWorkerConnection
     {
         var msg = new WorkerMessage
         {
-            Type = MessageTypes.Transcribe,
+            Type = request.Mode switch
+            {
+                ListenMode.Transcribe => MessageTypes.Transcribe,
+                ListenMode.Align => MessageTypes.Align,
+                _ => MessageTypes.TranscribeAlign,
+            },
             AudioPath = request.AudioPath,
             Text = request.Text,
             Settings = request.Settings,
+            Speakers = request.Speakers?.ToList(),
+            SpeakerCount = request.SpeakerCount,
         };
         var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
-        return new TranscriptResult(reply.Text ?? "", reply.Words ?? [], reply.Language);
+        var text = reply.Text ?? "";
+        // Text only: its words without times (all at 0), so it can still be compared with the text it should be.
+        var words = request.Mode == ListenMode.Transcribe || reply.Words == null
+            ? text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new TranscriptWord(w, 0, 0)).ToList()
+            : reply.Words;
+        return new TranscriptResult(text, words, reply.Language);
     }
 
     public async Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct)

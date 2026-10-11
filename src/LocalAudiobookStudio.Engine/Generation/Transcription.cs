@@ -27,9 +27,16 @@ public static class Transcription
         AudioDecoder.WriteWav(mono.SampleRate == SampleRate ? mono : AudioDecoder.Resample(mono, SampleRate), wavPath);
     }
 
-    /// <summary>A job that transcribes <paramref name="wavPath"/> (prepared with <see cref="PrepareAudio"/>).</summary>
+    /// <summary>
+    /// A job that listens to <paramref name="wavPath"/> (prepared with <see cref="PrepareAudio"/>), asking the worker for
+    /// as much as it can do (<see cref="WorkerManifest.ListenMode"/>): the words heard with their times when it is tagged
+    /// both Transcription and Alignment. <paramref name="mode"/> asks for less (a text-only transcription).
+    /// </summary>
+    /// <param name="speakers">Who may be speaking, in order, when known: a hint for workers that tell voices apart.</param>
+    /// <param name="speakerCount">How many voices there are, when known (else the number of <paramref name="speakers"/>).</param>
     public static GenerationJob Job(WorkerManifest worker, string wavPath, string? expectedText, JsonObject settings,
-        string label, JobPriority priority, object? tag = null, long readingOrder = 0) =>
+        string label, JobPriority priority, object? tag = null, long readingOrder = 0, ListenMode? mode = null,
+        IReadOnlyList<string>? speakers = null, int? speakerCount = null) =>
         new()
         {
             WorkerId = worker.Id,
@@ -37,9 +44,21 @@ public static class Transcription
             ReadingOrder = readingOrder,
             Label = label,
             Tag = tag,
-            Transcribe = new TranscribeRequest { AudioPath = wavPath, Text = expectedText, Settings = settings },
+            Transcribe = new TranscribeRequest
+            {
+                Mode = mode ?? worker.ListenMode,
+                AudioPath = wavPath,
+                Text = expectedText,
+                Settings = settings,
+                Speakers = speakers,
+                SpeakerCount = speakerCount ?? speakers?.Count,
+            },
         };
 
     public static TranscriptCheck Check(string expectedText, TranscriptResult transcript) =>
-        TranscriptCheck.Compare(expectedText, transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence)).ToList());
+        TranscriptCheck.Compare(expectedText, Heard(transcript));
+
+    /// <summary>A transcript's words as stored and compared (with who said each, when the worker says).</summary>
+    public static List<HeardWord> Heard(TranscriptResult transcript) =>
+        transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence, w.Speaker)).ToList();
 }

@@ -5,6 +5,7 @@ using LocalAudiobookStudio.Core.Settings;
 using LocalAudiobookStudio.Engine.Hosting;
 using LocalAudiobookStudio.Engine.Projects;
 using LocalAudiobookStudio.Workers.Environments;
+using LocalAudiobookStudio.Workers.Protocol;
 
 namespace LocalAudiobookStudio.Cli.Commands;
 
@@ -56,6 +57,7 @@ public static class InfoCommands
             length = m.LengthMode,
             voices = m.VoiceSetting?.Options,
             transcribes = m.IsTranscriber,
+            listens = m.IsTranscriber ? m.ListenMode.ToString() : null,
             settings = m.Settings.Select(s => new
             {
                 key = s.Key,
@@ -76,7 +78,12 @@ public static class InfoCommands
         if (info.whyNotReady != null) ctx.Out("  " + info.whyNotReady);
         if (!string.IsNullOrEmpty(m.Description)) ctx.Out("  " + m.Description);
         if (m.IsTranscriber)
-            ctx.Out($"  transcribes audio (las transcribe -w {m.Id})");
+            ctx.Out(m.ListenMode switch
+            {
+                ListenMode.TranscribeAlign => $"  hears words and their times: transcribe-align, or transcribe (las transcribe -w {m.Id})",
+                ListenMode.Align => $"  times the words of a given text: align (las transcribe -w {m.Id} -t \"…\")",
+                _ => $"  hears words, without times: transcribe (las transcribe -w {m.Id})",
+            } + (m.TellsSpeakers ? "; says who said each word" : ""));
         else
             ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
         if (m.Settings.Count > 0) ctx.Out("  settings (--set key=value):");

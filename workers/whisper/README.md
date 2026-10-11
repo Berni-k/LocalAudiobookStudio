@@ -8,7 +8,8 @@ OpenAI's [Whisper](https://github.com/openai/whisper) (MIT) for transcription, o
 | `internal-gpu` ("Internal (whisper.cpp GPU)") | The same engine with whisper.cpp's Vulkan build and the CUDA build for the installed CUDA 12 or 13 toolkit, downloaded on install (`InternalGpuRuntime.cs`: 37 MB for Vulkan, plus 143 MB for CUDA 13 or 250 MB for CUDA 12). cudart and cuBLAS come from the toolkit on the PATH. | the same files; large-v3 turbo by default |
 | `python` | [transformers](https://github.com/huggingface/transformers)' speech recognition pipeline (`worker.py`), PyTorch environment | the original checkpoints |
 
-- A transcription worker (tag `Transcription`): it answers `transcribe` requests, not `generate`.
+- Tagged `Transcription` and `Alignment`: it answers `transcribeAlign` (the words heard with their times) and
+  `transcribe` (text only), not `generate`.
 - About 100 languages. The speaker setting **Language** (`las transcribe --set language=de`) is used when set;
   with Auto, Whisper detects it and reports it.
 - Word timings come from dynamic time warping over the model's alignment heads (both runtimes). whisper.cpp's DTW time

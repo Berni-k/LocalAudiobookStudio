@@ -57,6 +57,27 @@ public class ProtocolJsonTests
     }
 
     [Fact]
+    public void TranscriptsCarryWhoSaidEachWord()
+    {
+        var request = WorkersJson.Serialize(new WorkerMessage
+        {
+            Type = MessageTypes.TranscribeAlign,
+            Id = "t1",
+            AudioPath = @"C:\x\a.wav",
+            Speakers = ["Alice", "Bob"],
+            SpeakerCount = 2,
+        });
+        Assert.Contains("\"type\":\"transcribeAlign\"", request);
+        Assert.Contains("\"speakers\":[\"Alice\",\"Bob\"],\"speakerCount\":2", request);
+
+        var reply = WorkersJson.Deserialize<WorkerMessage>(
+            "{\"type\": \"transcript\", \"id\": \"t1\", \"text\": \"hi there\", \"words\": [" +
+            "{\"text\": \"hi\", \"startMs\": 0, \"endMs\": 300, \"speaker\": \"S0\"}, {\"text\": \"there\", \"startMs\": 400, \"endMs\": 700}]}");
+        Assert.Equal("S0", reply.Words![0].Speaker);
+        Assert.Null(reply.Words[1].Speaker);
+    }
+
+    [Fact]
     public void ParsesDoneMessage()
     {
         var m = WorkersJson.Deserialize<WorkerMessage>(

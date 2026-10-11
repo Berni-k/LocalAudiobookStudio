@@ -66,8 +66,12 @@ internal sealed class FusionConnection(string workerId) : IWorkerConnection
         return Task.FromResult(new GenerateResult(request.OutPath, duration, 1, 24000, WorkerId == "duo" ? spans : null));
     }
 
+    /// <summary>What the transcription workers were asked.</summary>
+    public static readonly List<TranscribeRequest> Listens = [];
+
     public Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
     {
+        lock (Listens) Listens.Add(request);
         var words = new List<TranscriptWord>();
         var at = 0;
         foreach (var part in (request.Text ?? "").Split('\n'))
@@ -124,8 +128,11 @@ public sealed class FusionTests : IAsyncDisposable
         Worker("duet", $$"""{{Fusing}}, "fusion": { "speakers": 3, "context": ["text"] }""");
         Worker("picky", $$"""{{Fusing}}, "fusion": { "speakers": 3, "context": ["text"], "spans": true }""");
         Worker("tone", """ "envGroup": "basic", "modelVersion": "v1" """);
-        Worker("listen", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription"] """);
+        Worker("listen", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Alignment"] """);
+        Worker("aligner", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Alignment"] """);
+        Worker("hearer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription"] """);
         lock (FusionConnection.Requests) FusionConnection.Requests.Clear();
+        lock (FusionConnection.Listens) FusionConnection.Listens.Clear();
         _scheduler = new GenerationScheduler((w, _) => new FusionConnection(w), _ => WorkerHosting.AnyLocal);
         _scheduler.ConfigureDevices([new DeviceConfig { Kind = DeviceKind.Gpu, GpuIndex = 0, Name = "GPU 0", MaxActive = 2 }]);
         _host = StudioHost.CreateForTests(new WorkerCatalog(root), _scheduler);
@@ -397,6 +404,35 @@ public sealed class FusionTests : IAsyncDisposable
         Assert.Null(second.Parts[1].Take);
         Assert.Contains("wasn't heard", second.Parts[1].Note);
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(p.Project.Paths.CacheDir, "fused")));
+    }
+
+    [Fact]
+    public async Task AnAlignerCutsByTheKnownTextAndATextOnlyTranscriberCant()
+    {
+        // Tagged Alignment alone: asked to align the parts' text, which is all cutting needs.
+        using (var p = await Open("duet", transcriber: "aligner"))
+        {
+            await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+            Assert.Equal(TakeFusion.Transcript, p.Engine.Takes.Selected(Lines(p)[0])!.Fusion!.Split);
+            lock (FusionConnection.Listens)
+            {
+                Assert.All(FusionConnection.Listens, l => Assert.Equal(ListenMode.Align, l.Mode));
+                // Who speaks in the first batch, in order: a hint for workers that tell voices apart.
+                Assert.Contains(FusionConnection.Listens, l => l.Speakers is ["narrator", "anna", "ben"] && l.SpeakerCount == 3);
+            }
+        }
+
+        // Tagged Transcription alone: no word times, so nothing is fused for it to cut.
+        using var q = await Open("duet", transcriber: "hearer");
+        Assert.All(q.Engine.BuildJobs(Lines(q), JobPriority.Normal, []), j => Assert.Null(j.Members));
+    }
+
+    [Fact]
+    public void TagsSayWhatAWorkerIsAskedFor()
+    {
+        Assert.Equal(ListenMode.TranscribeAlign, _host.Catalog.Get("listen")!.ListenMode);
+        Assert.Equal(ListenMode.Align, _host.Catalog.Get("aligner")!.ListenMode);
+        Assert.Equal(ListenMode.Transcribe, _host.Catalog.Get("hearer")!.ListenMode);
     }
 
     [Fact]

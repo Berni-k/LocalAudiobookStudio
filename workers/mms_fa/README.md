@@ -13,8 +13,8 @@ CC-BY-NC 4.0: non-commercial. Three runtimes, as for Parakeet:
 
 Both implementations use the same model and algorithm and, on the same audio, give the same times.
 
-- An alignment worker (tag `Alignment`): it is given a text with the audio and finds when each word is spoken; it
-  doesn't hear what is said. Use it where the text is known (a take of a segment) and the words don't need checking.
+- An alignment worker (tag `Alignment` alone): it answers `align` requests. It is given a text with the audio and
+  finds when each word is spoken; it doesn't hear what is said. Use it where the text is known (a take of a segment) and the words don't need checking.
   On the command line: `las transcribe take.wav -t "the text" -w mms_fa`.
 - Per 20 ms frame the model gives the probability of each letter `a`–`z`, the apostrophe, or "blank"; the Viterbi
   path that spells the text through the frames is the alignment (CTC). A word runs from its first letter's first frame

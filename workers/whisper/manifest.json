@@ -2,7 +2,7 @@
   "id": "whisper",
   "displayName": "Whisper",
   "description": "About 100 languages; the language can be set or detected. Good at niche languages, with close word timings.",
-  "tags": ["Transcription"],
+  "tags": ["Transcription", "Alignment"],
   "priority": 45,
   "runtimeOrder": ["internal", "internal-gpu", "python"],
   "modelVersion": "v1",

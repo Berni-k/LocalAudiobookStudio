@@ -27,6 +27,9 @@ public static class TranscribeCommand
         new("--text", "-t"),
         new("--text-file", "-f"),
         new("--words", HasValue: false),
+        new("--mode"),
+        new("--speakers"),
+        new("--speaker-count"),
         new("--recursive", "-r", HasValue: false),
     ];
 
@@ -49,17 +52,28 @@ public static class TranscribeCommand
 
         var host = await ctx.StartHostAsync();
         var (manifest, settings) = ResolveWorker(ctx, host, a);
-        // An aligner finds the words of a given text: without the text it has nothing to do, and comparing its words
+        var mode = ModeOf(manifest, a.Get("--mode"));
+        // Aligning finds the words of a given text: without the text it has nothing to do, and comparing its words
         // with that text would always "match". What it gives is the timing, so the words are always shown.
-        var aligner = manifest.HasTag(WorkerTags.Alignment) && !manifest.HasTag(WorkerTags.Transcription);
+        var aligner = mode == ListenMode.Align;
         if (aligner && units.Where(u => u.Expected == null).Select(u => Path.GetFileName(u.Audio)).ToList() is { Count: > 0 } missing)
-            throw new UsageException($"transcribe: {manifest.DisplayName} aligns a known text, so it needs the text: give -t or -f " +
+            throw new UsageException($"transcribe: aligning finds the words of a known text, so it needs the text: give -t or -f " +
                                      $"(missing for {string.Join(", ", missing)}).");
+        if (mode == ListenMode.Transcribe && a.Has("--words"))
+            ctx.Info("Text only (--mode transcribe): the words have no times.");
+        // Hints for workers that tell voices apart; any worker may ignore them.
+        var speakers = a.Get("--speakers")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        int? speakerCount = null;
+        if (a.Get("--speaker-count") is { } countText)
+            speakerCount = int.TryParse(countText, out var count) && count > 0
+                ? count
+                : throw new UsageException($"transcribe: --speaker-count is a number of voices, not '{countText}'.");
         var temp = Path.Combine(host.DataRoot.Temp, "las-transcribe-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(temp);
         try
         {
-            return await TranscribeAsync(ctx, host, manifest, settings, a.Has("--words") || aligner, aligner, units, temp);
+            return await TranscribeAsync(ctx, host, manifest, settings, mode, (a.Has("--words") || aligner) && mode != ListenMode.Transcribe,
+                aligner, units, temp, speakers, speakerCount);
         }
         finally
         {
@@ -118,6 +132,39 @@ public static class TranscribeCommand
         }).ToList();
     }
 
+    /// <summary>
+    /// What to ask the worker for: --mode (transcribe, align, transcribe-align), checked against its tags, else the most
+    /// it can do (<see cref="WorkerManifest.ListenMode"/>).
+    /// </summary>
+    private static ListenMode ModeOf(WorkerManifest manifest, string? requested)
+    {
+        if (requested == null) return manifest.ListenMode;
+        var mode = requested.ToLowerInvariant() switch
+        {
+            "transcribe" => ListenMode.Transcribe,
+            "align" => ListenMode.Align,
+            "transcribe-align" or "transcribealign" => ListenMode.TranscribeAlign,
+            _ => throw new UsageException($"transcribe: --mode is transcribe, align or transcribe-align, not '{requested}'."),
+        };
+        var can = mode switch
+        {
+            ListenMode.Transcribe => manifest.CanTranscribe,
+            ListenMode.Align => manifest.ListenMode == ListenMode.Align,
+            _ => manifest.ListenMode == ListenMode.TranscribeAlign,
+        };
+        if (!can)
+            throw new UsageException($"transcribe: {manifest.DisplayName} can't do --mode {requested} (it is tagged {string.Join(", ", manifest.Tags)}; " +
+                                     $"it does {ModeName(manifest.ListenMode)}).");
+        return mode;
+    }
+
+    private static string ModeName(ListenMode mode) => mode switch
+    {
+        ListenMode.Transcribe => "transcribe",
+        ListenMode.Align => "align",
+        _ => "transcribe-align",
+    };
+
     /// <summary>The worker (--worker, else the first installed transcriber) and its settings with the --set overrides.</summary>
     private static (WorkerManifest manifest, JsonObject settings) ResolveWorker(CliContext ctx, StudioHost host, CliArgs a)
     {
@@ -151,7 +198,7 @@ public static class TranscribeCommand
     // ------------------------------------------------------------------ transcribing
 
     private static async Task<int> TranscribeAsync(CliContext ctx, StudioHost host, WorkerManifest manifest, JsonObject settings,
-        bool showWords, bool aligner, List<Unit> units, string temp)
+        ListenMode mode, bool showWords, bool aligner, List<Unit> units, string temp, List<string>? speakers, int? speakerCount)
     {
         var jobs = new List<GenerationJob>();
         var owner = new Dictionary<Guid, Unit>();
@@ -169,7 +216,7 @@ public static class TranscribeCommand
                 continue;
             }
             var job = Transcription.Job(manifest, unit.Wav, unit.Expected, settings, Path.GetFileName(unit.Audio),
-                JobPriority.Normal, tag: "las-transcribe", readingOrder: i);
+                JobPriority.Normal, tag: "las-transcribe", readingOrder: i, mode: mode, speakers: speakers, speakerCount: speakerCount);
             jobs.Add(job);
             owner[job.Id] = unit;
         }
@@ -234,7 +281,7 @@ public static class TranscribeCommand
                 error = u.Error,
                 text = u.Transcript?.Text,
                 language = u.Transcript?.Language,
-                words = u.Transcript?.Words.Select(w => new { text = w.Text, startMs = w.StartMs, endMs = w.EndMs, confidence = Round(w.Confidence) }),
+                words = u.Transcript?.Words.Select(w => new { text = w.Text, startMs = w.StartMs, endMs = w.EndMs, confidence = Round(w.Confidence), speaker = w.Speaker }),
                 check = u.Check is not { } c ? null : new
                 {
                     expectedWords = c.ExpectedCount,
@@ -277,7 +324,7 @@ public static class TranscribeCommand
         ctx.Out(indent + t.Text);
         if (showWords)
             foreach (var w in t.Words)
-                ctx.Out($"{indent}  {Seconds(w.StartMs),7} {Seconds(w.EndMs),7}  {w.Text}{(w.Confidence is { } p ? $"  ({p:0.00})" : "")}");
+                ctx.Out($"{indent}  {Seconds(w.StartMs),7} {Seconds(w.EndMs),7}  {(w.Speaker != null ? $"[{w.Speaker}] " : "")}{w.Text}{(w.Confidence is { } p ? $"  ({p:0.00})" : "")}");
         if (unit.Check is not { } c) return;
         if (c.Errors == 0)
         {

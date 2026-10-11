@@ -158,11 +158,19 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
    - `envGroup` (an environment in `environments.json`; reuse one, or add one if the pins clash), `modelVersion`,
      `models` (the models.json ids it asks for), `maxChars`, `sampleRate`, `voiceCloning`, `approxVramGb`,
      `devices` (`["cuda"]`, `["cuda", "cpu"]`; `cpuRecommended: false` for slow CPU runs).
-   - A worker tagged `Transcription` (hears words, with timings) or `Alignment` (finds a known text's words in audio)
-     listens instead of generating: it implements `transcribe(req, report)` instead of `generate`, gets a 16 kHz mono
-     WAV (`req.audio_path`) and the expected text (`req.text`), and isn't offered as a speaker's voice. A language
-     is an ordinary `language` enum setting (`Auto` plus codes, read from `req.settings`), as in `whisper`; a model
-     that detects the language itself has none. Copy `parakeet`.
+   - A worker that listens instead of generating isn't offered as a speaker's voice. Its tags say what it does, and
+     each is a request (all answered with a `transcript`; it gets a 16 kHz mono WAV, `req.audio_path`, and the expected
+     text, `req.text`):
+     - `Transcription`: hears the words. `transcribe` → `transcribe(req, report)` returns the text.
+     - `Alignment`: gives word times. Alone, it times a known text's words (forced alignment): `align` →
+       `align(req, report)` returns the words of `req.text` with their times. Copy `mms_fa`.
+     - both: hears the words and times them: `transcribeAlign` → `transcribe_align(req, report)` returns the text and
+       the timed words (it also answers `transcribe`). Whisper and Parakeet. Copy `parakeet`.
+     The app asks for the most a worker's tags allow (`WorkerManifest.ListenMode`); cutting fused generations needs
+     word times (`Alignment`). A worker that tells voices apart is also tagged `Multi-speaker`: each word it returns may
+     have a `speaker`, any label it likes (`S0`, `S1`). Requests may carry `speakers` (names, in the order they first
+     speak) and `speakerCount` (`req.speakers`, `req.speaker_count`): hints any worker may ignore. A language is an ordinary `language` enum setting (`Auto` plus codes, read from
+     `req.settings`), as in `whisper`; a model that detects the language itself has none.
    - `settings`: per speaker, overridable per segment. Types: `float`, `int`, `bool`, `string`, `enum` (`options`,
      `optionLabels`), `seed`, `file`, `asset` (`extensions`; `addsSettings` to read more settings from the file).
      A `voice` enum setting holds built-in voices. `workerSettings` are per machine (servers, tokens).

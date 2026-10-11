@@ -17,7 +17,7 @@ public static class MessageTypes
     public const string Done = "done";
     public const string Error = "error";
     public const string Voices = "voices";
-    /// <summary>The answer to <see cref="Transcribe"/>: the text heard, with word timings.</summary>
+    /// <summary>The answer to <see cref="Transcribe"/>, <see cref="Align"/> and <see cref="TranscribeAlign"/>: the text, and the words with their times.</summary>
     public const string Transcript = "transcript";
 
     /// <summary>
@@ -37,10 +37,23 @@ public static class MessageTypes
     public const string Cancel = "cancel";
     public const string ListVoices = "listVoices";
     /// <summary>
-    /// Transcribe (or align) the audio at <see cref="WorkerMessage.AudioPath"/>, for workers tagged Transcription or
-    /// Alignment. <see cref="WorkerMessage.Text"/> is the text the audio should contain, if known.
+    /// What words are in the audio at <see cref="WorkerMessage.AudioPath"/>: text only (workers tagged Transcription).
+    /// Answered with a <see cref="Transcript"/> whose words may be missing.
     /// </summary>
     public const string Transcribe = "transcribe";
+
+    /// <summary>
+    /// When each word of a known text (<see cref="WorkerMessage.Text"/>) is said in the audio (workers tagged Alignment):
+    /// a <see cref="Transcript"/> of that text's words with their times. It doesn't check that they were said.
+    /// </summary>
+    public const string Align = "align";
+
+    /// <summary>
+    /// What words are in the audio and when each is said (workers tagged both Transcription and Alignment): a
+    /// <see cref="Transcript"/> of the words heard with their times. <see cref="WorkerMessage.Text"/>, if given, is
+    /// the expected text, never used as a prompt.
+    /// </summary>
+    public const string TranscribeAlign = "transcribeAlign";
     public const string Shutdown = "shutdown";
 
     // App → worker, answering needModel / needFile
@@ -95,6 +108,12 @@ public sealed class WorkerMessage
 
     // transcribe (app → worker: AudioPath, Text, Settings) and transcript (worker → app: Text, Words, Language: the one it heard)
     public string? AudioPath { get; set; }
+
+    /// <summary>transcribe, align, transcribeAlign: who may be speaking, when known (see <see cref="TranscribeRequest.Speakers"/>).</summary>
+    public List<string>? Speakers { get; set; }
+
+    /// <summary>transcribe, align, transcribeAlign: how many voices there are, when known.</summary>
+    public int? SpeakerCount { get; set; }
     public string? Language { get; set; }
     public List<TranscriptWord>? Words { get; set; }
 
@@ -207,17 +226,46 @@ public static class ErrorCodes
 /// <summary>What the app asks a transcription or alignment worker to do.</summary>
 public sealed class TranscribeRequest
 {
+    /// <summary>Which of the three: the words, their times for a known text, or both.</summary>
+    public ListenMode Mode { get; init; } = ListenMode.TranscribeAlign;
+
     /// <summary>A WAV file.</summary>
     public string AudioPath { get; init; } = "";
 
-    /// <summary>The text the audio should contain: aligners need it; transcribers may ignore it.</summary>
+    /// <summary>The text the audio should contain: <see cref="ListenMode.Align"/> needs it; the others may ignore it.</summary>
     public string? Text { get; init; }
 
     public JsonObject Settings { get; init; } = new();
+
+    /// <summary>
+    /// Who may be speaking, when known: names, in the order they first speak. A hint for workers that tell voices apart
+    /// (Multi-speaker); any worker may ignore it, and the labels it returns needn't be these.
+    /// </summary>
+    public IReadOnlyList<string>? Speakers { get; init; }
+
+    /// <summary>How many different voices there are, when known (a hint, like <see cref="Speakers"/>).</summary>
+    public int? SpeakerCount { get; init; }
+}
+
+/// <summary>What a listening worker is asked for (the worker's tags say which it can do: <c>WorkerManifest.ListenMode</c>).</summary>
+public enum ListenMode
+{
+    /// <summary>The words heard, without times (Transcription): <see cref="MessageTypes.Transcribe"/>.</summary>
+    Transcribe,
+
+    /// <summary>The times of a known text's words (Alignment): <see cref="MessageTypes.Align"/>.</summary>
+    Align,
+
+    /// <summary>The words heard with their times (Transcription and Alignment): <see cref="MessageTypes.TranscribeAlign"/>.</summary>
+    TranscribeAlign,
 }
 
 /// <summary>One word as heard, with where it is in the audio.</summary>
-public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double? Confidence = null);
+/// <param name="Speaker">
+/// Who said it, from a worker tagged Multi-speaker: any label the model likes ("S0", "S1"), the same for one voice
+/// within a transcript; null from other workers.
+/// </param>
+public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null);
 
 /// <summary>The text a worker heard in an audio file, word by word.</summary>
 public sealed record TranscriptResult(string Text, IReadOnlyList<TranscriptWord> Words, string? Language);

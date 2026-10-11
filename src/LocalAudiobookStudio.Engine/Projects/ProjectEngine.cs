@@ -301,7 +301,8 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         var label = item.Text!.Length > 50 ? item.Text[..47] + "…" : item.Text;
         return Transcription.Job(manifest, wav, item.Text, MergeSettings(speaker.TranscriberSettings, null, manifest),
             $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
-            tag: new TranscriptJobTag(this, item.Id, take, wav), readingOrder: chapterIndex * 1_000_000L + itemIndex);
+            tag: new TranscriptJobTag(this, item.Id, take, wav), readingOrder: chapterIndex * 1_000_000L + itemIndex,
+            speakers: [speaker.DisplayName]);
     }
 
     public bool OwnsTranscript(GenerationJob job) => job.Tag is TranscriptJobTag tag && ReferenceEquals(tag.Engine, this);
@@ -320,7 +321,7 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         {
             Worker = job.WorkerId,
             Language = transcript.Language,
-            Words = transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence)).ToList(),
+            Words = Transcription.Heard(transcript),
         }.Save(Paths.TakeTranscript(tag.ItemId, tag.Take));
 
         // The verdict goes into the take's own file: it is read anyway, and it is what the take is judged by from now on.

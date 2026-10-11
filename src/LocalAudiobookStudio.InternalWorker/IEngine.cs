@@ -7,6 +7,19 @@ namespace LocalAudiobookStudio.InternalWorker;
 /// in <see cref="Engines"/>; a worker's manifest names it ("engine") and says which models it loads ("engineConfig").
 /// Engines derive from <see cref="EngineBase"/>, which tracks requests for cancelling and writes generated audio.
 /// </summary>
+/// <summary>What a listening request asks for (the protocol's message type).</summary>
+internal enum ListenMode
+{
+    /// <summary><c>transcribe</c>: the words heard, text only.</summary>
+    Transcribe,
+
+    /// <summary><c>align</c>: the times of a known text's words.</summary>
+    Align,
+
+    /// <summary><c>transcribeAlign</c>: the words heard with their times.</summary>
+    TranscribeAlign,
+}
+
 internal interface IEngine : IDisposable
 {
     /// <summary>The install check: the engine's native libraries load. Prints to stderr; 0 when they do.</summary>
@@ -18,8 +31,11 @@ internal interface IEngine : IDisposable
     /// <summary>Gets the model from the app (needModel), sends prepared, loads it and sends ready.</summary>
     Task LoadAsync(string? id);
 
-    /// <summary>A <c>transcribe</c> request: sends the transcript (text and timed words).</summary>
-    Task TranscribeAsync(string? id, JsonObject msg);
+    /// <summary>
+    /// A <c>transcribe</c>, <c>align</c> or <c>transcribeAlign</c> request (<paramref name="mode"/>): sends the transcript
+    /// (the text, and the timed words unless it is text only). An engine refuses a mode it can't do.
+    /// </summary>
+    Task ListenAsync(string? id, JsonObject msg, ListenMode mode);
 
     /// <summary>A <c>generate</c> request: writes the request's outPath and sends done.</summary>
     Task GenerateAsync(string? id, JsonObject msg);

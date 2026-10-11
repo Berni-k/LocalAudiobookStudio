@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using LocalAudiobookStudio.Workers.Protocol;
 
 namespace LocalAudiobookStudio.Workers.Manifest;
 
@@ -29,11 +30,32 @@ public sealed class WorkerManifest
     public bool HasTag(string tag) => Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Turns audio into text (<c>transcribe</c> requests) instead of generating audio. Such workers aren't offered
+    /// Listens to audio instead of generating it (tagged Transcription, Alignment or both). Such workers aren't offered
     /// as a speaker's voice.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsTranscriber => HasTag(WorkerTags.Transcription) || HasTag(WorkerTags.Alignment);
+    public bool IsTranscriber => CanTranscribe || CanAlign;
+
+    /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CanTranscribe => HasTag(WorkerTags.Transcription);
+
+    /// <summary>Gives word times (tag Alignment): of a known text (<c>align</c>), or with Transcription, of the words heard.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CanAlign => HasTag(WorkerTags.Alignment);
+
+    /// <summary>Says who said each word it returns (tag Multi-speaker).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool TellsSpeakers => HasTag(WorkerTags.MultiSpeaker);
+
+    /// <summary>
+    /// The most this worker can be asked for: the words heard with their times when it is tagged both Transcription and
+    /// Alignment (<c>transcribeAlign</c>), else what its one tag says.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public ListenMode ListenMode => CanTranscribe && CanAlign ? ListenMode.TranscribeAlign
+        : CanAlign ? ListenMode.Align
+        : ListenMode.Transcribe;
 
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
@@ -509,11 +531,20 @@ public static class WorkerRuntimes
 /// <summary>Tags that change what the app does with a worker (the others are only shown).</summary>
 public static class WorkerTags
 {
-    /// <summary>Hears the words in audio, with their timings (speech recognition).</summary>
+    /// <summary>Hears the words in audio (speech recognition): answers <c>transcribe</c>.</summary>
     public const string Transcription = "Transcription";
 
-    /// <summary>Finds where the words of a known text are in audio (forced alignment).</summary>
+    /// <summary>
+    /// Gives word times: finds a known text's words in audio (forced alignment, <c>align</c>). With
+    /// <see cref="Transcription"/> too, it times the words it hears (<c>transcribeAlign</c>).
+    /// </summary>
     public const string Alignment = "Alignment";
+
+    /// <summary>
+    /// Tells voices apart: each word it returns says who said it (a label of its own, "S0", "S1"). With Transcription or
+    /// Alignment.
+    /// </summary>
+    public const string MultiSpeaker = "Multi-speaker";
 }
 
 public static class DeviceNames

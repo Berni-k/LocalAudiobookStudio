@@ -2,7 +2,7 @@
   "id": "parakeet",
   "displayName": "Parakeet TDT 0.6B v3",
   "description": "Very fast speech recognition for 25 European languages. Fairly strict about the words it hears, a bit loose on their timing.",
-  "tags": ["Transcription"],
+  "tags": ["Transcription", "Alignment"],
   "priority": 50,
   "runtimeOrder": ["internal", "onnx", "onnx-cuda"],
   "modelVersion": "v3",

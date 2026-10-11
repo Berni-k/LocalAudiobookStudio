@@ -78,15 +78,22 @@ internal static class Help
     private const string Transcribe = """
         las transcribe <audio…> [options]
 
-        Transcribes audio files (WAV, Opus, MP3, or folders of them) with a worker tagged Transcription and
-        prints the text. With the text the audio should contain, it also lists the words that are missing,
-        extra or heard differently, and the word error rate. Case, punctuation and accents don't count.
-        A worker tagged Alignment (and not Transcription) finds the words of a given text instead: it needs
-        -t or -f, always prints the word timings, and reports no differences.
+        Listens to audio files (WAV, Opus, MP3, or folders of them) and prints what was said. With the text
+        the audio should contain, it also lists the words that are missing, extra or heard differently, and
+        the word error rate. Case, punctuation and accents don't count.
+
+        What a worker does depends on its tags, and is what it is asked for unless --mode says otherwise:
+          transcribe-align  Transcription and Alignment (Whisper, Parakeet): the words heard, with their times
+          transcribe        Transcription: the words heard, without times
+          align             Alignment alone (MMS forced aligner): the times of a given text's words. It needs
+                            -t or -f, always prints the word timings, and reports no differences.
 
           -t, --text <text>        The text the audio should contain (one audio file)
           -f, --text-file <path>   The same from a file; for several audio files, a folder of <audio name>.txt
               --words              Print every word with its start and end time
+              --mode <mode>        transcribe, align or transcribe-align (default: the most the worker does)
+              --speakers <a,b>     Who may be speaking, in order; --speaker-count <n> how many voices. Hints
+                                   for workers tagged Multi-speaker, which say who said each word ([S0] …)
           -w, --worker <id>        Worker (default: the first installed transcription worker)
               --runtime <name>     Runtime of the worker (internal, internal-gpu, python, onnx, onnx-cuda);
                                    see 'las workers <id>'

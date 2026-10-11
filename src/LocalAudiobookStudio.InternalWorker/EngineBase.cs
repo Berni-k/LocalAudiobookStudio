@@ -41,8 +41,15 @@ internal abstract class EngineBase(EngineContext context) : IEngine
     public virtual string DeviceDescription => "cpu";
     public abstract Task LoadAsync(string? id);
 
-    public virtual Task TranscribeAsync(string? id, JsonObject msg) =>
-        throw new NotSupportedException($"the {Context.Options.Engine} engine doesn't transcribe audio");
+    public virtual Task ListenAsync(string? id, JsonObject msg, ListenMode mode) =>
+        throw new NotSupportedException($"the {Context.Options.Engine} engine doesn't listen to audio");
+
+    /// <summary>For an engine that hears words with their times: everything but aligning a given text.</summary>
+    protected void RequireHearing(ListenMode mode)
+    {
+        if (mode == ListenMode.Align)
+            throw new NotSupportedException($"the {Context.Options.Engine} engine hears words: it can transcribe, with or without times, but not align a given text");
+    }
 
     public virtual Task GenerateAsync(string? id, JsonObject msg) =>
         throw new NotSupportedException($"the {Context.Options.Engine} engine doesn't generate audio");
@@ -85,12 +92,13 @@ internal abstract class EngineBase(EngineContext context) : IEngine
     /// <paramref name="maxPieceSec"/> (some models do badly on long input), hears each with
     /// <paramref name="recognize"/> (piece samples, its offset in ms → words in the file's time), finishes the words
     /// (<see cref="TranscriptWords"/>; <paramref name="dropSilentWords"/> for models that invent text over silence) and
-    /// sends the transcript.
+    /// sends the transcript: with the timed words for <see cref="ListenMode.TranscribeAlign"/>, the text only for
+    /// <see cref="ListenMode.Transcribe"/>.
     /// </summary>
-    protected async Task TranscribeInPiecesAsync(string? id, JsonObject msg, double minPieceSec, double maxPieceSec, bool dropSilentWords,
+    protected async Task TranscribeInPiecesAsync(string? id, JsonObject msg, ListenMode mode, double minPieceSec, double maxPieceSec, bool dropSilentWords,
         Func<float[], long, CancellationToken, Task<(IEnumerable<HeardWord> Words, string? Language)>> recognize)
     {
-        var path = (string?)msg["audioPath"] ?? throw new ArgumentException("transcribe request has no audioPath");
+        var path = (string?)msg["audioPath"] ?? throw new ArgumentException("the request has no audioPath");
         var language = LanguageOf(msg);
         using var request = Begin(id);
         var audio = AudioPieces.ReadWav(path);
@@ -113,7 +121,7 @@ internal abstract class EngineBase(EngineContext context) : IEngine
         Protocol.Progress(id, 1);
         Protocol.Send("transcript", id,
             ("text", string.Join(" ", finished.Select(w => (string?)w["text"]))),
-            ("words", new JsonArray([.. finished])),
+            ("words", mode == ListenMode.Transcribe ? new JsonArray() : new JsonArray([.. finished])),
             ("language", language ?? detected));
     }
 

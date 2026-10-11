@@ -6,9 +6,11 @@ namespace LocalAudiobookStudio.InternalWorker;
 /// <summary>
 /// A word as an engine heard it, in the file's time. <see cref="OpenEnd"/>: the engine doesn't know where it ends;
 /// <see cref="OpenStart"/>: where it starts (the first word of a whisper.cpp segment: <see cref="StartMs"/> is only
-/// where it can't start before). <see cref="TranscriptWords"/> finds them in the audio.
+/// where it can't start before). <see cref="TranscriptWords"/> finds them in the audio. <see cref="Speaker"/>: who said
+/// it, from an engine that tells voices apart (worker tag Multi-speaker), as its own label ("S0").
 /// </summary>
-internal sealed record HeardWord(string Text, long StartMs, long EndMs, double Confidence, bool OpenEnd = false, bool OpenStart = false);
+internal sealed record HeardWord(string Text, long StartMs, long EndMs, double Confidence, bool OpenEnd = false, bool OpenStart = false,
+    string? Speaker = null);
 
 /// <summary>
 /// What every transcribing engine does with its words before sending them: ends open words where the speech after them
@@ -67,13 +69,15 @@ internal static class TranscriptWords
                 dropped.Add($"{w.Text} ({w.StartMs / 1000.0:0.00}-{end / 1000.0:0.00} s)");
                 continue;
             }
-            result.Add(new JsonObject
+            var word = new JsonObject
             {
                 ["text"] = w.Text,
                 ["startMs"] = w.StartMs,
                 ["endMs"] = end,
                 ["confidence"] = Math.Round(w.Confidence, 4),
-            });
+            };
+            if (w.Speaker != null) word["speaker"] = w.Speaker;
+            result.Add(word);
             previousEnd = end;
         }
         if (dropped.Count > 0) Protocol.Log($"Dropped words heard in silence: {string.Join(" ", dropped)}");
