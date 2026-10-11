@@ -363,6 +363,84 @@ public sealed partial class MainWindowViewModel
         StatusText = n == 0 ? "Chapter is up to date." : $"Queued {n} item(s) in {ch.Title}";
     }
 
+    /// <summary>A new take for every segment of the chapter, current or not (locked and recorded ones are skipped).</summary>
+    [RelayCommand]
+    private async Task RegenerateChapter(ChapterViewModel? ch)
+    {
+        ch ??= SelectedChapter;
+        if (Session == null || ch == null) return;
+        var count = ch.Items.Count(i => i.IsGenerated && !i.IsLocked && !Session.IsRecorded(i.Model));
+        if (count == 0)
+        {
+            StatusText = "Nothing to generate in this chapter (locked and recorded segments are skipped).";
+            return;
+        }
+        if (!await Dialogs.Confirm("Regenerate chapter",
+                $"Generate a new take for all {count} segment(s) in \"{ch.Title}\"? Their current takes are kept.", "Regenerate", "Cancel"))
+            return;
+        var n = Session.Generate(ch.Items, JobPriority.Normal, skipLocked: true);
+        StatusText = $"Queued {n} item(s) in {ch.Title}";
+    }
+
+    [RelayCommand]
+    private async Task CleanUpChapterTakes(ChapterViewModel? ch)
+    {
+        ch ??= SelectedChapter;
+        if (Session == null || ch == null) return;
+        var total = ch.Items.Where(i => i.IsGenerated).Sum(i => Session.Takes.Get(i.Id).Count(t => t.Take != i.Model.SelectedTake));
+        if (total == 0)
+        {
+            StatusText = "This chapter has no unused takes.";
+            return;
+        }
+        if (!await Dialogs.Confirm("Clear unused takes",
+                $"Delete the {total} take(s) in \"{ch.Title}\" that are not selected?\n\nThis cannot be undone.", "Delete", "Cancel"))
+            return;
+        var n = await Session.CleanUpUnusedTakesAsync(ch);
+        StatusText = $"Deleted {n} file(s)";
+    }
+
+    [RelayCommand]
+    private async Task ClearChapterTakes(ChapterViewModel? ch)
+    {
+        ch ??= SelectedChapter;
+        if (Session == null || ch == null) return;
+        var items = Session.ClearableItems(ch);
+        if (items.Count == 0)
+        {
+            StatusText = "This chapter has no takes to clear (locked and recorded segments keep theirs).";
+            return;
+        }
+        if (!await Dialogs.Confirm("Clear all takes",
+                $"Delete every take of {items.Count} segment(s) in \"{ch.Title}\"? They will need generating again. " +
+                "Locked and recorded segments keep theirs.\n\nThis cannot be undone.", "Delete", "Cancel"))
+            return;
+        StopPlayback();
+        var (segments, files) = await Session.ClearTakesAsync(ch);
+        StatusText = $"Cleared {segments} segment(s), deleted {files} file(s)";
+    }
+
+    /// <summary>The chapter's segments that need attention: stale, failed, or a transcript that doesn't match.</summary>
+    public static List<ItemViewModel> Warnings(ChapterViewModel ch) =>
+        ch.Items.Where(i => i.Status is ItemStatus.Stale or ItemStatus.Failed || i.TranscriptFlagged).ToList();
+
+    /// <summary>Selects the chapter's next segment that needs attention, after the selection (wrapping round).</summary>
+    [RelayCommand]
+    private void JumpToWarning(ChapterViewModel? ch)
+    {
+        ch ??= SelectedChapter;
+        if (ch == null || Warnings(ch) is not { Count: > 0 } warnings) return;
+        var after = SelectedItems.Count > 0 && ReferenceEquals(SelectedItems[^1].Chapter, ch) ? ch.Items.IndexOf(SelectedItems[^1]) : -1;
+        var target = warnings.FirstOrDefault(i => ch.Items.IndexOf(i) > after) ?? warnings[0];
+        SelectAndReveal(target);
+        StatusText = target.Status switch
+        {
+            ItemStatus.Stale => "Stale: its text, speaker or settings changed since it was generated.",
+            ItemStatus.Failed => $"Failed: {target.Model.LastError}",
+            _ => "The transcript doesn't match the text.",
+        };
+    }
+
     [RelayCommand]
     private async Task ExportChapter(ChapterViewModel? ch)
     {

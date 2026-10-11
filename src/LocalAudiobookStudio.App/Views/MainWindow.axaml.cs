@@ -598,19 +598,34 @@ public partial class MainWindow : Window
     {
         if ((e.Source as StyledElement)?.DataContext is not ChapterViewModel ch || ViewModel is not { } vm) return;
         vm.SelectedChapter = ch;
-        var menu = new ContextMenu
+        var clear = new MenuItem
         {
+            Header = "Clear",
             ItemsSource = new object[]
             {
-                Item("Rename…", () => vm.RenameChapterCommand.Execute(ch), "Double-click"),
-                Item("Generate chapter", () => vm.GenerateChapterCommand.Execute(ch), "G"),
-                Item("Export chapter…", () => vm.ExportChapterCommand.Execute(ch)),
-                new Separator(),
-                Item("Add chapter after", () => vm.AddChapterCommand.Execute(null)),
-                Item("Delete chapter…", () => vm.DeleteChapterCommand.Execute(ch)),
+                Item("Unused takes…", () => vm.CleanUpChapterTakesCommand.Execute(ch)),
+                Item("All takes…", () => vm.ClearChapterTakesCommand.Execute(ch)),
             },
         };
-        menu.Open(ChapterList);
+        var items = new List<object>
+        {
+            Item("Generate", () => vm.GenerateChapterCommand.Execute(ch), "G"),
+            Item("Regenerate all…", () => vm.RegenerateChapterCommand.Execute(ch)),
+            clear,
+        };
+        // Only when something needs attention: stale, failed, or a transcript that doesn't match.
+        if (MainWindowViewModel.Warnings(ch).Count is > 0 and var warnings)
+            items.Add(Item($"Jump to warning ({warnings})", () => vm.JumpToWarningCommand.Execute(ch)));
+        items.AddRange(
+        [
+            new Separator(),
+            Item("Rename…", () => vm.RenameChapterCommand.Execute(ch), "Double-click"),
+            Item("Export chapter…", () => vm.ExportChapterCommand.Execute(ch)),
+            new Separator(),
+            Item("Add chapter after", () => vm.AddChapterCommand.Execute(null)),
+            Item("Delete chapter…", () => vm.DeleteChapterCommand.Execute(ch)),
+        ]);
+        new ContextMenu { ItemsSource = items }.Open(ChapterList);
         e.Handled = true;
     }
 

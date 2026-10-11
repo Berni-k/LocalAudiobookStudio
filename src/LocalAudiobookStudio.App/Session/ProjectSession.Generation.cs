@@ -409,4 +409,57 @@ public sealed partial class ProjectSession
         foreach (var vm in AllItemVms()) vm.RefreshAudio();
         return count;
     }
+
+    /// <summary>Deletes the takes of a chapter's segments that aren't selected. Returns the number of files removed.</summary>
+    public async Task<int> CleanUpUnusedTakesAsync(ChapterViewModel chapter)
+    {
+        await FlushAsync();
+        var items = chapter.Items.Select(i => i.Model).ToList();
+        var count = await Task.Run(() => TakeStore.CleanUpUnusedTakes(Paths, items));
+        await ReloadTakesAsync(chapter);
+        return count;
+    }
+
+    /// <summary>
+    /// A chapter's generated segments that <see cref="ClearTakesAsync"/> would clear: not locked, not recorded with the
+    /// microphone (neither can be generated again), with something to clear.
+    /// </summary>
+    public List<ItemViewModel> ClearableItems(ChapterViewModel chapter) =>
+        chapter.Items.Where(i => i.IsGenerated && !i.IsLocked && !IsRecorded(i.Model)
+                                 && (i.Model.SelectedTake != null || Takes.Get(i.Id).Count > 0 || i.Model.LastError != null)).ToList();
+
+    /// <summary>
+    /// Deletes every take of a chapter's segments, so they need generating again (<see cref="ClearableItems"/>; locked and
+    /// recorded ones keep theirs). Not undoable: the files are gone. Returns the segments cleared and the files deleted.
+    /// </summary>
+    public async Task<(int Segments, int Files)> ClearTakesAsync(ChapterViewModel chapter)
+    {
+        var items = ClearableItems(chapter);
+        AppHost.Scheduler.CancelForItems(items.Select(i => i.Id));
+        foreach (var vm in items)
+        {
+            var m = vm.Model;
+            m.SelectedTake = null;
+            m.InputHash = null;
+            m.LastError = null;
+            m.TrimStartMs = null;
+            m.TrimEndMs = null;
+        }
+        MarkChapterDirty(chapter);
+        await FlushAsync();
+        var models = items.Select(i => i.Model).ToList();
+        var files = await Task.Run(() => TakeStore.CleanUpUnusedTakes(Paths, models));
+        await ReloadTakesAsync(chapter);
+        return (items.Count, files);
+    }
+
+    private async Task ReloadTakesAsync(ChapterViewModel chapter)
+    {
+        // The deleted takes' peaks must not be found again under the same path.
+        PeaksCache.Clear();
+        var ids = chapter.Items.Where(i => i.IsGenerated).Select(i => i.Id).ToList();
+        await Task.Run(() => { foreach (var id in ids) Takes.Reload(id); });
+        foreach (var vm in chapter.Items) vm.RefreshAudio();
+        RefreshItems(chapter.Items.ToList());
+    }
 }

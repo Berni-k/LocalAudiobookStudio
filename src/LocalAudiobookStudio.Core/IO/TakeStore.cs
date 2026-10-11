@@ -122,14 +122,32 @@ public static partial class TakeStore
                 Directory.Delete(dir, recursive: true);
                 continue;
             }
-            foreach (var f in Directory.EnumerateFiles(dir))
-            {
-                var m = TakeFileRegex().Match(AsTakeFile(Path.GetFileName(f)));
-                if (!m.Success) continue;
-                if (int.TryParse(m.Groups[1].Value, out var n) && n == keep) continue;
-                File.Delete(f);
-                deleted++;
-            }
+            deleted += DeleteTakesExcept(dir, keep);
+        }
+        return deleted;
+    }
+
+    /// <summary>
+    /// Deletes every take of these items but their selected one (all of them for an item without one). The take
+    /// numbering file stays, so numbers aren't reused. Returns the number of files deleted.
+    /// </summary>
+    public static int CleanUpUnusedTakes(ProjectPaths paths, IEnumerable<TimelineItem> items) =>
+        items.Where(i => i.IsGenerated).Sum(i =>
+        {
+            var dir = paths.SegmentAudioDir(i.Id);
+            return Directory.Exists(dir) ? DeleteTakesExcept(dir, i.SelectedTake) : 0;
+        });
+
+    private static int DeleteTakesExcept(string dir, int? keep)
+    {
+        var deleted = 0;
+        foreach (var f in Directory.EnumerateFiles(dir))
+        {
+            var m = TakeFileRegex().Match(AsTakeFile(Path.GetFileName(f)));
+            if (!m.Success) continue;
+            if (int.TryParse(m.Groups[1].Value, out var n) && n == keep) continue;
+            File.Delete(f);
+            deleted++;
         }
         return deleted;
     }
