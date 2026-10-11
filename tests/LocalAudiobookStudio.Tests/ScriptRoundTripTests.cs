@@ -34,6 +34,60 @@ public class ScriptRoundTripTests
     }
 
     [Fact]
+    public void ExportEscapesWhatWouldReadAsMarkers()
+    {
+        using var tmp = new TempDir();
+        var p = ProjectStore.Create(Path.Combine(tmp.Path, "B"), "B");
+        p.Speakers["who"] = new Speaker { Id = "who", DisplayName = "Dr. Who: Part [2]", Worker = "kokoro" };
+        var ch = new Chapter { Title = "#1 \\ the start" };
+        ch.Items.Add(new TimelineItem { Text = "[length: 3s] is not a tag, \\[nor] this.", Speaker = "who", ExportId = "a]b" });
+        ch.Items.Add(new TimelineItem { Text = "Two lines:\n[Bob] isn't a speaker\n\nAlice: nor is she.", Speaker = "narrator" });
+        ch.Items.Add(new TimelineItem { Kind = ItemKind.Comment, Text = "A note]\n[speaker: x] stays in it" });
+        ch.Items.Add(new TimelineItem { Kind = ItemKind.Clip, ClipFile = "assets\\door [old].wav" });
+        p.Chapters.Add(ch);
+
+        var script = ScriptExporter.Export(p);
+        var parsed = TextImporter.Parse(script, new ImportOptions { KnownSpeakerNames = ["Alice"], SpeakHeadings = false });
+
+        var chapter = Assert.Single(parsed.Chapters);
+        Assert.Equal("#1 \\ the start", chapter.Title);
+        Assert.Equal(["Dr. Who: Part [2]", "Narrator"], parsed.SpeakerLabels);
+        var items = chapter.Items;
+        Assert.Equal(4, items.Count);
+        Assert.Equal("[length: 3s] is not a tag, \\[nor] this.", items[0].Text);
+        Assert.Null(items[0].DurationSec);
+        Assert.Equal("a]b", items[0].ExportId);
+        Assert.Equal("Dr. Who: Part [2]", items[0].SpeakerLabel);
+        // Lines of a segment's text come back joined (as any paragraph's lines do), and still one segment.
+        Assert.Equal("Two lines: [Bob] isn't a speaker Alice: nor is she.", items[1].Text);
+        Assert.Equal("Narrator", items[1].SpeakerLabel);
+        Assert.Equal("A note]\n[speaker: x] stays in it", items[2].Text);
+        Assert.Equal("assets\\door [old].wav", items[3].ClipFile);
+    }
+
+    [Fact]
+    public void BackslashesEscapeMarkersInWrittenText()
+    {
+        var parsed = TextImporter.Parse("""
+            \Chapter 3 was the hardest to write.
+
+            \[whisper] Is anyone there?
+
+            Alice\: not a speaker marker, and \\ is one backslash.
+
+            [clip: assets\door.wav]
+            """, new ImportOptions { KnownSpeakerNames = ["Alice"] });
+
+        var items = Assert.Single(parsed.Chapters).Items;
+        Assert.Equal(["Chapter 3 was the hardest to write.", "[whisper] Is anyone there?",
+            "Alice: not a speaker marker, and \\ is one backslash."], items.Take(3).Select(i => i.Text));
+        Assert.All(items.Take(3), i => Assert.Null(i.SpeakerLabel));
+        Assert.Empty(parsed.SpeakerLabels);
+        // A backslash before a letter isn't an escape: paths keep theirs.
+        Assert.Equal("assets\\door.wav", items[3].ClipFile);
+    }
+
+    [Fact]
     public void MergeKeepsIdsForExactAndFuzzyMatches()
     {
         var a = new TimelineItem { Text = "The wind howled across the moor.", Speaker = "n", SelectedTake = 2 };

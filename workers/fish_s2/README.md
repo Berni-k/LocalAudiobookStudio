@@ -17,8 +17,8 @@ Backend: [fishaudio/fish-speech](https://github.com/fishaudio/fish-speech), pinn
   worker refuses that combination with an error. Without any clip the model picks a random voice,
   which changes from segment to segment.
 - **Inline control:** free-form `[tags]` in the text steer delivery, e.g. `[whisper]`, `[laughing]`,
-  `[pause]`, `[professional broadcast tone]`. Type them in the segment text; note that a tag at the
-  start of a line in an *imported* text file is read as a speaker marker by the import.
+  `[pause]`, `[professional broadcast tone]`. Type them in the segment text; in an *imported* text
+  file, a tag at the start of a line needs a backslash (`\[whisper] Hello`), or the import reads it as a speaker.
 - **Languages:** 80+, detected from the text.
 - **Batches and context** (`generate_parts`): up to 5 voices as `<|speaker:N|>` turns, the speakers with a reference
   clip numbered first. Each part is its own turn, generated after the ones before it with their codes in the history

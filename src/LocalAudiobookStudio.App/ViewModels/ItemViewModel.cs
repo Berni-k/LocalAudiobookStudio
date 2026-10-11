@@ -438,7 +438,8 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
             var text = Model.Text ?? "";
             if (_marks == null || _marksText != text)
             {
-                _marks = TranscriptCheck.Compare(text, transcript.Words);
+                // Without the inline tags of the worker that made the take: blanked out in place, so marks fall on the text.
+                _marks = TranscriptCheck.Compare(Session.Engine.SpokenText(Model, Model.SelectedTake), transcript.Words);
                 _marksText = text;
             }
             return _marks;

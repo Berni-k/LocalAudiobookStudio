@@ -16,7 +16,8 @@ public static class ScriptExporter
         foreach (var chapter in chapters ?? project.Chapters)
         {
             if (sb.Length > 0) sb.Append('\n');
-            sb.Append("# ").Append(chapter.Title).Append("\n\n");
+            var title = Escape(chapter.Title);
+            sb.Append("# ").Append(title.StartsWith('#') ? "\\" + title : title).Append("\n\n");
             AppendItems(sb, project, chapter, skipSpokenHeading: true);
         }
         return sb.ToString();
@@ -34,19 +35,52 @@ public static class ScriptExporter
     }
 
     public static string FormatItem(Project project, TimelineItem item) =>
-        (string.IsNullOrWhiteSpace(item.ExportId) ? "" : $"[id: {item.ExportId}]\n")
+        (string.IsNullOrWhiteSpace(item.ExportId) ? "" : $"[id: {Escape(item.ExportId, "]")}]\n")
         + (item.Kind == ItemKind.Tts && item.DurationSec is double sec ? string.Create(CultureInfo.InvariantCulture, $"[length: {sec:0.##}s]\n") : "")
         + FormatContent(project, item);
 
     private static string FormatContent(Project project, TimelineItem item) => item.Kind switch
     {
-        ItemKind.Tts => $"[{SpeakerLabel(project, item.Speaker)}] {item.Text}",
+        ItemKind.Tts => $"[{Escape(SpeakerLabel(project, item.Speaker), "[]:")}] {EscapeSpeech(item.Text ?? "")}",
         ItemKind.Pause => string.Create(CultureInfo.InvariantCulture, $"[pause {item.DurationMs ?? 0}ms]"),
-        ItemKind.Clip => $"[clip: {item.ClipFile}]",
-        ItemKind.Comment => $"[comment: {item.Text}]",
-        ItemKind.Unknown => $"[comment: unknown segment {item.Raw?.ToJsonString()}]",
+        ItemKind.Clip => $"[clip: {Escape(item.ClipFile ?? "", "]")}]",
+        ItemKind.Comment => $"[comment: {Escape(item.Text ?? "", "[]")}]",
+        ItemKind.Unknown => $"[comment: unknown segment {Escape(item.Raw?.ToJsonString() ?? "", "[]")}]",
         _ => ""
     };
+
+    /// <summary>
+    /// <paramref name="s"/> as the importer reads it back unchanged: a backslash before every backslash and before each
+    /// of the <paramref name="special"/> characters (see <see cref="TextImporter"/>).
+    /// </summary>
+    private static string Escape(string s, string special = "")
+    {
+        var sb = new StringBuilder(s.Length);
+        foreach (var c in s)
+        {
+            if (c == '\\' || special.Contains(c)) sb.Append('\\');
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// A segment's text after its speaker tag. There, only an id or a length would be read as a tag ("[length: 4s]" as
+    /// text): its bracket is escaped. A later line starts a line of its own, where "[" or a colon ("Name: text") could
+    /// be read as a marker, and a blank line would end the paragraph: those lines are escaped as plain text.
+    /// </summary>
+    private static string EscapeSpeech(string text)
+    {
+        var lines = Escape(text).Split('\n');
+        if (TextImporter.StartsWithSectionTag(lines[0])) lines[0] = "\\" + lines[0];
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimStart();
+            if (line.Length == 0) lines[i] = "\\";
+            else if (!line.StartsWith('\\') && (line.StartsWith('[') || line.Contains(':'))) lines[i] = "\\" + line;
+        }
+        return string.Join('\n', lines);
+    }
 
     private static string SpeakerLabel(Project project, string? speakerId)
     {

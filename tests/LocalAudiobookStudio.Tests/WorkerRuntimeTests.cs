@@ -137,6 +137,28 @@ public sealed class WorkerRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void Inline_tags_are_blanked_out_in_place()
+    {
+        static string Blank(int n) => new(' ', n);
+        var catalog = new WorkerCatalog(Repo.Combine("workers"));
+        var fish = catalog.Get("fish_s2")!;
+        Assert.Equal(Blank(9) + " Who's there? " + Blank(29) + " Only me.",
+            fish.SpokenText("[whisper] Who's there? [professional broadcast tone] Only me."));
+
+        // OmniVoice's pronunciation overrides are said; its sound tags aren't.
+        var omni = catalog.Get("omnivoice")!;
+        Assert.Equal("Ha! " + Blank(10) + " The [B EY1 S].", omni.SpokenText("Ha! [laughter] The [B EY1 S]."));
+        Assert.Equal("Oh? " + Blank(13), omni.SpokenText("Oh? [surprise-ah]"));
+
+        // Breeze's English events are a known few in parentheses; other parentheses are prose.
+        var breeze = catalog.Get("breeze_tts2")!;
+        Assert.Equal(Blank(7) + " Fine (I said). " + Blank(3), breeze.SpokenText("(Laugh) Fine (I said). [笑]"));
+
+        // A worker without inline tags says everything.
+        Assert.Equal("[whisper] Hi", new WorkerManifest().SpokenText("[whisper] Hi"));
+    }
+
+    [Fact]
     public void The_shipped_manifests_load_without_errors()
     {
         var catalog = new WorkerCatalog(Repo.Combine("workers"));

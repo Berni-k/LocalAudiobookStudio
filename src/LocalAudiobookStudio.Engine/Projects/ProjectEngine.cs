@@ -280,13 +280,27 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         && Catalog.Get(sp.Transcriber) is { IsTranscriber: true } m ? m : null;
 
     /// <summary>
+    /// What of <paramref name="text"/> a worker says aloud: its inline tags (<see cref="WorkerManifest.InlineTags"/>)
+    /// blanked out, the rest in place. The text as it is for a worker that isn't known here.
+    /// </summary>
+    public string SpokenText(string? workerId, string text) =>
+        !string.IsNullOrEmpty(workerId) && Catalog.Get(workerId) is { } worker ? worker.SpokenText(text) : text;
+
+    /// <summary>The words of a segment's take that should be heard: its text without the tags of the worker that made it.</summary>
+    public string SpokenText(TimelineItem item, int? take) =>
+        SpokenText(take is int t && Takes.Find(item.Id, t) is { } info ? info.Worker : Project.FindSpeaker(item.Speaker)?.Worker,
+            item.Text ?? "");
+
+    /// <summary>
     /// The job that transcribes a take with its speaker's transcription worker, or null when the speaker has none or
     /// it can't run here. Decodes the take into the 16 kHz copy the worker reads (a moment for a segment-sized take).
     /// </summary>
     public GenerationJob? BuildTranscriptionJob(TimelineItem item, int take, int chapterIndex, int itemIndex)
     {
         if (TranscriberFor(item) is not { } manifest || Project.FindSpeaker(item.Speaker) is not { } speaker) return null;
-        if (string.IsNullOrWhiteSpace(item.Text)) return null;
+        // Checked against (or, aligning only, timing) the words alone: the generating worker's inline tags aren't said.
+        var spoken = SpokenText(item, take);
+        if (string.IsNullOrWhiteSpace(spoken)) return null;
         if (Host.WhyWorkerCannotRun(manifest.Id) is { } why)
         {
             Host.Log.LogInformation("Not transcribing {Item}: {Why}", item.Id, why);
@@ -304,8 +318,8 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
         Transcription.PrepareAudio(audio, wav);
         var label = item.Text!.Length > 50 ? item.Text[..47] + "…" : item.Text;
         // Never null: the transcription worker can run, so it hears the words or (aligning only) times the text.
-        return Transcription.Listen(listeners, wav, item.Text, $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
-            new TranscriptJobTag(this, item.Id, take, wav, item.Text), chapterIndex * 1_000_000L + itemIndex, [speaker.DisplayName]);
+        return Transcription.Listen(listeners, wav, spoken, $"{chapterIndex + 1}.{itemIndex + 1}  Transcribe: {label}", JobPriority.Low,
+            new TranscriptJobTag(this, item.Id, take, wav, spoken), chapterIndex * 1_000_000L + itemIndex, [speaker.DisplayName]);
     }
 
     /// <summary>

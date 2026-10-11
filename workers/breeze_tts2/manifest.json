@@ -1,7 +1,8 @@
 {
   "id": "breeze_tts2",
   "displayName": "Breeze TTS 2",
-  "description": "Expressive English and Mandarin TTS. Clones a voice from a short clip, designs one from a written description, or keeps a cloned voice and directs its tone, emotion and pace. Inline vocal events such as (laugh), (sigh) or [笑]. 24 kHz mono, needs a 12 GB GPU. BreezeBlue Research and Non-Commercial License.",
+  "description": "Expressive English and Mandarin TTS. Clones a voice from a short clip, designs one from a written description, or keeps a cloned voice and directs its tone, emotion and pace. Type vocal events in a segment's text: (laugh), (cough), (clears throat), (sigh) in English, [笑] or [叹气] in Chinese. 24 kHz mono, needs a 12 GB GPU. BreezeBlue Research and Non-Commercial License.",
+  "inlineTags": "(?i)\\((?:laugh|cough|clears throat|sigh)\\)|\\[[^\\[\\]\\n]*\\]",
   "experimental": true,
   "tags": ["Voice", "Voice clone", "Voice design", "Voice direction"],
   "priority": 80,

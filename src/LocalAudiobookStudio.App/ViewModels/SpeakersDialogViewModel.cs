@@ -283,7 +283,9 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             return;
         }
         var settings = _session.MergeSettings(sp.TranscriberSettings, null, worker);
-        var job = Transcription.Job(worker, wav, text, settings, $"Transcribe preview: {sp.DisplayName}", JobPriority.Low, tag: "preview");
+        // The voice's inline tags ([whisper]) aren't said: blanked out in place, so the marks still fall on the text.
+        var spoken = _session.Engine.SpokenText(sp.Worker, text);
+        var job = Transcription.Job(worker, wav, spoken, settings, $"Transcribe preview: {sp.DisplayName}", JobPriority.Low, tag: "preview");
 
         var tcs = new TaskCompletionSource<GenerationJob>();
         void Done(GenerationJob j) { if (j.Id == job.Id) tcs.TrySetResult(j); }
@@ -297,7 +299,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             if (!ReferenceEquals(Selected?.Model, sp) || _lastPreview?.Path != audioPath) return;
             if (finished.State == JobState.Completed && finished.Transcript is { } transcript)
             {
-                var check = Transcription.Check(text, transcript);
+                var check = Transcription.Check(spoken, transcript);
                 TranscriptSource = text;
                 TranscriptCheck = check;
                 HeardText = transcript.Text;

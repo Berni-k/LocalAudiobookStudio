@@ -197,6 +197,9 @@ public sealed class WorkerCatalog
             foreach (var id in m.Models.Where(id => Models.Get(id) == null))
                 LoadErrors.Add($"{file}: \"models\" names '{id}', which isn't in {ModelCatalog.FileName}");
             CheckFusion(m, file);
+            if (m.InlineTags is { Length: > 0 } tags)
+                try { _ = new System.Text.RegularExpressions.Regex(tags); }
+                catch (ArgumentException ex) { LoadErrors.Add($"{file}: \"inlineTags\" isn't a valid regular expression: {ex.Message}"); }
             // Alignment times what the worker hears: without Transcription it has nothing to time. An aligner of a
             // given text is tagged Alignment Forced.
             if (m.CanAlign && !m.CanTranscribe)

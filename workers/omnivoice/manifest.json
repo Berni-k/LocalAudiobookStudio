@@ -1,7 +1,8 @@
 {
   "id": "omnivoice",
   "displayName": "OmniVoice",
-  "description": "Multilingual TTS in 646 languages. Clones a voice from a short reference clip (3–10 s), or designs one from gender, age, pitch and accent. Inline [laughter] and [sigh] tags. Non-commercial license (CC-BY-NC).",
+  "description": "Multilingual TTS in 646 languages. Clones a voice from a short reference clip (3–10 s), or designs one from gender, age, pitch and accent. Type sound tags in a segment's text: [laughter], [sigh], [surprise-ah], [question-en]. Non-commercial license (CC-BY-NC).",
+  "inlineTags": "\\[[a-z]+(?:-[a-z]+)*\\]",
   "experimental": true,
   "tags": ["Voice", "Voice clone", "Voice design"],
   "priority": 85,

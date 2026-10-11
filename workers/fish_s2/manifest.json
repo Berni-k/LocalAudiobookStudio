@@ -1,7 +1,8 @@
 {
   "id": "fish_s2",
   "displayName": "Fish Audio S2 Pro",
-  "description": "Very expressive multilingual TTS (80+ languages) with inline [tags] like [whisper] or [laughing]. Clones from a reference clip plus its transcript. Needs a 24 GB GPU. Research / non-commercial license.",
+  "description": "Very expressive multilingual TTS (80+ languages). Type free-form [tags] anywhere in a segment's text to steer the delivery: [whisper], [laughing], [pause], [excited and fast]. Clones from a reference clip plus its transcript. Needs a 24 GB GPU. Research / non-commercial license.",
+  "inlineTags": "\\[[^\\[\\]\\n]*\\]",
   "experimental": true,
   "tags": ["Voice", "Voice clone"],
   "priority": 80,

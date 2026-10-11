@@ -12,6 +12,9 @@ namespace LocalAudiobookStudio.Core.Import;
 /// much earlier, overlapping), <c>[clip: path]</c>, <c>[id: name]</c> and <c>[length: 4s]</c> (for the next section:
 /// on its own line or at the start of one, before or after a speaker tag), and
 /// comments: <c>[comment: text]</c> (may span lines and paragraphs, up to a line ending in "]") or <c>[comment] text</c> (one line).
+/// A backslash escapes: before ASCII punctuation (<c>\[</c>, <c>\]</c>, <c>\#</c>, <c>\:</c>, <c>\\</c>) the character is
+/// plain text, and at the start of a line the line is plain text (not a tag, a speaker marker or a heading). Any other
+/// backslash stays as it is, so paths like <c>assets\door.wav</c> keep theirs.
 /// </summary>
 public static partial class TextImporter
 {
@@ -63,6 +66,34 @@ public static partial class TextImporter
     [GeneratedRegex(@"[ \t]+")]
     private static partial Regex SpacesRegex();
 
+    /// <summary>A backslash and the ASCII punctuation it escapes.</summary>
+    [GeneratedRegex(@"\\([!-/:-@\[-`{-~])")]
+    private static partial Regex EscapeRegex();
+
+    /// <summary>A backslash starting a line (after any indentation) that escapes nothing else.</summary>
+    [GeneratedRegex(@"^([ \t]*)\\", RegexOptions.Multiline)]
+    private static partial Regex LineEscapeRegex();
+
+    /// <summary>
+    /// While parsing, an escaped character stands in as itself moved into the private use area (U+E021–U+E07E), so no
+    /// marker's pattern sees it; <see cref="PlainLineMark"/> starts an escaped line. <see cref="Unescape"/> puts them back.
+    /// </summary>
+    private const char EscapeBase = '\uE000', PlainLineMark = '\uE000';
+
+    private static string Unescape(string s)
+    {
+        if (!s.Any(c => c >= EscapeBase && c < EscapeBase + 0x80)) return s;
+        var sb = new StringBuilder(s.Length);
+        foreach (var c in s)
+        {
+            if (c == PlainLineMark) continue;
+            sb.Append(c > EscapeBase && c < EscapeBase + 0x80 ? (char)(c - EscapeBase) : c);
+        }
+        return sb.ToString();
+    }
+
+    private static string? UnescapeOrNull(string? s) => s == null ? null : Unescape(s);
+
     public static ImportResult Parse(string text, ImportOptions options)
     {
         var headingRegex = new Regex(options.ChapterRegex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -73,12 +104,16 @@ public static partial class TextImporter
         // 1. Normalize line endings.
         text = text.Replace("\r\n", "\n").Replace('\r', '\n');
 
+        // Escaped characters and lines are hidden from the markers' patterns until the text is taken apart.
+        text = EscapeRegex().Replace(text, m => ((char)(EscapeBase + m.Groups[1].Value[0])).ToString());
+        text = LineEscapeRegex().Replace(text, m => m.Groups[1].Value + PlainLineMark);
+
         // Comments become paragraphs of their own, marked by an index, before the text is split.
         var comments = new List<string>();
         string MarkComment(Match m)
         {
             var lines = m.Groups[1].Value.Split('\n').Select(l => l.TrimEnd());
-            comments.Add(string.Join('\n', lines).Trim());
+            comments.Add(Unescape(string.Join('\n', lines).Trim()));
             return $"\n\n{CommentMark}{comments.Count - 1}{CommentMark}\n\n";
         }
         text = CommentBlockRegex().Replace(text, MarkComment);
@@ -106,6 +141,7 @@ public static partial class TextImporter
 
         void StartChapter(string title, bool spokenHeading)
         {
+            title = Unescape(title);
             chapter = new ImportedChapter { Title = title };
             result.Chapters.Add(chapter);
             if (spokenHeading) chapter.Items.Add(new ImportedItem { Kind = ItemKind.Tts, Text = title, IsHeading = true });
@@ -115,8 +151,9 @@ public static partial class TextImporter
 
         void AddSpeech(string body, string? label)
         {
-            body = SpacesRegex().Replace(body, " ").Trim();
+            body = SpacesRegex().Replace(Unescape(body), " ").Trim();
             if (body.Length == 0) return;
+            label = UnescapeOrNull(label);
             if (label != null && labels.Add(label)) result.SpeakerLabels.Add(label);
             var max = options.MaxCharsForSpeaker?.Invoke(label) ?? options.MaxSegmentChars;
             foreach (var part in SentenceSplitter.SplitToLimit(body, Math.Max(50, max)))
@@ -153,7 +190,7 @@ public static partial class TextImporter
         {
             var m = IdRegex().Match(line);
             if (!m.Success) return false;
-            pendingId = m.Groups[1].Value.Trim();
+            pendingId = Unescape(m.Groups[1].Value.Trim());
             line = m.Groups[2].Value.Trim();
             return true;
         }
@@ -241,6 +278,9 @@ public static partial class TextImporter
         return result;
     }
 
+    /// <summary>Whether a line starts with "[id: …]" or "[length: …]", which are read even after a speaker tag.</summary>
+    internal static bool StartsWithSectionTag(string line) => IdRegex().IsMatch(line) || LengthRegex().IsMatch(line);
+
     private static bool IsHeading(string line, Regex headingRegex, ImportOptions options, out string title)
     {
         title = line;
@@ -263,7 +303,7 @@ public static partial class TextImporter
         var m = BlockTagRegex().Match(line);
         if (m.Success)
         {
-            var name = m.Groups[1].Value.Trim();
+            var name = Unescape(m.Groups[1].Value.Trim());
             // "[speaker: default]" or "[speaker: -]" returns to the default speaker.
             blockSpeaker = name is "-" || name.Equals("default", StringComparison.OrdinalIgnoreCase) ? "" : name;
             return true;
@@ -283,7 +323,7 @@ public static partial class TextImporter
         m = ClipRegex().Match(line);
         if (m.Success)
         {
-            item = new ImportedItem { Kind = ItemKind.Clip, ClipFile = m.Groups[1].Value.Trim() };
+            item = new ImportedItem { Kind = ItemKind.Clip, ClipFile = Unescape(m.Groups[1].Value.Trim()) };
             return true;
         }
 

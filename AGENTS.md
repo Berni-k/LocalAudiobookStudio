@@ -177,6 +177,9 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
      have a `speaker`, any label it likes (`S0`, `S1`). Requests may carry `speakers` (names, in the order they first
      speak) and `speakerCount` (`req.speakers`, `req.speaker_count`): hints any worker may ignore. A language is an ordinary `language` enum setting (`Auto` plus codes, read from
      `req.settings`), as in `whisper`; a model that detects the language itself has none.
+   - `inlineTags`: a regular expression for directions the model reads in the text but doesn't say (`[whisper]`,
+     `(laugh)`). The app blanks them out before comparing a take with its transcript or timing it with an aligner.
+     Mention the tags in the `description` so users know to type them.
    - `settings`: per speaker, overridable per segment. Types: `float`, `int`, `bool`, `string`, `enum` (`options`,
      `optionLabels`), `seed`, `file`, `asset` (`extensions`; `addsSettings` to read more settings from the file).
      A `voice` enum setting holds built-in voices. `workerSettings` are per machine (servers, tokens).

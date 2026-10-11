@@ -436,8 +436,9 @@ public sealed partial class ProjectEngine
         var generation = tag.Generation!; // what the takes record: the generating worker, not this transcription
         var transcript = job.Transcript!;
 
-        // Each part's place in the joined text, then its heard span from the words that line up with it.
-        var joined = string.Join("\n", tag.PartTexts);
+        // Each part's place in the joined text, then its heard span from the words that line up with it. The worker's
+        // inline tags are blanked out in place: they aren't said, and the parts keep their places.
+        var joined = SpokenText(generation.WorkerId, string.Join("\n", tag.PartTexts));
         var ranges = new List<(int Start, int End)>();
         var at = 0;
         foreach (var t in tag.PartTexts) { ranges.Add((at, at + t.Length)); at += t.Length + 1; }
@@ -507,7 +508,7 @@ public sealed partial class ProjectEngine
                 .Select(w => w with { StartMs = Math.Max(w.StartMs, start) - start, EndMs = Math.Min(w.EndMs, end) - start }).ToList();
             new StoredTranscript { Worker = tag.Listeners.Names, Language = transcript.Language, Words = mine }
                 .Save(Paths.TakeTranscript(m.ItemId, info.Take));
-            var own2 = TranscriptCheck.Compare(m.Text, mine);
+            var own2 = TranscriptCheck.Compare(SpokenText(generation.WorkerId, m.Text), mine);
             info.TranscriptErrors = own2.Errors;
             info.TranscriptWordCount = own2.ExpectedCount;
             TakeStore.SaveTakeInfo(Paths, m.ItemId, info);
@@ -648,7 +649,7 @@ public sealed partial class ProjectEngine
     /// members use one, times those words; an aligner alone times the parts' text as given.
     /// </remarks>
     private GenerationJob SplitJob(GenerationJob fused, FusedJobTag tag) =>
-        Transcription.Listen(tag.Listeners, tag.TranscriptWav!, string.Join("\n", tag.PartTexts), $"{fused.Label}: finding the segments",
+        Transcription.Listen(tag.Listeners, tag.TranscriptWav!, SpokenText(fused.WorkerId, string.Join("\n", tag.PartTexts)), $"{fused.Label}: finding the segments",
             fused.Priority, new SplitJobTag(tag), fused.ReadingOrder, Voices(tag), afterRun: CutByTranscript)
         ?? throw new InvalidOperationException("a fused generation without spans has nobody to listen to it"); // TimesWords was checked when it was planned
 

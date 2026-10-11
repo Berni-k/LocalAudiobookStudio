@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using LocalAudiobookStudio.Workers.Protocol;
 
 namespace LocalAudiobookStudio.Workers.Manifest;
@@ -13,6 +14,31 @@ public sealed class WorkerManifest
     public string Id { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string? Description { get; set; }
+
+    /// <summary>
+    /// A regular expression for the directions a model takes in the text but doesn't say (Fish's <c>[whisper]</c>,
+    /// Breeze's <c>(laugh)</c>): what it matches is left out when a take's text is compared with what was heard, or given
+    /// to an aligner to time. Null: everything in the text is spoken.
+    /// </summary>
+    public string? InlineTags
+    {
+        get => _inlineTags;
+        set { _inlineTags = value; _inlineTagRegex = null; }
+    }
+
+    private string? _inlineTags;
+    private Regex? _inlineTagRegex;
+
+    /// <summary>
+    /// <paramref name="text"/> with what <see cref="InlineTags"/> matches blanked out by as many spaces, so the words left
+    /// keep their place in the text (for highlighting them).
+    /// </summary>
+    public string SpokenText(string text)
+    {
+        if (string.IsNullOrEmpty(InlineTags) || string.IsNullOrEmpty(text)) return text;
+        _inlineTagRegex ??= new Regex(InlineTags, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        return _inlineTagRegex.Replace(text, m => new string(' ', m.Length));
+    }
 
     /// <summary>
     /// Sort order in worker lists (Speakers dialog, Workers window): higher first, then by name. Default 0, so
