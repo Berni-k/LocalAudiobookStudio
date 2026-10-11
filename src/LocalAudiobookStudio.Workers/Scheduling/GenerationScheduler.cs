@@ -630,6 +630,16 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 return;
             }
 
+            if (job.CompareVoices != null)
+            {
+                job.VoiceScores = await conn.CompareVoicesAsync(job.CompareVoices, progress, job.Cancellation.Token).ConfigureAwait(false);
+                if (job.AfterRun != null) await job.AfterRun(job).ConfigureAwait(false);
+                job.State = JobState.Completed;
+                job.FinishedUtc = DateTime.UtcNow;
+                JobCompleted?.Invoke(job);
+                return;
+            }
+
             PrepareOutput(job);
             var result = await conn.GenerateAsync(job.Request, progress, job.Cancellation.Token).ConfigureAwait(false);
             if (!File.Exists(result.Path))

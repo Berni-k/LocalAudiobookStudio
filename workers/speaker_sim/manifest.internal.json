@@ -1,0 +1,6 @@
+{
+  "engine": "speaker-embed",
+  "devices": ["cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Comes with the app (ONNX Runtime in the internal worker): nothing to install but the model. A few seconds of audio take well under a second."
+}

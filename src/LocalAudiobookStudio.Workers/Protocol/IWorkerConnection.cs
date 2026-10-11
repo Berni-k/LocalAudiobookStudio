@@ -43,6 +43,9 @@ public interface IWorkerConnection : IAsyncDisposable
     /// </summary>
     Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);
 
+    /// <summary>How alike the voices in the request's files are, for workers tagged Speaker Verification. Cancelling works as for <see cref="GenerateAsync"/>.</summary>
+    Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct);
+
     Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct);
 
     /// <summary>Asks the worker to exit; kills it if it hasn't after <paramref name="grace"/>.</summary>

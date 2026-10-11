@@ -54,6 +54,15 @@ public static class MessageTypes
     /// the expected text, never used as a prompt.
     /// </summary>
     public const string TranscribeAlign = "transcribeAlign";
+
+    /// <summary>
+    /// How alike voices are (workers tagged Speaker Verification): two or more audio files (<see cref="WorkerMessage.Files"/>),
+    /// each a reference or a candidate. Answered with <see cref="VoiceScores"/>.
+    /// </summary>
+    public const string CompareVoices = "compareVoices";
+
+    /// <summary>The answer to <see cref="CompareVoices"/>: scores, the pairwise matrix, the speech in each file and the model.</summary>
+    public const string VoiceScores = "voiceScores";
     public const string Shutdown = "shutdown";
 
     // App → worker, answering needModel / needFile
@@ -117,6 +126,18 @@ public sealed class WorkerMessage
     public string? Language { get; set; }
     public List<TranscriptWord>? Words { get; set; }
 
+    /// <summary>compareVoices (app → worker): the audio files to compare, in this order (the matrix follows it).</summary>
+    public List<VoiceFile>? Files { get; set; }
+
+    /// <summary>voiceScores: the candidates' similarity to the references, in the order the candidates are in <see cref="Files"/>.</summary>
+    public List<double>? Scores { get; set; }
+
+    /// <summary>voiceScores: the similarity of every pair of files, [i][j] being file i against file j.</summary>
+    public List<List<double>>? Matrix { get; set; }
+
+    /// <summary>voiceScores: how much speech each file has, in ms (short clips make unreliable scores).</summary>
+    public List<int>? SpeechMs { get; set; }
+
     // generate (app → worker)
     public string? Text { get; set; }
     public double? DurationSec { get; set; }
@@ -130,6 +151,7 @@ public sealed class WorkerMessage
     // needModel / needFile (worker → app) and their replies
     /// <summary>Matches a reply to the worker's request (the worker's own id; <see cref="Id"/> is the request it is handling).</summary>
     public string? Ref { get; set; }
+    /// <summary>needModel: the models.json id wanted. voiceScores: the model that scored (its engineConfig key).</summary>
     public string? Model { get; set; }
     public string? File { get; set; }
     /// <summary>Make this folder a link to the model's folder (a junction on Windows).</summary>
@@ -259,6 +281,42 @@ public enum ListenMode
     /// <summary>The words heard with their times (Transcription and Alignment): <see cref="MessageTypes.TranscribeAlign"/>.</summary>
     TranscribeAlign,
 }
+
+/// <summary>One audio file of a voice comparison: a 16 kHz mono WAV made like a transcription's (<c>Transcription.PrepareAudio</c>).</summary>
+public sealed class VoiceFile
+{
+    public string Path { get; set; } = "";
+
+    /// <summary>A <see cref="VoiceRoles"/> value.</summary>
+    public string Role { get; set; } = VoiceRoles.Candidate;
+}
+
+public static class VoiceRoles
+{
+    /// <summary>Known to be the voice: candidates are scored against it (several references: against their average).</summary>
+    public const string Reference = "reference";
+
+    /// <summary>A recording whose voice is judged.</summary>
+    public const string Candidate = "candidate";
+}
+
+/// <summary>What the app asks a speaker verification worker to do.</summary>
+public sealed class VoiceCompareRequest
+{
+    /// <summary>Two or more files. The matrix of the answer follows their order.</summary>
+    public IReadOnlyList<VoiceFile> Files { get; init; } = [];
+
+    public JsonObject Settings { get; init; } = new();
+}
+
+/// <summary>
+/// A worker's judgement of voices. Scores of different <see cref="Model"/>s are not comparable: never mix them.
+/// </summary>
+/// <param name="Scores">One per candidate, in their order: similarity to the references (empty without references).</param>
+/// <param name="Matrix">The similarity of every pair of files, in request order; 1 on the diagonal.</param>
+/// <param name="SpeechMs">Per file, in request order: how much speech the score rests on.</param>
+/// <param name="Model">Which of the worker's models scored.</param>
+public sealed record VoiceScores(IReadOnlyList<double> Scores, IReadOnlyList<IReadOnlyList<double>> Matrix, IReadOnlyList<int> SpeechMs, string Model);
 
 /// <summary>One word as heard, with where it is in the audio.</summary>
 /// <param name="Speaker">

@@ -449,6 +449,22 @@ public sealed partial class TakeRowViewModel : ObservableObject
         : IsApproved ? "Approved by you although the transcript differs"
         : $"The transcript doesn't match the text: {e} difference(s) in {Info.TranscriptWordCount} words";
 
+    // The SIM score: a cosine similarity to the speaker's voice, only comparable with the speaker's other scores.
+    public bool HasSimScore => Info.SimScore != null;
+    private bool SimOutdated => _main.Session is { } s && s.IsSimScoreOutdated(Item.Model, Info);
+
+    /// <summary>The selected take is the one flagged as unlike its speaker.</summary>
+    public bool SimLow => IsSelected && Item.SimFlagged;
+
+    public string SimText => Info.SimScore is not { } score ? "" :
+        $"SIM {score:0.00}" + (Info.SimCheck is { } check ? $" · {check.Model}" : "") + (SimOutdated ? " · out of date" : "");
+
+    public string SimTooltip => Info.SimScore == null ? "" :
+        $"How much this take sounds like its speaker, compared with {Info.SimCheck?.Against ?? "?"}" +
+        (Info.SimSpeechMs is int ms ? $" ({ms / 1000.0:0.0} s of speech)" : "") +
+        (SimOutdated ? ".\nThe speaker's SIM scorer, model or voice clip changed since: this score no longer counts." : ".") +
+        "\nScores of different models can't be compared; judge a take against the speaker's other scores.";
+
     [ObservableProperty] private Peaks? _peaks;
 
     private async void LoadPeaks()

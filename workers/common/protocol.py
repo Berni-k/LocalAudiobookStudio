@@ -9,6 +9,10 @@ generating implements what its tags say, in place of ``generate`` (``req.audio_p
 - tags Transcription and Alignment: ``transcribe_align(req, report)`` returns ``{"text", "words", "language"}``, the
   words heard with their times. A ``transcribe`` request goes to it when there is no ``transcribe`` (its words are
   dropped);
+- tag Speaker Verification: ``compare_voices(req, report)`` returns ``{"scores", "matrix", "speechMs", "model"}`` for
+  ``req.files`` (``[{"path", "role": "reference" or "candidate"}]``, 16 kHz mono WAVs, two or more): ``scores`` one per
+  candidate against the references (several: their average), ``matrix`` every pair in request order, ``speechMs`` the
+  speech in each file, ``model`` what scored (scores of different models are never compared);
 - tag Alignment Forced: ``align(req, report)`` returns ``{"words": [{"text", "startMs", "endMs", "confidence"}]}``, the
   times of ``req.text``'s words as written (it needs the text, and doesn't check that they were said). With
   Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript.
@@ -106,6 +110,7 @@ class Request:
     parts: list = field(default_factory=list)  # a fused generation's parts (list of Part), in order
     speakers: list = field(default_factory=list)  # listening: who may be speaking (names, in order), when known; a hint
     speaker_count: Optional[int] = None  # listening: how many voices there are, when known; a hint
+    files: list = field(default_factory=list)  # compareVoices: [{"path", "role": "reference" or "candidate"}], in order
     cancelled: bool = False
 
 
@@ -432,6 +437,8 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 send({"type": "ready", "id": mid})
             elif mtype == "generate":
                 _handle_generate(worker, msg, current)
+            elif mtype == "compareVoices":
+                _handle_compare_voices(worker, msg, current)
             elif mtype in ("transcribe", "align", "transcribeAlign"):
                 _handle_listen(worker, mtype, msg, current)
             elif mtype == "listVoices":
@@ -551,6 +558,32 @@ def _handle_generate(worker: Any, msg: dict, current: dict) -> None:
         else:
             done["spans"] = [None if s is None else {"startMs": int(s[0]), "endMs": int(s[1])} for s in spans]
     send(done)
+
+
+def _handle_compare_voices(worker: Any, msg: dict, current: dict) -> None:
+    """``compareVoices``: how alike the voices in two or more audio files are, answered with ``voiceScores``."""
+    method = getattr(worker, "compare_voices", None)
+    if method is None:
+        raise RuntimeError("this worker doesn't compare voices (tag Speaker Verification)")
+    files = [{"path": str(f.get("path") or ""), "role": str(f.get("role") or "candidate")} for f in msg.get("files") or []]
+    if len(files) < 2:
+        raise ValueError("comparing voices takes at least two audio files")
+    for f in files:
+        if not os.path.isfile(f["path"]):
+            raise FileNotFoundError(f"no audio at {f['path']}")
+    req = Request(id=msg.get("id"), settings=msg.get("settings") or {}, files=files)
+    current["request"] = req
+    result = method(req, _make_reporter(req.id, req)) or {}
+    if req.cancelled:
+        raise Cancelled()
+    send({
+        "type": "voiceScores",
+        "id": req.id,
+        "scores": [float(s) for s in result.get("scores") or []],
+        "matrix": [[float(v) for v in row] for row in result.get("matrix") or []],
+        "speechMs": [int(v) for v in result.get("speechMs") or []],
+        "model": str(result.get("model") or ""),
+    })
 
 
 def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:

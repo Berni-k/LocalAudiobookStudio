@@ -44,6 +44,9 @@ internal abstract class EngineBase(EngineContext context) : IEngine
     public virtual Task ListenAsync(string? id, JsonObject msg, ListenMode mode) =>
         throw new NotSupportedException($"the {Context.Options.Engine} engine doesn't listen to audio");
 
+    public virtual Task CompareVoicesAsync(string? id, JsonObject msg) =>
+        throw new NotSupportedException($"the {Context.Options.Engine} engine doesn't compare voices");
+
     /// <summary>For an engine that hears words with their times: everything but aligning a given text.</summary>
     protected void RequireHearing(ListenMode mode)
     {

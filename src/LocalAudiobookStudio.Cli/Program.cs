@@ -64,6 +64,7 @@ internal static class Program
             {
                 "tts" => await TtsCommand.RunAsync(ctx, tail),
                 "transcribe" => await TranscribeCommand.RunAsync(ctx, tail),
+                "compare" => await CompareCommand.RunAsync(ctx, tail),
                 "project" => await ProjectCommand.RunAsync(ctx, tail),
                 "workers" => await InfoCommands.WorkersAsync(ctx, tail),
                 "models" => await ModelsCommand.RunAsync(ctx, tail),
@@ -78,7 +79,7 @@ internal static class Program
         catch (UsageException ex)
         {
             CliContext.Error(ex.Message);
-            CliContext.Error($"Run 'las help{(command is "tts" or "transcribe" or "project" ? " " + command : "")}' for usage.");
+            CliContext.Error($"Run 'las help{(command is "tts" or "transcribe" or "compare" or "project" ? " " + command : "")}' for usage.");
             return ExitUsage;
         }
         catch (SetupException ex)

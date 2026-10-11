@@ -16,6 +16,8 @@ internal static class Engines
         ["tdt"] = c => new TdtEngine(c),
         // CTC forced alignment (MMS-300M-FA exported to ONNX): finds when each word of a given text is spoken, on the CPU.
         ["ctc-align"] = c => new CtcAlignEngine(c),
+        // Speaker-embedding networks (3D-Speaker, WeSpeaker) exported to ONNX: how alike voices are, on the CPU.
+        ["speaker-embed"] = c => new SpeakerEmbedEngine(c),
     };
 
     public static IEngine Create(EngineContext context) =>

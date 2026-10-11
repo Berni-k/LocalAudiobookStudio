@@ -584,6 +584,11 @@
                            ToolTip.Tip="{Binding TranscriptVerifiedTooltip}">
                       <PathIcon Data="{StaticResource IconCheck}" Width="13" Height="13" Foreground="#2EA043" />
                     </Panel>
+                    <!-- Speaker SIM Score, upper right: an amber warning when the take sounds well below the speaker's other takes. -->
+                    <Panel HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" IsVisible="{Binding SimFlagged}"
+                           ToolTip.Tip="{Binding SimFlagTooltip}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SemiColorWarning}" />
+                    </Panel>
                     </Grid>
                   </Border>
 

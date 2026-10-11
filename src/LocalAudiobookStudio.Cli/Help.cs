@@ -6,6 +6,7 @@ internal static class Help
     {
         "tts" => Tts,
         "transcribe" => Transcribe,
+        "compare" => Compare,
         "project" => Project,
         _ => Main,
     };
@@ -20,6 +21,8 @@ internal static class Help
           tts        Text to a WAV file, like the speaker preview (no project involved)
           transcribe What a transcription worker hears in audio files, with word timings; compared with
                      the text the audio should contain when you give it
+          compare    How alike the voices in audio files are (speaker verification): every pair, or each file
+                     against a reference clip; for comparing seeds, models and settings
           project    Run steps on a project: import, erase-takes, generate, export, status, …
           workers    List workers and whether they're installed; 'workers <id>' shows settings and voices;
                      'workers install <id…>' installs workers like the Workers window (--runtime <name> for
@@ -38,7 +41,7 @@ internal static class Help
           --json          Print the result as JSON on stdout
           -v, --verbose   Show details and worker logs on stderr
           -q, --quiet     Only errors on stderr
-          -h, --help      Help ('las help tts', 'las help transcribe', 'las help project')
+          -h, --help      Help ('las help tts', 'las help transcribe', 'las help compare', 'las help project')
 
         Exit codes: 0 ok, 1 something failed, 2 wrong usage, 3 setup needed (worker, ffmpeg, project open in
         the app), 130 cancelled.
@@ -110,6 +113,37 @@ internal static class Help
           las tts "The quick brown fox." -o fox.wav
           las transcribe fox.wav -t "The quick brown fox."
           las --json transcribe audio/ -f texts/
+
+        """;
+
+    private const string Compare = """
+        las compare <audio…> [--ref <clip>] [options]
+
+        Says how alike the voices in audio files are (WAV, Opus, MP3, or folders of them), with a worker tagged
+        Speaker Verification. Similarity is a cosine, -1 to 1: the same voice scores high, another clearly lower.
+
+        Without --ref (two or more files): the similarity of every pair, then how each file fits the others
+        (mean, lowest, which file that was against, OUTLIER when well below the group), and one line for the
+        group: the mean, lowest and spread of all pairs. That line is the number to compare between models or
+        settings. For a seed test make the takes with 'las tts --seed N' and compare them.
+
+        With --ref: each file's score against that clip (several --ref: against their average).
+
+        Scores of different models are not comparable. They capture timbre and pitch range, not rhythm; emotion,
+        whispering, loudness and clips under 2.5 s of speech lower them. There is no threshold: judge a file
+        against the others.
+
+              --ref <clip>         A reference clip (repeatable)
+          -w, --worker <id>        Worker (default: the first installed speaker verification worker)
+              --runtime <name>     Runtime of the worker; see 'las workers <id>'
+              --device gpu|cpu     Where it runs this time
+              --set key=value      A worker setting (repeatable), e.g. --set model=wespeaker
+          -r, --recursive          Include subfolders of input folders
+
+        Examples:
+          las compare seed1.wav seed2.wav seed3.wav seed4.wav seed5.wav
+          las compare takes/ --ref voice.wav --set model=campplus
+          las --json compare a.wav b.wav
 
         """;
 

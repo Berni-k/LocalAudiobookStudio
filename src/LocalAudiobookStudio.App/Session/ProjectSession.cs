@@ -277,6 +277,7 @@ public sealed partial class ProjectSession : IAsyncDisposable
 
     private void RefreshItems(IEnumerable<ItemViewModel> items, bool layout = true)
     {
+        _flaggedSims = null; // a take or speaker changed: who sounds unlike their speaker is worked out again
         var states = AppHost.Scheduler.ItemStates();
         var chapters = new HashSet<ChapterViewModel>();
         foreach (var vm in items)
@@ -297,6 +298,7 @@ public sealed partial class ProjectSession : IAsyncDisposable
     public void RefreshAll()
     {
         foreach (var s in Speakers) s.Refresh();
+        _flaggedSims = null;
         var states = AppHost.Scheduler.ItemStates();
         foreach (var vm in _itemVms.Values)
         {

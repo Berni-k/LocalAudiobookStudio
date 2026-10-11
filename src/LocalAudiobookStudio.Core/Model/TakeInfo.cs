@@ -40,6 +40,19 @@ public sealed class TakeInfo
 
     public int? TranscriptWordCount { get; set; }
 
+    /// <summary>
+    /// How much the take sounds like its speaker's voice, from the speaker's SIM scorer: a cosine similarity, worked out
+    /// once when the take was checked (null: not checked). Only meaningful beside scores of the same
+    /// <see cref="SimCheck"/>; whether it is low is judged against the speaker's other scores, never a fixed number.
+    /// </summary>
+    public double? SimScore { get; set; }
+
+    /// <summary>How much speech <see cref="SimScore"/> rests on, in ms: short takes score unreliably.</summary>
+    public int? SimSpeechMs { get; set; }
+
+    /// <summary>Who scored the take and against what.</summary>
+    public SimScoreInfo? SimCheck { get; set; }
+
     /// <summary>Set when the take was cut out of a fused generation (several segments, or context, in one go).</summary>
     public TakeFusion? Fusion { get; set; }
 
@@ -47,6 +60,24 @@ public sealed class TakeInfo
 
     /// <summary>The audio file's name: take-NNNN.wav or take-NNNN.opus.</summary>
     public string FileName => FileStem(Take) + AudioFormats.ExtensionOf(Format);
+}
+
+/// <summary>What a take's voice score was worked out with. Scores with different <see cref="Key"/>s are never mixed.</summary>
+public sealed class SimScoreInfo
+{
+    public string Worker { get; set; } = "";
+
+    /// <summary>The worker's model that scored (scores of different models aren't comparable).</summary>
+    public string Model { get; set; } = "";
+
+    /// <summary>What the take was compared with, for people: "voice clip kate.wav" or "3 other takes of the speaker".</summary>
+    public string Against { get; set; } = "";
+
+    /// <summary>
+    /// Worker, model and reference together. When the speaker's current key differs (another checker, model or voice
+    /// clip), the score is out of date.
+    /// </summary>
+    public string Key { get; set; } = "";
 }
 
 /// <summary>How a take came out of a fused generation.</summary>

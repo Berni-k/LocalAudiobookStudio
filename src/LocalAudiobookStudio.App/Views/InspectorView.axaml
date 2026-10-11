@@ -217,6 +217,9 @@
                       </Panel>
                     </Grid>
                     <TextBlock Text="{Binding Details}" Classes="caption" TextWrapping="Wrap" />
+                    <!-- The SIM score's score, against the speaker's voice clip or other takes; amber when it is well below the speaker's range. -->
+                    <TextBlock Text="{Binding SimText}" Classes="caption" Classes.warning="{Binding SimLow}" TextWrapping="Wrap"
+                               IsVisible="{Binding HasSimScore}" ToolTip.Tip="{Binding SimTooltip}" />
                     <Border Height="30" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="3">
                       <ctl:WaveformView Peaks="{Binding Peaks}" Interactive="False" ShowFullRange="True" Fill="{DynamicResource WaveformBrush}" />
                     </Border>

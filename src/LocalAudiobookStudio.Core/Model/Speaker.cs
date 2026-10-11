@@ -40,6 +40,15 @@ public sealed class Speaker
     /// <summary>Settings for <see cref="Aligner"/>.</summary>
     public JsonObject AlignerSettings { get; set; } = new();
 
+    /// <summary>
+    /// Worker id of the speaker verification worker that scores how much this speaker's takes sound like its voice (empty:
+    /// off). Against the speaker's voice clip when its worker clones, else against its other takes.
+    /// </summary>
+    public string SimScorer { get; set; } = "";
+
+    /// <summary>Settings for <see cref="SimScorer"/>, edited from its manifest like <see cref="Settings"/>.</summary>
+    public JsonObject SimScorerSettings { get; set; } = new();
+
     public List<string> MarkerAliases { get; set; } = new();
 
     /// <summary>

@@ -179,6 +179,16 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
      have a `speaker`, any label it likes (`S0`, `S1`). Requests may carry `speakers` (names, in the order they first
      speak) and `speakerCount` (`req.speakers`, `req.speaker_count`): hints any worker may ignore. A language is an ordinary `language` enum setting (`Auto` plus codes, read from
      `req.settings`), as in `whisper`; a model that detects the language itself has none.
+     - `Speaker Verification`: judges how alike voices are (speaker embeddings). Also a listener (never a speaker's voice;
+       `IsListener`, `Catalog.SimScorers`), but its request is not a transcript: `compareVoices` carries `files`
+       (`path`, `role` reference or candidate; two or more 16 kHz mono WAVs made with `Transcription.PrepareAudio`; not
+       `audio`, which is base64 WAV bytes) and the answer `voiceScores` has `scores` (one per candidate against the
+       references, several: their average embedding), `matrix` (every pair, request order), `speechMs` per file and `model`
+       (scores of different models are never compared). `compare_voices(req, report)` in `protocol.py`;
+       `speaker-embed` in the internal worker (`speaker_sim`, copy it; its model is chosen per request). A speaker's
+       `SimScorer` scores each new take (`ProjectEngine.BuildSimScoreJob`, stored in `TakeInfo.SimScore`) against its
+       voice clip when its worker clones, else other takes; `SpeakerVerification` flags takes well below the speaker's own
+       range (median minus MADs), never a fixed number. `las compare`.
    - `inlineTags`: a regular expression for directions the model reads in the text but doesn't say (`[whisper]`,
      `(laugh)`). The app blanks them out before comparing a take with its transcript or timing it with an aligner.
      Mention the tags in the `description` so users know to type them.

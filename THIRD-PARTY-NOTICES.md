@@ -9,7 +9,7 @@ Not covered here, because they are not shipped with the app but downloaded later
 | [uv](https://github.com/astral-sh/uv) | `tools/uv`: the Python installer the app uses (uv is dual-licensed MIT or Apache-2.0; it is redistributed here under MIT) | MIT |
 | [HartsyInference](https://github.com/HartsyAI/HartsyInference) | `tools/hartsy/las-hartsy-worker`: HartsyInference.Engine and its packages (Audio, Core, Cpu, Cuda, Diffusion, Gpu, LLM, ModelAssets, ThreeD, Video, Vision, Vulkan, World) | MIT |
 | [Whisper.net](https://github.com/sandrohanea/whisper.net) | `tools/internal-worker/las-internal-worker`: Whisper.net and its CPU runtimes (Whisper.net.Runtime, Whisper.net.Runtime.NoAvx) | MIT |
-| [ONNX Runtime](https://github.com/microsoft/onnxruntime) | `tools/internal-worker/las-internal-worker`: Microsoft.ML.OnnxRuntime (CPU), for Parakeet's built-in runtime | MIT |
+| [ONNX Runtime](https://github.com/microsoft/onnxruntime) | `tools/internal-worker/las-internal-worker`: Microsoft.ML.OnnxRuntime (CPU), for Parakeet's built-in runtime, MMS forced alignment and the SIM score | MIT |
 | [whisper.cpp and ggml](https://github.com/ggml-org/whisper.cpp) | The native whisper and ggml libraries inside Whisper.net's runtimes | MIT |
 | [Avalonia](https://github.com/AvaloniaUI/Avalonia) | Avalonia, Avalonia.Desktop, Avalonia.Controls.ColorPicker, Avalonia.FreeDesktop, Avalonia.Native, Avalonia.Remote.Protocol, Avalonia.Skia, Avalonia.Themes.Simple, Avalonia.Win32, Avalonia.X11 | MIT |
 | [ANGLE](https://chromium.googlesource.com/angle/angle) | Avalonia.Angle.Windows.Natives (Windows only) | BSD-3-Clause |

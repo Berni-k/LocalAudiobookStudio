@@ -548,6 +548,24 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
         if (!IsDirty) IsEditingText = false;
     }
 
+    /// <summary>
+    /// The selected take sounds well below its speaker's other takes (SIM score): an amber warning shows. Judged against
+    /// the speaker's own scores, never a fixed number.
+    /// </summary>
+    public bool SimFlagged => Model.Kind == ItemKind.Tts && Session.IsSimFlagged(Id);
+
+    public string SimFlagTooltip => SelectedTakeInfo is { SimScore: { } score } info
+        ? $"This take may not sound like {SpeakerName}: voice score {score:0.00}, well below the speaker's other takes (compared with {info.SimCheck?.Against ?? "?"})."
+        : "";
+
+    /// <summary>A SIM score was saved for one of this segment's takes, or flags moved: show them.</summary>
+    public void RaiseSim()
+    {
+        OnPropertyChanged(nameof(Takes)); // the inspector's take list shows each take's voice score
+        OnPropertyChanged(nameof(SimFlagged));
+        OnPropertyChanged(nameof(SimFlagTooltip));
+    }
+
     /// <summary>A transcript was saved for one of this segment's takes: read it again.</summary>
     public void RefreshTranscript()
     {
@@ -677,6 +695,8 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
         OnPropertyChanged(nameof(ErrorText));
         OnPropertyChanged(nameof(IsBackground));
         OnPropertyChanged(nameof(BackgroundText));
+        OnPropertyChanged(nameof(SimFlagged));
+        OnPropertyChanged(nameof(SimFlagTooltip));
         SyncEditText();
         RefreshAudio();
         RaiseStatus();

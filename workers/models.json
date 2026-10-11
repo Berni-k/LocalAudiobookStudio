@@ -744,6 +744,34 @@
         "mms_300m_fa_fp16.onnx": { "size": 631499926, "sha256": "9823aa1e22dfc91fe1b1185ead5db5cab4512ce604ed18459b17a9eb92a00cd2" },
         "vocab.json": { "size": 521, "gitSha1": "04e0322b42b12894246efecc4aa8212a713040a8" }
       }
+    },
+    "eres2netv2-sv-zh-cn": {
+      "displayName": "3D-Speaker ERes2NetV2 speaker verification (ONNX)",
+      "sources": [
+        { "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/{file}" }
+      ],
+      "files": {
+        "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx": { "size": 71441526, "sha256": "bf1a75b9930474cf3389ef415e6e5d38ca96fea4a3a00f7e301d080a58ee2239" }
+      }
+    },
+    "campplus-sv-zh-cn": {
+      "displayName": "3D-Speaker CAM\u002B\u002B speaker verification (ONNX)",
+      "sources": [
+        { "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/{file}" }
+      ],
+      "files": {
+        "3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx": { "size": 28281138, "sha256": "f682b514c05d947ee3fa91cd6ec6c5c7543479a128373fa29b1faedccd21fd11" }
+      }
+    },
+    "wespeaker-resnet34-lm": {
+      "displayName": "WeSpeaker ResNet34-LM speaker verification (ONNX)",
+      "sources": [
+        { "repo": "Wespeaker/wespeaker-voxceleb-resnet34-LM", "revision": "f0c48c298fd835726c27956a5d617bad7115627e" }
+      ],
+      "include": ["voxceleb_resnet34_LM.onnx"],
+      "files": {
+        "voxceleb_resnet34_LM.onnx": { "size": 26530309, "sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068" }
+      }
     }
   }
 }

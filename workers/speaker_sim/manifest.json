@@ -1,0 +1,25 @@
+{
+  "id": "speaker_sim",
+  "displayName": "Speaker SIM Score",
+  "description": "Scores how much a recording sounds like a voice, with a speaker-embedding model: compare takes with a speaker's voice clip or with each other. It judges timbre and pitch range, not rhythm or emotion, and scores of different models can't be compared.",
+  "tags": ["Speaker Verification"],
+  "priority": 30,
+  "runtimeOrder": ["internal"],
+  "modelVersion": "v1",
+  "engineConfig": {
+    "modelSetting": "model",
+    "models": {
+      "eres2netv2": { "model": "eres2netv2-sv-zh-cn", "file": "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx" },
+      "campplus": { "model": "campplus-sv-zh-cn", "file": "3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx" },
+      "wespeaker": { "model": "wespeaker-resnet34-lm", "file": "voxceleb_resnet34_LM.onnx", "int16Samples": true, "meanNormalize": true }
+    }
+  },
+  "settings": [
+    { "key": "model", "type": "enum", "label": "Model", "default": "eres2netv2",
+      "description": "The speaker-embedding model. ERes2NetV2 is the one speech synthesis papers report speaker similarity with; WeSpeaker was trained on other (English) data, so it is a cross-check. Scores of different models are not comparable.",
+      "options": ["eres2netv2", "campplus", "wespeaker"],
+      "optionLabels": ["ERes2NetV2 (3D-Speaker)", "CAM++ (3D-Speaker)", "ResNet34 (WeSpeaker)"] }
+  ],
+  "devices": ["cpu"],
+  "models": ["eres2netv2-sv-zh-cn", "campplus-sv-zh-cn", "wespeaker-resnet34-lm"]
+}

@@ -120,6 +120,10 @@ las tts -i chapters/ -o audio/ --skip-existing          # a folder of .txt files
 # What a transcription worker hears, compared with the text the audio should contain
 las transcribe hello.wav -t "Hello there." --words
 
+# How alike the voices in several takes are (a seed test), or how close each is to a reference clip
+las compare seed1.wav seed2.wav seed3.wav seed4.wav seed5.wav
+las compare takes/ --ref voice.wav
+
 # A whole pipeline on a project: steps run in order and stop at the first failure
 las project MyBook import book.txt erase-takes generate export -o book.m4b
 

@@ -63,6 +63,7 @@ while (inbox.Take() is { } msg)
             case "transcribe": await engine.ListenAsync(id, msg, ListenMode.Transcribe); break;
             case "align": await engine.ListenAsync(id, msg, ListenMode.Align); break;
             case "transcribeAlign": await engine.ListenAsync(id, msg, ListenMode.TranscribeAlign); break;
+            case "compareVoices": await engine.CompareVoicesAsync(id, msg); break;
             case "generate" when Protocol.RefuseParts(id, msg): break;
             case "generate": await engine.GenerateAsync(id, msg); break;
             case "listVoices": Protocol.Send("voices", id, ("voices", new JsonArray())); break;

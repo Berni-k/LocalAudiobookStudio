@@ -265,6 +265,9 @@ internal sealed class FakeConnection(string workerId, Func<GenerateRequest, int,
         return new TranscriptResult(request.Text ?? "", words, "en");
     }
 
+    public Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct) =>
+        throw new NotSupportedException();
+
     public Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<VoiceEntry>>([]);
     public Task ShutdownAsync(TimeSpan grace) { Crash(); return Task.CompletedTask; }
 

@@ -30,7 +30,7 @@
                   <MenuItem Header="Everything" Command="{Binding PasteAllCommand}"
                             ToolTip.Tip="Model, voice and settings, transcription and context: all but the name, colour and aliases" />
                   <MenuItem Header="Model, voice and settings" Command="{Binding PasteGenerationCommand}" />
-                  <MenuItem Header="Transcription and alignment" Command="{Binding PasteTranscriptionCommand}" />
+                  <MenuItem Header="Transcription, alignment and SIM score" Command="{Binding PasteTranscriptionCommand}" />
                   <MenuItem Header="Context" Command="{Binding PasteContextCommand}" />
                 </MenuItem>
               </ContextMenu>
@@ -172,6 +172,27 @@
                 </Grid>
                 <ContentControl Content="{Binding AlignerSettings}" />
               </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Speaker SIM Score: scores how much each take sounds like the speaker; with None selected it is only the dropdown. -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Speaker SIM Score" Classes="groupTitle" Margin="0,0,0,4" />
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Worker" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <ComboBox ItemsSource="{Binding SimScorers}" SelectedItem="{Binding SimScorer}" HorizontalAlignment="Stretch"
+                            Classes.missing="{Binding IsSimScorerMissing}" PlaceholderText="Choose a worker" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSimScorerMissing}">
+                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding MissingSimScorerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                  </StackPanel>
+                  <TextBlock Text="{Binding SimScorerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasSimScorer}" />
+                </StackPanel>
+              </Grid>
+              <ContentControl Content="{Binding SimScorerSettings}" />
             </StackPanel>
           </Border>
 

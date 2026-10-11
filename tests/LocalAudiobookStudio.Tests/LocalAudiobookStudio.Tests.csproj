@@ -13,6 +13,11 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The internal worker is an exe; its dependency-free math is compiled in here to be tested. -->
+    <Compile Include="..\..\src\LocalAudiobookStudio.InternalWorker\Fbank.cs" Link="InternalWorker\Fbank.cs" />
+    <Compile Include="..\..\src\LocalAudiobookStudio.InternalWorker\VoiceMath.cs" Link="InternalWorker\VoiceMath.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\LocalAudiobookStudio.Engine\LocalAudiobookStudio.Engine.csproj" />
   </ItemGroup>
 </Project>

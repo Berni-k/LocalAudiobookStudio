@@ -78,6 +78,42 @@ public class ProtocolJsonTests
     }
 
     [Fact]
+    public void VoiceComparisonListsItsFilesWithRoles()
+    {
+        var request = WorkersJson.Serialize(new WorkerMessage
+        {
+            Type = MessageTypes.CompareVoices,
+            Id = "v1",
+            Files =
+            [
+                new VoiceFile { Path = @"C:\x\clip.wav", Role = VoiceRoles.Reference },
+                new VoiceFile { Path = @"C:\x\take.wav", Role = VoiceRoles.Candidate },
+            ],
+            Settings = new JsonObject { ["model"] = "campplus" },
+        });
+        Assert.DoesNotContain("\n", request);
+        Assert.Contains("\"type\":\"compareVoices\"", request);
+        Assert.Contains("\"files\":[{\"path\":", request);
+        Assert.Contains("\"role\":\"reference\"", request);
+        Assert.Contains("\"role\":\"candidate\"", request);
+        Assert.Contains("\"settings\":{\"model\":\"campplus\"}", request);
+        Assert.DoesNotContain("\"audio\":", request); // that field carries base64 WAV bytes
+    }
+
+    [Fact]
+    public void VoiceScoresReplyHasScoresMatrixSpeechAndModel()
+    {
+        var reply = WorkersJson.Deserialize<WorkerMessage>(
+            "{\"type\": \"voiceScores\", \"id\": \"v1\", \"scores\": [0.8123], \"matrix\": [[1, 0.8123], [0.8123, 1]], " +
+            "\"speechMs\": [9000, 4200], \"model\": \"eres2netv2\"}");
+        Assert.Equal(MessageTypes.VoiceScores, reply.Type);
+        Assert.Equal([0.8123], reply.Scores);
+        Assert.Equal(0.8123, reply.Matrix![1][0]);
+        Assert.Equal([9000, 4200], reply.SpeechMs);
+        Assert.Equal("eres2netv2", reply.Model);
+    }
+
+    [Fact]
     public void ParsesDoneMessage()
     {
         var m = WorkersJson.Deserialize<WorkerMessage>(

@@ -93,6 +93,7 @@ public sealed partial class ProjectSession
     private void OnJobCompleted(GenerationJob job)
     {
         if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
+        if (Engine.OwnsSimScore(job)) { OnSimScoreFinished(job); return; }
         if (Engine.OwnsFusion(job)) { OnFusionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>
@@ -130,7 +131,7 @@ public sealed partial class ProjectSession
                 vm.RefreshAudio();
                 refresh.Add(vm);
                 // Cut out by transcription: it was heard already, and its share of the transcript saved.
-                if (transcribed) vm.RefreshTranscript();
+                if (transcribed) { vm.RefreshTranscript(); ScoreSimilarity(vm, take); }
                 else TranscribeTake(vm, take);
             }
             foreach (var item in outcome.Failed)
@@ -160,6 +161,7 @@ public sealed partial class ProjectSession
     /// </summary>
     private void TranscribeTake(ItemViewModel vm, int take)
     {
+        ScoreSimilarity(vm, take);
         try
         {
             var job = Engine.BuildTranscriptionJob(vm.Model, take, ChapterIndex(vm.Chapter), vm.Chapter.Items.IndexOf(vm));
@@ -199,6 +201,54 @@ public sealed partial class ProjectSession
                 return;
             }
             if (_itemVms.TryGetValue(done.Value.ItemId, out var vm)) vm.RefreshTranscript();
+        });
+    }
+
+    // ------------------------------------------------------------------ SIM scores
+
+    /// <summary>The segments whose take sounds unlike their speaker (null: worked out again when asked).</summary>
+    private HashSet<Guid>? _flaggedSims;
+
+    /// <summary>The segment's selected take sounds well below its speaker's other takes (<see cref="ProjectEngine.FlaggedSims"/>).</summary>
+    public bool IsSimFlagged(Guid itemId) => (_flaggedSims ??= Engine.FlaggedSims()).Contains(itemId);
+
+    /// <summary>The take's voice score was worked out another way than the speaker is checked now (another model or voice clip).</summary>
+    public bool IsSimScoreOutdated(TimelineItem item, TakeInfo info) =>
+        info.SimScore != null && Project.FindSpeaker(item.Speaker) is { } sp && !Engine.IsSimScoreCurrent(sp, info);
+
+    /// <summary>
+    /// Has the speaker's SIM scorer score a new take against the speaker's voice (nothing happens for a speaker without
+    /// one, or when there is nothing to compare with yet). The score is saved in the take's file.
+    /// </summary>
+    private void ScoreSimilarity(ItemViewModel vm, int take)
+    {
+        try
+        {
+            if (Engine.BuildSimScoreJob(vm.Model, take, ChapterIndex(vm.Chapter), vm.Chapter.Items.IndexOf(vm)) is { } job)
+                AppHost.Scheduler.Enqueue(job);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
+        {
+            _log.LogWarning(ex, "Could not start checking the voice of take {Take} of {Item}", take, vm.Id);
+        }
+    }
+
+    /// <summary>A SIM score ended (completed or failed): saves the score and updates the flags of the segments it moved.</summary>
+    private void OnSimScoreFinished(GenerationJob job)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var before = _flaggedSims ?? Engine.FlaggedSims();
+            var done = Engine.FinishSimScore(job);
+            if (done == null)
+            {
+                if (job.State == JobState.Failed) _log.LogWarning("Speaker SIM Score failed: {Error}", job.LastError);
+                return;
+            }
+            _flaggedSims = Engine.FlaggedSims();
+            var changed = before.Union(_flaggedSims).Where(id => before.Contains(id) != _flaggedSims.Contains(id)).Append(done.Value.ItemId);
+            foreach (var id in changed)
+                if (_itemVms.TryGetValue(id, out var vm)) vm.RaiseSim();
         });
     }
 
@@ -270,6 +320,7 @@ public sealed partial class ProjectSession
     private void OnJobFailed(GenerationJob job)
     {
         if (Engine.OwnsTranscript(job)) { OnTranscriptionFinished(job); return; }
+        if (Engine.OwnsSimScore(job)) { OnSimScoreFinished(job); return; }
         if (Engine.OwnsFusion(job)) { OnFusionFinished(job); return; }
         if (!Engine.Owns(job)) return;
         Dispatcher.UIThread.Post(() =>

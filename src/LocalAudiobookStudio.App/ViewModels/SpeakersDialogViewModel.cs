@@ -116,6 +116,40 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         SyncList(Transcribers, list);
     }
 
+    /// <summary>"None": the speaker's takes aren't SIM scoreed. Only stands for that choice in the dropdown.</summary>
+    public static readonly WorkerManifest NoSimScorer = new()
+    {
+        Id = "",
+        DisplayName = "None",
+        Description = "No SIM score.",
+    };
+
+    /// <summary>The SIM score dropdown: None, then the installed speaker verification workers (plus the speaker's own if it isn't installed).</summary>
+    public ObservableCollection<WorkerManifest> SimScorers { get; } = new();
+
+    private void RebuildSimScorers(Speaker? sp)
+    {
+        var list = new List<WorkerManifest> { NoSimScorer };
+        list.AddRange(AppHost.Catalog.SimScorers.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
+        if (sp != null && !string.IsNullOrEmpty(sp.SimScorer) && list.All(w => w.Id != sp.SimScorer))
+            list.Add(AppHost.Catalog.Get(sp.SimScorer) ?? new WorkerManifest { Id = sp.SimScorer, DisplayName = sp.SimScorer + " (unknown worker)" });
+        SyncList(SimScorers, list);
+    }
+
+    [ObservableProperty] private WorkerManifest? _simScorer;
+    [ObservableProperty] private SettingsEditorViewModel? _simScorerSettings;
+
+    public bool HasSimScorer => SimScorer != null && !ReferenceEquals(SimScorer, NoSimScorer);
+    public bool IsSimScorerMissing => HasSimScorer && !AppHost.Environments.IsWorkerReady(SimScorer!.Id);
+    public string MissingSimScorerText => SimScorer == null ? "" : $"{SimScorer.DisplayName} is not installed. Install it in Workers, or pick another.";
+
+    /// <summary>What a take is scored against, so the speaker knows what to provide: the reference clip, else the speaker's other takes.</summary>
+    public string SimScorerInfo => !HasSimScorer ? "" :
+        (SupportsCloning && !string.IsNullOrEmpty(VoiceFile)
+            ? "Each take is scored against the reference clip."
+            : "Each take is scored against a few of the speaker's other takes (nothing is scored until there are some).") +
+        " Takes far below the speaker's usual range are flagged. " + (SimScorer!.Description ?? "");
+
     /// <summary>
     /// The aligner dropdown: installed forced aligners (tagged Alignment Forced: they time the heard words as they are),
     /// plus the speaker's own if it isn't installed. Whisper and Parakeet time only what they hear themselves.
@@ -461,6 +495,11 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 : string.IsNullOrEmpty(sp.Transcriber) ? NoTranscriber
                 : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
             TranscriberSettings = BuildTranscriberSettings();
+            RebuildSimScorers(sp);
+            SimScorer = sp == null ? null
+                : string.IsNullOrEmpty(sp.SimScorer) ? NoSimScorer
+                : SimScorers.FirstOrDefault(w => w.Id == sp.SimScorer);
+            SimScorerSettings = BuildSimScorerSettings();
             RebuildAligners(sp);
             UseAligner = sp?.UseAligner == true;
             Aligner = sp == null || string.IsNullOrEmpty(sp.Aligner) ? null : Aligners.FirstOrDefault(w => w.Id == sp.Aligner);
@@ -495,6 +534,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (Selected == null || Transcriber == null || !HasTranscriber) return null;
         var sp = Selected.Model;
         return BuildEditor(sp, Transcriber, sp.TranscriberSettings, () => TranscriberSettings = BuildTranscriberSettings(), null);
+    }
+
+    private SettingsEditorViewModel? BuildSimScorerSettings()
+    {
+        if (Selected == null || SimScorer == null || !HasSimScorer) return null;
+        var sp = Selected.Model;
+        return BuildEditor(sp, SimScorer, sp.SimScorerSettings, () => SimScorerSettings = BuildSimScorerSettings(), null);
     }
 
     private SettingsEditorViewModel? BuildAlignerSettings()
@@ -638,6 +684,19 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
     }
 
+    partial void OnSimScorerChanged(WorkerManifest? value)
+    {
+        foreach (var n in new[] { nameof(HasSimScorer), nameof(IsSimScorerMissing), nameof(MissingSimScorerText), nameof(SimScorerInfo) })
+            OnPropertyChanged(n);
+        if (_loading || Selected == null || value == null) return;
+        var sp = Selected.Model;
+        if (sp.SimScorer == value.Id) return;
+        sp.SimScorer = value.Id;
+        sp.SimScorerSettings = value.DefaultSettings();
+        Commit();
+        Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
+    }
+
     /// <summary>
     /// Clears a missing worker from the dropdown so another can be picked. The speaker keeps its old worker
     /// until a new one is chosen.
@@ -690,6 +749,8 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             Settings = (JsonObject)sp.Settings.DeepClone(),
             Transcriber = sp.Transcriber,
             TranscriberSettings = (JsonObject)sp.TranscriberSettings.DeepClone(),
+            SimScorer = sp.SimScorer,
+            SimScorerSettings = (JsonObject)sp.SimScorerSettings.DeepClone(),
             UseAligner = sp.UseAligner,
             Aligner = sp.Aligner,
             AlignerSettings = (JsonObject)sp.AlignerSettings.DeepClone(),
@@ -718,6 +779,8 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         {
             sp.Transcriber = from.Transcriber;
             sp.TranscriberSettings = (JsonObject)from.TranscriberSettings.DeepClone();
+            sp.SimScorer = from.SimScorer;
+            sp.SimScorerSettings = (JsonObject)from.SimScorerSettings.DeepClone();
             sp.UseAligner = from.UseAligner;
             sp.Aligner = from.Aligner;
             sp.AlignerSettings = (JsonObject)from.AlignerSettings.DeepClone();

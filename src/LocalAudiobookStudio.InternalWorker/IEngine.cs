@@ -37,6 +37,12 @@ internal interface IEngine : IDisposable
     /// </summary>
     Task ListenAsync(string? id, JsonObject msg, ListenMode mode);
 
+    /// <summary>
+    /// A <c>compareVoices</c> request: embeds each audio file and sends <c>voiceScores</c> (scores of the candidates against
+    /// the references, the pairwise matrix, the speech in each file and the model that scored it).
+    /// </summary>
+    Task CompareVoicesAsync(string? id, JsonObject msg);
+
     /// <summary>A <c>generate</c> request: writes the request's outPath and sends done.</summary>
     Task GenerateAsync(string? id, JsonObject msg);
 

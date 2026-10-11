@@ -63,6 +63,17 @@ public sealed class WorkerManifest
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsTranscriber => CanTranscribe || CanAlign || AlignsText;
 
+    /// <summary>
+    /// Judges how alike voices are (<c>compareVoices</c>; tag Speaker Verification): it takes two or more audio files and
+    /// returns scores. Such a worker can be a speaker's SIM scorer.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool VerifiesSpeaker => HasTag(WorkerTags.SpeakerVerification);
+
+    /// <summary>Listens to audio instead of generating it: transcribes, aligns or verifies voices. Not offered as a speaker's voice.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsListener => IsTranscriber || VerifiesSpeaker;
+
     /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CanTranscribe => HasTag(WorkerTags.Transcription);
@@ -590,6 +601,12 @@ public static class WorkerTags
     /// Alignment.
     /// </summary>
     public const string MultiSpeaker = "Multi-speaker";
+
+    /// <summary>
+    /// Says how alike voices are (speaker verification): takes two or more audio files, some marked as references, and
+    /// returns scores (<c>compareVoices</c>). It listens, so it is never offered as a speaker's voice.
+    /// </summary>
+    public const string SpeakerVerification = "Speaker Verification";
 }
 
 public static class DeviceNames

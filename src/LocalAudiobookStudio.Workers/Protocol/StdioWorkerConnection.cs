@@ -198,6 +198,20 @@ public sealed class StdioWorkerConnection : IWorkerConnection
         return new TranscriptResult(text, words, reply.Language);
     }
 
+    public async Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
+    {
+        var msg = new WorkerMessage
+        {
+            Type = MessageTypes.CompareVoices,
+            Files = request.Files.ToList(),
+            Settings = request.Settings,
+        };
+        var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
+        if (reply.Matrix == null || reply.SpeechMs == null)
+            throw new WorkerErrorException("The worker's answer to compareVoices has no matrix or speechMs.", false, null);
+        return new VoiceScores(reply.Scores ?? [], reply.Matrix.Select(r => (IReadOnlyList<double>)r).ToList(), reply.SpeechMs, reply.Model ?? "");
+    }
+
     public async Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct)
     {
         var reply = await RequestAsync(new WorkerMessage { Type = MessageTypes.ListVoices }, null, ct, false).ConfigureAwait(false);
@@ -305,6 +319,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             case MessageTypes.Done:
             case MessageTypes.Voices:
             case MessageTypes.Transcript:
+            case MessageTypes.VoiceScores:
                 if (msg.Id != null && _pending.TryGetValue(msg.Id, out var pd)) pd.Tcs.TrySetResult(msg);
                 return;
             case MessageTypes.NeedModel:

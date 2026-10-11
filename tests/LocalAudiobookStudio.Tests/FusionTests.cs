@@ -90,6 +90,9 @@ internal sealed class FusionConnection(string workerId) : IWorkerConnection
         return Task.FromResult(new TranscriptResult(request.Text ?? "", words, "en"));
     }
 
+    public Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct) =>
+        throw new NotSupportedException();
+
     public Task<IReadOnlyList<VoiceEntry>> ListVoicesAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<VoiceEntry>>([]);
     public Task ShutdownAsync(TimeSpan grace) { Kill(); return Task.CompletedTask; }
 
