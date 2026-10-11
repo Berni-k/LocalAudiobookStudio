@@ -1,0 +1,3 @@
+# torch comes from the shared environment (workers/environments.json), which also pins transformers (5.8 or newer needed).
+transformers
+numpy

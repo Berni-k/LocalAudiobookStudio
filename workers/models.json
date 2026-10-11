@@ -605,6 +605,25 @@
         "vocab.json": { "size": 1036558, "gitSha1": "0f3456460629e21d559c6daa23ab6ce3644e8271" }
       }
     },
+    "granite-speech-4.1-2b-plus": {
+      "displayName": "Granite Speech 4.1 2B Plus",
+      "sources": [
+        { "repo": "ibm-granite/granite-speech-4.1-2b-plus", "revision": "1454e6e1e33845ca9280ff65f52cf1141ba6e6e2" }
+      ],
+      "include": ["chat_template.jinja", "config.json", "generation_config.json", "model-*.safetensors", "model.safetensors.index.json", "processor_config.json", "tokenizer.json", "tokenizer_config.json"],
+      "files": {
+        "chat_template.jinja": { "size": 6515, "gitSha1": "0ca5d1a1cb841732fef81c0a0c0f2e388b11736a" },
+        "config.json": { "size": 2326, "gitSha1": "48d14cfabafa62d22676d4f0d91342cba9ed72f2" },
+        "generation_config.json": { "size": 235, "gitSha1": "2844db301381591d7a9b553800bbbb96fcaec562" },
+        "model-00001-of-00003.safetensors": { "size": 1992505016, "sha256": "af45105ba955e3a796f39c3cddc6feae9fb4696b46e99f18355df9d7c8bdb0ba" },
+        "model-00002-of-00003.safetensors": { "size": 1993777408, "sha256": "172bddcb0b9fe4e59b4302eecc478bbe5fb477759b80a52e476b43b55c9493a7" },
+        "model-00003-of-00003.safetensors": { "size": 237587992, "sha256": "12994776f7c9e24cda3339ee8a6ca6a07600f5ae4a4c38d66703dcefb8ff4624" },
+        "model.safetensors.index.json": { "size": 84360, "gitSha1": "3690efd221d5457d680e699ad381112ed49a62f6" },
+        "processor_config.json": { "size": 415, "gitSha1": "76e275d6f01d147ebb517b4e1b4d5fed498cd24a" },
+        "tokenizer.json": { "size": 7153620, "gitSha1": "67ce3bc6556963e4063ca17660205596e02a56ef" },
+        "tokenizer_config.json": { "size": 561, "gitSha1": "3fab6534454db1fde84264009ca9baeaa8bd2f49" }
+      }
+    },
     "whisper-small": {
       "displayName": "Whisper small",
       "sources": [

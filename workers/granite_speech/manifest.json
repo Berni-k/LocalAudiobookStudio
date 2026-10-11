@@ -1,0 +1,16 @@
+{
+  "id": "granite_speech",
+  "displayName": "Granite Speech 4.1 2B Plus",
+  "description": "IBM's speech recognition for English, French, German, Spanish and Portuguese, with close word timings. Using alignment makes this model 5x slower.",
+  "tags": ["Transcription", "Alignment"],
+  "priority": 40,
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "modelVersion": "v1",
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Several times slower than real time on the CPU.",
+  "approxVramGb": 5,
+  "models": ["granite-speech-4.1-2b-plus"]
+}
