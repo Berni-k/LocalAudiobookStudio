@@ -41,9 +41,9 @@ public sealed class TakeInfo
     public int? TranscriptWordCount { get; set; }
 
     /// <summary>
-    /// How much the take sounds like its speaker's voice, from the speaker's SIM scorer: a cosine similarity, worked out
-    /// once when the take was checked (null: not checked). Only meaningful beside scores of the same
-    /// <see cref="SimCheck"/>; whether it is low is judged against the speaker's other scores, never a fixed number.
+    /// How much the take sounds like its speaker's reference clip, from the speaker's SIM scorer: a cosine similarity, worked
+    /// out once when the take was made (null: not scored). Only meaningful beside scores of the same <see cref="SimCheck"/>;
+    /// the speaker's thresholds say when it is low.
     /// </summary>
     public double? SimScore { get; set; }
 

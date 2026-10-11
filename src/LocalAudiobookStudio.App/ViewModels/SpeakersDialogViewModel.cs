@@ -116,39 +116,107 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         SyncList(Transcribers, list);
     }
 
-    /// <summary>"None": the speaker's takes aren't SIM scoreed. Only stands for that choice in the dropdown.</summary>
-    public static readonly WorkerManifest NoSimScorer = new()
-    {
-        Id = "",
-        DisplayName = "None",
-        Description = "No SIM score.",
-    };
+    // ------------------------------------------------------------------ speaker verification (SIM score)
 
-    /// <summary>The SIM score dropdown: None, then the installed speaker verification workers (plus the speaker's own if it isn't installed).</summary>
+    /// <summary>The installed speaker verification workers (plus the speaker's own if it isn't installed).</summary>
     public ObservableCollection<WorkerManifest> SimScorers { get; } = new();
 
     private void RebuildSimScorers(Speaker? sp)
     {
-        var list = new List<WorkerManifest> { NoSimScorer };
-        list.AddRange(AppHost.Catalog.SimScorers.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
+        var list = AppHost.Catalog.SimScorers.Where(w => AppHost.Environments.IsWorkerReady(w.Id)).ToList();
         if (sp != null && !string.IsNullOrEmpty(sp.SimScorer) && list.All(w => w.Id != sp.SimScorer))
             list.Add(AppHost.Catalog.Get(sp.SimScorer) ?? new WorkerManifest { Id = sp.SimScorer, DisplayName = sp.SimScorer + " (unknown worker)" });
         SyncList(SimScorers, list);
     }
 
+    [ObservableProperty] private bool _simEnabled;
     [ObservableProperty] private WorkerManifest? _simScorer;
     [ObservableProperty] private SettingsEditorViewModel? _simScorerSettings;
 
-    public bool HasSimScorer => SimScorer != null && !ReferenceEquals(SimScorer, NoSimScorer);
+    /// <summary>The clip takes are compared with, chosen here (empty: the reference clip of Generation, if there is one).</summary>
+    [ObservableProperty] private string? _simReferenceFile;
+
+    /// <summary>Below this a score is yellow; below <see cref="SimFailValue"/> red.</summary>
+    [ObservableProperty] private decimal _simWarnValue = 0.9m;
+    [ObservableProperty] private decimal _simFailValue = 0.75m;
+
+    public bool HasSimScorer => SimScorer != null;
+    public bool NoSimScorerInstalled => SimScorers.Count == 0;
     public bool IsSimScorerMissing => HasSimScorer && !AppHost.Environments.IsWorkerReady(SimScorer!.Id);
     public string MissingSimScorerText => SimScorer == null ? "" : $"{SimScorer.DisplayName} is not installed. Install it in Workers, or pick another.";
+    public string SimScorerInfo => SimScorer?.Description ?? "";
 
-    /// <summary>What a take is scored against, so the speaker knows what to provide: the reference clip, else the speaker's other takes.</summary>
-    public string SimScorerInfo => !HasSimScorer ? "" :
-        (SupportsCloning && !string.IsNullOrEmpty(VoiceFile)
-            ? "Each take is scored against the reference clip."
-            : "Each take is scored against a few of the speaker's other takes (nothing is scored until there are some).") +
-        " Takes far below the speaker's usual range are flagged. " + (SimScorer!.Description ?? "");
+    /// <summary>
+    /// Green, when no clip is chosen here but Generation has a reference clip: that one is used. Null when a clip is chosen
+    /// here or there is none.
+    /// </summary>
+    public string? SimReferenceNote =>
+        string.IsNullOrEmpty(SimReferenceFile) && SupportsCloning && !string.IsNullOrEmpty(VoiceFile)
+            ? $"No clip chosen here: using the reference clip from Generation ({VoiceFile})."
+            : null;
+
+    /// <summary>Red, when there is no clip to compare takes with: nothing is scored until there is one.</summary>
+    public string? SimReferenceWarning =>
+        string.IsNullOrEmpty(SimReferenceFile) && !(SupportsCloning && !string.IsNullOrEmpty(VoiceFile))
+            ? "No reference clip: choose one here, or set a reference clip under Generation. Takes aren't scored without one."
+            : null;
+
+    public bool HasSimReferenceNote => SimReferenceNote != null;
+    public bool HasSimReferenceWarning => SimReferenceWarning != null;
+
+    private static readonly string[] SimReferenceNames =
+        [nameof(SimReferenceNote), nameof(SimReferenceWarning), nameof(HasSimReferenceNote), nameof(HasSimReferenceWarning)];
+
+    private void RaiseSimReference()
+    {
+        foreach (var n in SimReferenceNames) OnPropertyChanged(n);
+    }
+
+    partial void OnVoiceFileChanged(string? value) => RaiseSimReference();
+
+    partial void OnSimReferenceFileChanged(string? value) => RaiseSimReference();
+
+    partial void OnSimEnabledChanged(bool value)
+    {
+        if (_loading || Selected == null) return;
+        var sp = Selected.Model;
+        sp.SimEnabled = value;
+        // Switched on without a choice yet: the first installed speaker verification worker, with its default model.
+        if (value && string.IsNullOrEmpty(sp.SimScorer) && SimScorers.FirstOrDefault() is { } first)
+        {
+            sp.SimScorer = first.Id;
+            sp.SimScorerSettings = first.DefaultSettings();
+        }
+        Commit();
+        Dispatcher.UIThread.Post(Load);
+    }
+
+    partial void OnSimScorerChanged(WorkerManifest? value)
+    {
+        foreach (var n in new[] { nameof(HasSimScorer), nameof(IsSimScorerMissing), nameof(MissingSimScorerText), nameof(SimScorerInfo) })
+            OnPropertyChanged(n);
+        if (_loading || Selected == null || value == null) return;
+        var sp = Selected.Model;
+        if (sp.SimScorer == value.Id) return;
+        sp.SimScorer = value.Id;
+        sp.SimScorerSettings = value.DefaultSettings();
+        Commit();
+        Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
+    }
+
+    partial void OnSimWarnValueChanged(decimal value)
+    {
+        if (_loading || Selected == null) return;
+        Selected.Model.SimWarn = (double)value;
+        Commit();
+    }
+
+    partial void OnSimFailValueChanged(decimal value)
+    {
+        if (_loading || Selected == null) return;
+        Selected.Model.SimFail = (double)value;
+        Commit();
+    }
 
     /// <summary>
     /// The aligner dropdown: installed forced aligners (tagged Alignment Forced: they time the heard words as they are),
@@ -277,6 +345,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         TranscriptSource = null;
         TranscriptStatus = null;
         HeardText = null;
+        ClearSimPreview();
     }
 
     /// <summary>Follows the preview's playback position until it stops, so the transcript can highlight the word being said.</summary>
@@ -351,6 +420,93 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             AppHost.Scheduler.JobCompleted -= Done;
             AppHost.Scheduler.JobFailed -= Done;
             try { File.Delete(wav); } catch { /* the previews folder is cache */ }
+        }
+    }
+
+    // ------------------------------------------------------------------ speaker verification of the preview
+
+    /// <summary>The preview's SIM score (3 decimals), or a note on why it has none; null when verification is off.</summary>
+    [ObservableProperty] private string? _simPreviewText;
+    [ObservableProperty] private bool _simPreviewWarn;
+    [ObservableProperty] private bool _simPreviewFail;
+
+    public bool HasSimPreview => !string.IsNullOrEmpty(SimPreviewText);
+
+    partial void OnSimPreviewTextChanged(string? value) => OnPropertyChanged(nameof(HasSimPreview));
+
+    private void ClearSimPreview()
+    {
+        SimPreviewText = null;
+        SimPreviewWarn = SimPreviewFail = false;
+    }
+
+    /// <summary>
+    /// Scores a finished preview against the speaker's reference clip, like a take, and shows the score coloured by the
+    /// speaker's thresholds. Nothing happens when speaker verification is off.
+    /// </summary>
+    private async Task ScorePreviewAsync(Speaker sp, string audioPath)
+    {
+        if (!sp.SimEnabled) return;
+        var engine = _session.Engine;
+        if (engine.SimScorerOf(sp) is not { } scorer) { SimPreviewText = "Not scored: no speaker verification worker."; return; }
+        if (engine.SimReferenceOf(sp) is not { } reference) { SimPreviewText = "Not scored: no reference clip."; return; }
+        if (AppHost.WhyWorkerCannotRun(scorer.Id) is { } reason) { SimPreviewText = "Not scored: " + reason; return; }
+
+        SimPreviewText = "Scoring…";
+        SimPreviewWarn = SimPreviewFail = false;
+        var stem = Path.ChangeExtension(audioPath, null);
+        var refWav = stem + "-sim-ref.wav";
+        var takeWav = stem + "-sim.wav";
+        try
+        {
+            await Task.Run(() =>
+            {
+                Transcription.PrepareAudio(reference.Path, refWav);
+                Transcription.PrepareAudio(audioPath, takeWav);
+            });
+        }
+        catch (Exception ex)
+        {
+            SimPreviewText = "Not scored: " + ex.Message;
+            return;
+        }
+        var settings = _session.MergeSettings(sp.SimScorerSettings, null, scorer);
+        VoiceFile[] files =
+        [
+            new() { Path = refWav, Role = VoiceRoles.Reference },
+            new() { Path = takeWav, Role = VoiceRoles.Candidate },
+        ];
+        var job = SpeakerVerification.Job(scorer, files, settings, $"SIM score preview: {sp.DisplayName}", JobPriority.Low, tag: "preview");
+
+        var tcs = new TaskCompletionSource<GenerationJob>();
+        void Done(GenerationJob j) { if (j.Id == job.Id) tcs.TrySetResult(j); }
+        AppHost.Scheduler.JobCompleted += Done;
+        AppHost.Scheduler.JobFailed += Done;
+        try
+        {
+            AppHost.Scheduler.Enqueue(job);
+            var finished = await tcs.Task;
+            // The speaker or the preview may have changed while it was listening.
+            if (!ReferenceEquals(Selected?.Model, sp) || _lastPreview?.Path != audioPath) return;
+            if (finished.State == JobState.Completed && finished.VoiceScores is { Scores.Count: 1 } scores)
+            {
+                var score = scores.Scores[0];
+                var level = SpeakerVerification.LevelOf(score, sp.SimWarn, sp.SimFail);
+                SimPreviewWarn = level == SimLevel.Warn;
+                SimPreviewFail = level == SimLevel.Fail;
+                SimPreviewText = score.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) +
+                                 $"  ({scores.Model}, against {Path.GetFileName(reference.Path)})";
+            }
+            else
+            {
+                SimPreviewText = finished.State == JobState.Cancelled ? "Scoring cancelled." : "Scoring failed: " + finished.LastError;
+            }
+        }
+        finally
+        {
+            AppHost.Scheduler.JobCompleted -= Done;
+            AppHost.Scheduler.JobFailed -= Done;
+            try { File.Delete(refWav); File.Delete(takeWav); } catch { /* the previews folder is cache */ }
         }
     }
 
@@ -496,9 +652,12 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
             TranscriberSettings = BuildTranscriberSettings();
             RebuildSimScorers(sp);
-            SimScorer = sp == null ? null
-                : string.IsNullOrEmpty(sp.SimScorer) ? NoSimScorer
-                : SimScorers.FirstOrDefault(w => w.Id == sp.SimScorer);
+            SimEnabled = sp?.SimEnabled == true;
+            SimScorer = sp == null ? null : SimScorers.FirstOrDefault(w => w.Id == sp.SimScorer) ?? SimScorers.FirstOrDefault();
+            SimReferenceFile = sp?.SimReference;
+            SimWarnValue = (decimal)(sp?.SimWarn ?? 0.9);
+            SimFailValue = (decimal)(sp?.SimFail ?? 0.75);
+            RaiseSimReference();
             SimScorerSettings = BuildSimScorerSettings();
             RebuildAligners(sp);
             UseAligner = sp?.UseAligner == true;
@@ -538,7 +697,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     private SettingsEditorViewModel? BuildSimScorerSettings()
     {
-        if (Selected == null || SimScorer == null || !HasSimScorer) return null;
+        if (Selected == null || SimScorer == null || !SimEnabled) return null;
         var sp = Selected.Model;
         return BuildEditor(sp, SimScorer, sp.SimScorerSettings, () => SimScorerSettings = BuildSimScorerSettings(), null);
     }
@@ -607,6 +766,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     partial void OnWorkerChanged(WorkerManifest? value)
     {
         OnPropertyChanged(nameof(SupportsCloning));
+        RaiseSimReference();
         foreach (var n in ContextWarnings) OnPropertyChanged(n);
         OnPropertyChanged(nameof(WorkerInfo));
         OnPropertyChanged(nameof(IsRecorded));
@@ -684,19 +844,6 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
     }
 
-    partial void OnSimScorerChanged(WorkerManifest? value)
-    {
-        foreach (var n in new[] { nameof(HasSimScorer), nameof(IsSimScorerMissing), nameof(MissingSimScorerText), nameof(SimScorerInfo) })
-            OnPropertyChanged(n);
-        if (_loading || Selected == null || value == null) return;
-        var sp = Selected.Model;
-        if (sp.SimScorer == value.Id) return;
-        sp.SimScorer = value.Id;
-        sp.SimScorerSettings = value.DefaultSettings();
-        Commit();
-        Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
-    }
-
     /// <summary>
     /// Clears a missing worker from the dropdown so another can be picked. The speaker keeps its old worker
     /// until a new one is chosen.
@@ -751,6 +898,10 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             TranscriberSettings = (JsonObject)sp.TranscriberSettings.DeepClone(),
             SimScorer = sp.SimScorer,
             SimScorerSettings = (JsonObject)sp.SimScorerSettings.DeepClone(),
+            SimEnabled = sp.SimEnabled,
+            SimReference = sp.SimReference,
+            SimWarn = sp.SimWarn,
+            SimFail = sp.SimFail,
             UseAligner = sp.UseAligner,
             Aligner = sp.Aligner,
             AlignerSettings = (JsonObject)sp.AlignerSettings.DeepClone(),
@@ -781,6 +932,10 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             sp.TranscriberSettings = (JsonObject)from.TranscriberSettings.DeepClone();
             sp.SimScorer = from.SimScorer;
             sp.SimScorerSettings = (JsonObject)from.SimScorerSettings.DeepClone();
+            sp.SimEnabled = from.SimEnabled;
+            sp.SimReference = from.SimReference;
+            sp.SimWarn = from.SimWarn;
+            sp.SimFail = from.SimFail;
             sp.UseAligner = from.UseAligner;
             sp.Aligner = from.Aligner;
             sp.AlignerSettings = (JsonObject)from.AlignerSettings.DeepClone();
@@ -913,6 +1068,63 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         if (path != null && File.Exists(path)) await _player.PlayFileAsync(path);
     }
 
+    // ------------------------------------------------------------------ speaker verification reference clip
+
+    /// <summary>Chooses a file as the clip takes are compared with. Any audio the app reads will do: the worker gets a 16 kHz copy.</summary>
+    [RelayCommand]
+    private async Task BrowseSimReference()
+    {
+        if (Selected == null) return;
+        var file = await Dialogs.OpenFile("Speaker verification reference clip", new FileFilter("Audio", ProjectSession.AudioExtensions.Select(e => "*" + e).ToArray()));
+        if (file == null) return;
+        try
+        {
+            if (!Audio.Decoding.AudioDecoder.CanDecode(file))
+                throw new InvalidDataException($"The app can't read {Path.GetFileName(file)}. Use a WAV, Opus or MP3 file.");
+            Directory.CreateDirectory(_session.Paths.SpeakersDir);
+            var name = Selected.Model.Id + ".sim" + Path.GetExtension(file).ToLowerInvariant();
+            var target = Path.Combine(_session.Paths.SpeakersDir, name);
+            if (!string.Equals(Path.GetFullPath(file), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase))
+                File.Copy(file, target, overwrite: true);
+            SetSimReference(name);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowError("Reference clip", ex.Message);
+        }
+    }
+
+    /// <summary>Uses a project asset as the reference clip, in place.</summary>
+    [RelayCommand]
+    private void UseSimAsset(AssetViewModel? asset)
+    {
+        if (Selected != null && asset != null) SetSimReference(asset.RelativePath);
+    }
+
+    [RelayCommand]
+    private void ClearSimReference()
+    {
+        if (Selected?.Model.SimReference != null) SetSimReference(null);
+    }
+
+    private void SetSimReference(string? name)
+    {
+        if (Selected == null) return;
+        Selected.Model.SimReference = name;
+        _loading = true;
+        SimReferenceFile = name;
+        _loading = false;
+        Commit();
+    }
+
+    [RelayCommand]
+    private async Task PlaySimReference()
+    {
+        if (_player == null) return;
+        var path = _session.Engine.SimReferenceOf(Selected?.Model ?? new Speaker())?.Path;
+        if (path != null && File.Exists(path)) await _player.PlayFileAsync(path);
+    }
+
     [RelayCommand]
     private async Task Preview()
     {
@@ -954,6 +1166,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
                 _lastPreviewSaved = false;
                 OnPropertyChanged(nameof(CanSavePreview));
                 // Playback waits for the transcript, so the words are highlighted from the first one.
+                _ = ScorePreviewAsync(sp, outPath); // in parallel: playback doesn't wait for the score
                 await TranscribePreviewAsync(sp, outPath, text);
                 if (_player != null && ReferenceEquals(Selected?.Model, sp))
                 {

@@ -8,6 +8,7 @@ using LocalAudiobookStudio.Audio.Mixing;
 using LocalAudiobookStudio.Core.Model;
 using LocalAudiobookStudio.Core.Timeline;
 using LocalAudiobookStudio.Core.Transcripts;
+using LocalAudiobookStudio.Engine;
 using LocalAudiobookStudio.Workers.Scheduling;
 
 namespace LocalAudiobookStudio.App.ViewModels;
@@ -548,22 +549,34 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
         if (!IsDirty) IsEditingText = false;
     }
 
-    /// <summary>
-    /// The selected take sounds well below its speaker's other takes (SIM score): an amber warning shows. Judged against
-    /// the speaker's own scores, never a fixed number.
-    /// </summary>
-    public bool SimFlagged => Model.Kind == ItemKind.Tts && Session.IsSimFlagged(Id);
+    // The selected take's SIM score (how much it sounds like the speaker's reference clip), yellow below the speaker's warning
+    // threshold and red below its fail threshold. Nothing shows for a take without a current score.
+    private SimLevel? CurrentSim => Model.Kind == ItemKind.Tts ? Session.SimLevelOf(Model, SelectedTakeInfo) : null;
 
-    public string SimFlagTooltip => SelectedTakeInfo is { SimScore: { } score } info
-        ? $"This take may not sound like {SpeakerName}: voice score {score:0.00}, well below the speaker's other takes (compared with {info.SimCheck?.Against ?? "?"})."
+    public bool HasSim => CurrentSim != null;
+    public bool SimWarn => CurrentSim == SimLevel.Warn;
+    public bool SimFail => CurrentSim == SimLevel.Fail;
+    public string SimText => CurrentSim != null && SelectedTakeInfo?.SimScore is { } score ? score.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) : "";
+
+    public string SimTooltip => CurrentSim != null && SelectedTakeInfo is { SimScore: { } score } info
+        ? $"SIM {score:0.000}: how much this take sounds like {info.SimCheck?.Against ?? "the reference clip"} ({info.SimCheck?.Model}).\n" +
+          (SimFail ? "Below the fail threshold." : SimWarn ? "Below the warning threshold." : "Above the warning threshold.")
         : "";
 
-    /// <summary>A SIM score was saved for one of this segment's takes, or flags moved: show them.</summary>
+    /// <summary>A SIM score was saved for one of this segment's takes: show it.</summary>
     public void RaiseSim()
     {
-        OnPropertyChanged(nameof(Takes)); // the inspector's take list shows each take's voice score
-        OnPropertyChanged(nameof(SimFlagged));
-        OnPropertyChanged(nameof(SimFlagTooltip));
+        OnPropertyChanged(nameof(Takes)); // the inspector's take list shows each take's score
+        RaiseSimLevel();
+    }
+
+    private void RaiseSimLevel()
+    {
+        OnPropertyChanged(nameof(HasSim));
+        OnPropertyChanged(nameof(SimWarn));
+        OnPropertyChanged(nameof(SimFail));
+        OnPropertyChanged(nameof(SimText));
+        OnPropertyChanged(nameof(SimTooltip));
     }
 
     /// <summary>A transcript was saved for one of this segment's takes: read it again.</summary>
@@ -695,8 +708,7 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
         OnPropertyChanged(nameof(ErrorText));
         OnPropertyChanged(nameof(IsBackground));
         OnPropertyChanged(nameof(BackgroundText));
-        OnPropertyChanged(nameof(SimFlagged));
-        OnPropertyChanged(nameof(SimFlagTooltip));
+        RaiseSimLevel();
         SyncEditText();
         RefreshAudio();
         RaiseStatus();

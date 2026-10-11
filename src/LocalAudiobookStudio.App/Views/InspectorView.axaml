@@ -206,20 +206,24 @@
                         <TextBlock Text="(older input)" Classes="caption warning" IsVisible="{Binding !IsCurrentInput}" VerticalAlignment="Center"
                                    ToolTip.Tip="This take was generated from different text or settings" />
                       </StackPanel>
-                      <!-- Did this take's transcript match the text? -->
-                      <Panel Grid.Column="1" Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptPassed}"
-                             ToolTip.Tip="{Binding TranscriptTooltip}">
-                        <PathIcon Data="{StaticResource IconCheck}" Width="14" Height="14" Foreground="#2EA043" />
-                      </Panel>
-                      <Panel Grid.Column="1" Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptFailed}"
-                             ToolTip.Tip="{Binding TranscriptTooltip}">
-                        <PathIcon Data="{StaticResource IconClose}" Width="22" Height="22" Foreground="#FF3B30" />
-                      </Panel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                        <!-- The SIM score: how much this take sounds like the speaker's reference clip; yellow below the speaker's warning
+                             threshold, red below its fail threshold. -->
+                        <TextBlock Text="{Binding SimText}" Classes="caption" Classes.warning="{Binding SimWarn}" Classes.error="{Binding SimFail}"
+                                   IsVisible="{Binding HasSimScore}" ToolTip.Tip="{Binding SimTooltip}" VerticalAlignment="Center"
+                                   FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+                        <!-- Did this take's transcript match the text? -->
+                        <Panel Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptPassed}"
+                               ToolTip.Tip="{Binding TranscriptTooltip}">
+                          <PathIcon Data="{StaticResource IconCheck}" Width="14" Height="14" Foreground="#2EA043" />
+                        </Panel>
+                        <Panel Background="Transparent" VerticalAlignment="Top" IsVisible="{Binding TranscriptFailed}"
+                               ToolTip.Tip="{Binding TranscriptTooltip}">
+                          <PathIcon Data="{StaticResource IconClose}" Width="22" Height="22" Foreground="#FF3B30" />
+                        </Panel>
+                      </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding Details}" Classes="caption" TextWrapping="Wrap" />
-                    <!-- The SIM score's score, against the speaker's voice clip or other takes; amber when it is well below the speaker's range. -->
-                    <TextBlock Text="{Binding SimText}" Classes="caption" Classes.warning="{Binding SimLow}" TextWrapping="Wrap"
-                               IsVisible="{Binding HasSimScore}" ToolTip.Tip="{Binding SimTooltip}" />
                     <Border Height="30" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="3">
                       <ctl:WaveformView Peaks="{Binding Peaks}" Interactive="False" ShowFullRange="True" Fill="{DynamicResource WaveformBrush}" />
                     </Border>

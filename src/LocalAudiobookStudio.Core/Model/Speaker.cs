@@ -41,13 +41,28 @@ public sealed class Speaker
     public JsonObject AlignerSettings { get; set; } = new();
 
     /// <summary>
-    /// Worker id of the speaker verification worker that scores how much this speaker's takes sound like its voice (empty:
-    /// off). Against the speaker's voice clip when its worker clones, else against its other takes.
+    /// Speaker verification is on: each new take is scored by <see cref="SimScorer"/> against a reference clip (SIM, the
+    /// cosine similarity of the two voices) and flagged yellow or red below <see cref="SimWarn"/> and <see cref="SimFail"/>.
     /// </summary>
+    public bool SimEnabled { get; set; }
+
+    /// <summary>Worker id of the speaker verification worker that scores (empty: the first one installed).</summary>
     public string SimScorer { get; set; } = "";
 
-    /// <summary>Settings for <see cref="SimScorer"/>, edited from its manifest like <see cref="Settings"/>.</summary>
+    /// <summary>Settings for <see cref="SimScorer"/> (the model), edited from its manifest like <see cref="Settings"/>.</summary>
     public JsonObject SimScorerSettings { get; set; } = new();
+
+    /// <summary>
+    /// The clip takes are compared with: a file in the speakers folder or a project asset. Empty: the reference clip of
+    /// Generation (<see cref="Voice"/>), when the speaker's worker clones from one.
+    /// </summary>
+    public string? SimReference { get; set; }
+
+    /// <summary>A score below this is yellow. Scores depend on the model, so this is the speaker's to tune.</summary>
+    public double SimWarn { get; set; } = 0.9;
+
+    /// <summary>A score below this is red.</summary>
+    public double SimFail { get; set; } = 0.75;
 
     public List<string> MarkerAliases { get; set; } = new();
 

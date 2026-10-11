@@ -45,6 +45,6 @@ for remote transports.) The answer, `voiceScores`:
 - Embeddings capture **timbre and pitch range**, not rhythm. A voice whose delivery changes between seeds while its timbre
   stays the same scores as the same voice.
 - Emotion, whispering, loudness and short clips all lower the score. The same human recordings score about 0.73–0.78
-  depending on the model, so **a fixed threshold never transfers**. Judge a take against that speaker's own scores
-  (the app flags takes well below the speaker's usual range).
+  depending on the model, so **a threshold never transfers**. The app's warn and fail thresholds (default 0.9 and 0.75)
+  belong to a speaker, model and reference clip: tune them by listening, and expect a new model to need new ones.
 - Reported correlations between such scores and listener ratings are about 0.5–0.77.

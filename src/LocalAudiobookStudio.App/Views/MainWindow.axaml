@@ -567,28 +567,31 @@
                       </StackPanel>
                       <Panel />
                     </DockPanel>
-                    <!-- Transcript check, lower right: a red X when the worker heard something other than the text (hover for what it
-                         heard, click to approve the take or ignore the section), a small green check when it matched. -->
-                    <Button Classes="transcriptFlag" HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="0" MinHeight="0" MinWidth="0"
-                            Background="Transparent" BorderThickness="0" Cursor="Hand" IsVisible="{Binding TranscriptFlagged}"
-                            ToolTip.Tip="{Binding TranscriptFlagTooltip}">
-                      <PathIcon Data="{StaticResource IconClose}" Width="26" Height="26" Foreground="#FF3B30" />
-                      <Button.Flyout>
-                        <MenuFlyout Placement="BottomEdgeAlignedRight">
-                          <MenuItem Header="Approve this take" Command="{Binding ApproveTranscriptCommand}" />
-                          <MenuItem Header="Ignore this section" Command="{Binding IgnoreTranscriptCommand}" />
-                        </MenuFlyout>
-                      </Button.Flyout>
-                    </Button>
-                    <Panel HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" IsVisible="{Binding TranscriptVerified}"
-                           ToolTip.Tip="{Binding TranscriptVerifiedTooltip}">
-                      <PathIcon Data="{StaticResource IconCheck}" Width="13" Height="13" Foreground="#2EA043" />
-                    </Panel>
-                    <!-- Speaker SIM Score, upper right: an amber warning when the take sounds well below the speaker's other takes. -->
-                    <Panel HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" IsVisible="{Binding SimFlagged}"
-                           ToolTip.Tip="{Binding SimFlagTooltip}">
-                      <PathIcon Data="{StaticResource IconWarning}" Width="16" Height="16" Foreground="{DynamicResource SemiColorWarning}" />
-                    </Panel>
+                    <!-- Lower right, bottom to top: the transcript check (a red X when the worker heard something other than the text,
+                         hover for what it heard, click to approve the take or ignore the section; a small green check when it matched)
+                         and above it the SIM score (how much the take sounds like the speaker's reference clip; yellow below the
+                         speaker's warning threshold, red below its fail threshold). -->
+                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Spacing="1">
+                      <TextBlock HorizontalAlignment="Right" Margin="0,0,2,0" Classes="caption"
+                                 Classes.warning="{Binding SimWarn}" Classes.error="{Binding SimFail}" Text="{Binding SimText}"
+                                 IsVisible="{Binding HasSim}" ToolTip.Tip="{Binding SimTooltip}"
+                                 FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
+                      <Button Classes="transcriptFlag" HorizontalAlignment="Right" Padding="0" MinHeight="0" MinWidth="0"
+                              Background="Transparent" BorderThickness="0" Cursor="Hand" IsVisible="{Binding TranscriptFlagged}"
+                              ToolTip.Tip="{Binding TranscriptFlagTooltip}">
+                        <PathIcon Data="{StaticResource IconClose}" Width="26" Height="26" Foreground="#FF3B30" />
+                        <Button.Flyout>
+                          <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="Approve this take" Command="{Binding ApproveTranscriptCommand}" />
+                            <MenuItem Header="Ignore this section" Command="{Binding IgnoreTranscriptCommand}" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
+                      <Panel HorizontalAlignment="Right" Background="Transparent" IsVisible="{Binding TranscriptVerified}"
+                             ToolTip.Tip="{Binding TranscriptVerifiedTooltip}">
+                        <PathIcon Data="{StaticResource IconCheck}" Width="13" Height="13" Foreground="#2EA043" />
+                      </Panel>
+                    </StackPanel>
                     </Grid>
                   </Border>
 

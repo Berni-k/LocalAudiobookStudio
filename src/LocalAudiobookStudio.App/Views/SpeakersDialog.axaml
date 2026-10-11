@@ -175,27 +175,6 @@
             </StackPanel>
           </Border>
 
-          <!-- ===== Speaker SIM Score: scores how much each take sounds like the speaker; with None selected it is only the dropdown. -->
-          <Border Classes="group">
-            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
-              <TextBlock Text="Speaker SIM Score" Classes="groupTitle" Margin="0,0,0,4" />
-              <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                <TextBlock Text="Worker" Classes="formLabel" />
-                <StackPanel Grid.Column="1" Spacing="2">
-                  <ComboBox ItemsSource="{Binding SimScorers}" SelectedItem="{Binding SimScorer}" HorizontalAlignment="Stretch"
-                            Classes.missing="{Binding IsSimScorerMissing}" PlaceholderText="Choose a worker" />
-                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSimScorerMissing}">
-                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding MissingSimScorerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding SimScorerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasSimScorer}" />
-                </StackPanel>
-              </Grid>
-              <ContentControl Content="{Binding SimScorerSettings}" />
-            </StackPanel>
-          </Border>
-
           <!-- ===== Generation -->
           <Border Classes="group">
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
@@ -304,6 +283,76 @@
             </StackPanel>
           </Border>
 
+          <!-- ===== Speaker Verification: scores each new take against a reference clip (SIM, the similarity of the two voices),
+               yellow below the warning threshold, red below the fail threshold. Switched on by the checkbox in its header. -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <CheckBox IsChecked="{Binding SimEnabled}" Margin="0,0,0,4"
+                        ToolTip.Tip="Score how much each new take sounds like a reference clip, and flag takes that drift from it">
+                <TextBlock Text="Speaker Verification" Classes="groupTitle" />
+              </CheckBox>
+              <StackPanel Classes="form" IsVisible="{Binding SimEnabled}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Worker" Classes="formLabel" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <ComboBox ItemsSource="{Binding SimScorers}" SelectedItem="{Binding SimScorer}" HorizontalAlignment="Stretch"
+                              Classes.missing="{Binding IsSimScorerMissing}" PlaceholderText="Install Speaker SIM Score in Workers" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSimScorerMissing}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding MissingSimScorerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoSimScorerInstalled}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="No speaker verification worker is installed. Install it in Workers." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding SimScorerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasSimScorer}" />
+                  </StackPanel>
+                </Grid>
+                <!-- The model: rows from the worker's settings form, aligned to the same label column. -->
+                <ContentControl Content="{Binding SimScorerSettings}" />
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Reference clip" Classes="formLabel" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                      <TextBox Text="{Binding SimReferenceFile}" IsReadOnly="True" Watermark="none chosen here" />
+                      <!-- The menu (file, project assets, none) is built in code-behind when clicked. -->
+                      <Button Grid.Column="1" Content="Choose ▾" Click="OnChooseSimReference" Margin="4,0,0,0" />
+                      <Button Grid.Column="2" Classes="icon" Command="{Binding PlaySimReferenceCommand}" ToolTip.Tip="Play the clip takes are compared with" Margin="4,0,0,0">
+                        <PathIcon Data="{StaticResource IconPlay}" />
+                      </Button>
+                    </Grid>
+                    <!-- Nothing chosen here: the reference clip of Generation is used (green), or there is none (red). -->
+                    <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasSimReferenceNote}">
+                      <PathIcon Data="{StaticResource IconCheck}" Width="12" Height="12" Foreground="#2EA043" VerticalAlignment="Top" Margin="0,2,0,0" />
+                      <TextBlock Text="{Binding SimReferenceNote}" Classes="caption" Foreground="#2EA043" TextWrapping="Wrap" MaxWidth="420" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasSimReferenceWarning}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                      <TextBlock Text="{Binding SimReferenceWarning}" Classes="caption error" TextWrapping="Wrap" MaxWidth="420" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Thresholds" Classes="formLabel" />
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="Warn below" Classes="caption warning" VerticalAlignment="Center" Width="70" />
+                      <NumericUpDown Value="{Binding SimWarnValue}" Minimum="0" Maximum="1" Increment="0.01" FormatString="0.00" Width="130"
+                                     ToolTip.Tip="A score below this is yellow" />
+                      <TextBlock Text="Fail below" Classes="caption error" VerticalAlignment="Center" Width="60" Margin="12,0,0,0" />
+                      <NumericUpDown Value="{Binding SimFailValue}" Minimum="0" Maximum="1" Increment="0.01" FormatString="0.00" Width="130"
+                                     ToolTip.Tip="A score below this is red" />
+                    </StackPanel>
+                    <TextBlock Text="Scores depend on the model and the clip: tune these by listening to a few takes." Classes="caption" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
           <!-- ===== Preview (not for recorded speakers: they have no model) -->
           <Border Classes="group" IsVisible="{Binding CanPreview}">
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
@@ -331,6 +380,15 @@
                     <Run Text="{Binding HeardText}" />
                   </TextBlock>
                 </StackPanel>
+              </Grid>
+              <!-- The preview's speaker verification score, when it is switched on: yellow below the warning threshold, red below
+                   the fail threshold. -->
+              <Grid IsVisible="{Binding HasSimPreview}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="SIM score" Classes="formLabel" />
+                <TextBlock Grid.Column="1" Text="{Binding SimPreviewText}" Classes="caption" Classes.warning="{Binding SimPreviewWarn}"
+                           Classes.error="{Binding SimPreviewFail}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" />
               </Grid>
               <!-- Only for workers that take a length. Empty: the guess shown greyed (needed) or "auto" (optional). -->
               <Grid IsVisible="{Binding ShowPreviewLength}">

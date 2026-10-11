@@ -206,19 +206,16 @@ public sealed partial class ProjectSession
 
     // ------------------------------------------------------------------ SIM scores
 
-    /// <summary>The segments whose take sounds unlike their speaker (null: worked out again when asked).</summary>
-    private HashSet<Guid>? _flaggedSims;
+    /// <summary>How a take's score stands against its speaker's thresholds; null when it has none, or it is out of date.</summary>
+    public SimLevel? SimLevelOf(TimelineItem item, TakeInfo? info) => Engine.SimLevelOf(Project.FindSpeaker(item.Speaker), info);
 
-    /// <summary>The segment's selected take sounds well below its speaker's other takes (<see cref="ProjectEngine.FlaggedSims"/>).</summary>
-    public bool IsSimFlagged(Guid itemId) => (_flaggedSims ??= Engine.FlaggedSims()).Contains(itemId);
-
-    /// <summary>The take's voice score was worked out another way than the speaker is checked now (another model or voice clip).</summary>
+    /// <summary>The take's score was worked out another way than the speaker is scored now (another model or reference clip).</summary>
     public bool IsSimScoreOutdated(TimelineItem item, TakeInfo info) =>
         info.SimScore != null && Project.FindSpeaker(item.Speaker) is { } sp && !Engine.IsSimScoreCurrent(sp, info);
 
     /// <summary>
-    /// Has the speaker's SIM scorer score a new take against the speaker's voice (nothing happens for a speaker without
-    /// one, or when there is nothing to compare with yet). The score is saved in the take's file.
+    /// Has the speaker's SIM scorer score a new take against its reference clip (nothing happens when verification is off or there is no
+    /// clip). Runs once the take is final: a batch's takes are scored after they are cut out. The score is saved in the take's file.
     /// </summary>
     private void ScoreSimilarity(ItemViewModel vm, int take)
     {
@@ -229,26 +226,22 @@ public sealed partial class ProjectSession
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException)
         {
-            _log.LogWarning(ex, "Could not start checking the voice of take {Take} of {Item}", take, vm.Id);
+            _log.LogWarning(ex, "Could not start scoring the voice of take {Take} of {Item}", take, vm.Id);
         }
     }
 
-    /// <summary>A SIM score ended (completed or failed): saves the score and updates the flags of the segments it moved.</summary>
+    /// <summary>A SIM score ended (completed or failed): saves the score and shows it.</summary>
     private void OnSimScoreFinished(GenerationJob job)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            var before = _flaggedSims ?? Engine.FlaggedSims();
             var done = Engine.FinishSimScore(job);
             if (done == null)
             {
                 if (job.State == JobState.Failed) _log.LogWarning("Speaker SIM Score failed: {Error}", job.LastError);
                 return;
             }
-            _flaggedSims = Engine.FlaggedSims();
-            var changed = before.Union(_flaggedSims).Where(id => before.Contains(id) != _flaggedSims.Contains(id)).Append(done.Value.ItemId);
-            foreach (var id in changed)
-                if (_itemVms.TryGetValue(id, out var vm)) vm.RaiseSim();
+            if (_itemVms.TryGetValue(done.Value.ItemId, out var vm)) vm.RaiseSim();
         });
     }
 

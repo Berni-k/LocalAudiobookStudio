@@ -7,26 +7,20 @@ public class SpeakerVerificationTests
     private static readonly double[] Usual = [0.82, 0.85, 0.80, 0.84, 0.83, 0.81];
 
     [Fact]
-    public void ReferencesAreTheMostRecentTakesOfOtherSegments()
+    public void ScoresAreYellowBelowWarnAndRedBelowFail()
     {
-        var self = Guid.NewGuid();
-        var now = DateTime.UtcNow;
-        var others = Enumerable.Range(0, 6).Select(i => new ReferenceCandidate(Guid.NewGuid(), 1, now.AddMinutes(-i))).ToList();
-        var candidates = others.Append(new ReferenceCandidate(self, 3, now.AddMinutes(1))); // newest, but the take being judged
-
-        var chosen = SpeakerVerification.ChooseReferences(candidates, self);
-
-        Assert.Equal(SpeakerVerification.MaxReferenceTakes, chosen.Count);
-        Assert.DoesNotContain(chosen, c => c.ItemId == self);
-        Assert.Equal(others.Take(4).Select(c => c.ItemId), chosen.Select(c => c.ItemId));
+        Assert.Equal(SimLevel.Ok, SpeakerVerification.LevelOf(0.93, 0.9, 0.75));
+        Assert.Equal(SimLevel.Ok, SpeakerVerification.LevelOf(0.9, 0.9, 0.75)); // the threshold itself passes
+        Assert.Equal(SimLevel.Warn, SpeakerVerification.LevelOf(0.85, 0.9, 0.75));
+        Assert.Equal(SimLevel.Warn, SpeakerVerification.LevelOf(0.75, 0.9, 0.75));
+        Assert.Equal(SimLevel.Fail, SpeakerVerification.LevelOf(0.74, 0.9, 0.75));
+        Assert.Equal(SimLevel.Fail, SpeakerVerification.LevelOf(0.2, 0.9, 0.75));
     }
 
     [Fact]
-    public void TheFirstTakeHasNothingToBeComparedWith()
+    public void AFailThresholdAboveTheWarnThresholdStillFailsFirst()
     {
-        var self = Guid.NewGuid();
-        Assert.Empty(SpeakerVerification.ChooseReferences([new ReferenceCandidate(self, 1, DateTime.UtcNow)], self));
-        Assert.Empty(SpeakerVerification.ChooseReferences([], self));
+        Assert.Equal(SimLevel.Fail, SpeakerVerification.LevelOf(0.8, 0.7, 0.85));
     }
 
     [Fact]

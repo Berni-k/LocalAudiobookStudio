@@ -5,9 +5,6 @@ using LocalAudiobookStudio.Workers.Scheduling;
 
 namespace LocalAudiobookStudio.Engine;
 
-/// <summary>A take a speaker's voice may be judged against (see <see cref="SpeakerVerification.ChooseReferences"/>).</summary>
-public sealed record ReferenceCandidate(Guid ItemId, int Take, DateTime CreatedUtc);
-
 /// <summary>How well one file fits the others in a group (see <see cref="SpeakerVerification.Summarize"/>).</summary>
 /// <param name="Mean">Its mean similarity to the other files.</param>
 /// <param name="Min">Its lowest similarity to another file.</param>
@@ -21,18 +18,33 @@ public sealed record FileFit(double Mean, double Min, int MinIndex, bool Outlier
 /// <param name="PairSpread">The standard deviation of all pairs.</param>
 public sealed record GroupFit(IReadOnlyList<FileFit> Files, double PairMean, double PairMin, double PairSpread);
 
+/// <summary>How a take's SIM score stands against its speaker's thresholds.</summary>
+public enum SimLevel
+{
+    /// <summary>At or above the warning threshold.</summary>
+    Ok,
+
+    /// <summary>Below the warning threshold: yellow.</summary>
+    Warn,
+
+    /// <summary>Below the fail threshold: red.</summary>
+    Fail,
+}
+
 /// <summary>
-/// Speaker verification with a worker tagged Speaker Verification: building its job, choosing what a take is compared with, and
-/// telling a take that doesn't sound like its speaker from the speaker's usual range. A score is only ever judged against
-/// scores of the same speaker, worker and model: embeddings capture timbre and pitch, not rhythm; emotion, whispering,
-/// loudness and short clips lower them; and different models don't agree, so there is no fixed threshold.
+/// Speaker verification with a worker tagged Speaker Verification: building its job and judging scores. A take is scored
+/// against a reference clip and compared with its speaker's thresholds (<see cref="LevelOf"/>); files compared with each
+/// other (<c>las compare</c>) are judged against the group (<see cref="IsOutlier"/>, <see cref="Summarize"/>). Embeddings
+/// capture timbre and pitch, not rhythm; emotion, whispering, loudness and short clips lower them, and different models
+/// don't agree, so a threshold only means something for the model it was set for.
 /// </summary>
 public static class SpeakerVerification
 {
-    /// <summary>The most takes a speaker's voice is judged against when it has no voice clip (small requests).</summary>
-    public const int MaxReferenceTakes = 4;
+    /// <summary>A score below <paramref name="fail"/> is red, below <paramref name="warn"/> yellow.</summary>
+    public static SimLevel LevelOf(double score, double warn, double fail) =>
+        score < fail ? SimLevel.Fail : score < warn ? SimLevel.Warn : SimLevel.Ok;
 
-    /// <summary>A take with less speech than this isn't flagged: short clips score low whatever the voice.</summary>
+    /// <summary>A file with less speech than this isn't marked: short clips score low whatever the voice.</summary>
     public const int MinSpeechMs = 2500;
 
     /// <summary>The other scores needed before one can be judged; with fewer there is no baseline.</summary>
@@ -56,13 +68,6 @@ public static class SpeakerVerification
             Tag = tag,
             CompareVoices = new VoiceCompareRequest { Files = files, Settings = settings },
         };
-
-    /// <summary>
-    /// The takes a speaker's voice is judged against when it has no voice clip: the most recent ones, never one of
-    /// segment <paramref name="exclude"/> (the take being judged, and its other takes), at most <paramref name="max"/>.
-    /// </summary>
-    public static List<ReferenceCandidate> ChooseReferences(IEnumerable<ReferenceCandidate> candidates, Guid exclude, int max = MaxReferenceTakes) =>
-        candidates.Where(c => c.ItemId != exclude).OrderByDescending(c => c.CreatedUtc).ThenBy(c => c.ItemId).ThenBy(c => c.Take).Take(max).ToList();
 
     public static double Median(IReadOnlyList<double> values)
     {
