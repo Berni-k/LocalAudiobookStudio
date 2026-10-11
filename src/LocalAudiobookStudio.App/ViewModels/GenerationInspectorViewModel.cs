@@ -14,21 +14,24 @@ using LocalAudiobookStudio.Core.Transcripts;
 namespace LocalAudiobookStudio.App.ViewModels;
 
 /// <summary>
-/// A kept fused generation (<see cref="FusionRecord"/>): the worker's whole output with where its takes were cut, what
-/// it was sent, and what the transcription heard, highlighted as it plays.
+/// The generation inspector: a waveform with what the transcription heard, highlighted as it plays, differences marked.
+/// Opened for a kept fused generation (<see cref="FusionRecord"/>: the worker's whole output with where its takes were
+/// cut and what it was sent) or for one take with a transcript (its audio and the segment's text).
 /// </summary>
-public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformHost, IDisposable
+public sealed partial class GenerationInspectorViewModel : ObservableObject, IWaveformHost, IDisposable
 {
     private readonly MainWindowViewModel _main;
     private readonly string _folder;
     private IDisposable? _follow;
 
-    public FusionRecordViewModel(MainWindowViewModel main, ProjectSession session, string recordId, Guid? itemId)
+    /// <summary>A kept fused generation, with <paramref name="itemId"/>'s part highlighted.</summary>
+    public GenerationInspectorViewModel(MainWindowViewModel main, ProjectSession session, string recordId, Guid? itemId)
     {
         _main = main;
         _folder = session.Paths.FusionRecordDir(recordId);
         AudioPath = Path.Combine(_folder, FusionRecord.AudioFile);
-        Record = CoreJson.Deserialize<FusionRecord>(File.ReadAllText(Path.Combine(_folder, FusionRecord.RecordFile)));
+        var r = Record = CoreJson.Deserialize<FusionRecord>(File.ReadAllText(Path.Combine(_folder, FusionRecord.RecordFile)));
+        Title = $"Generation inspector – {r.Id}";
 
         string Name(string speaker) => session.Project.FindSpeaker(speaker)?.DisplayName is { Length: > 0 } n ? n : speaker;
         Parts = Record.Parts.Select((p, i) => new FusionPartRow(this, i + 1, p, Name(p.Speaker), p.ItemId != null && p.ItemId == itemId)).ToList();
@@ -36,7 +39,6 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
             .Select(p => new FusionMarker(p.Range!.Value.Start, p.Range.Value.End, $"{p.Number} {p.SpeakerName}", p.IsSegment, p.IsCurrent))
             .ToList();
 
-        var r = Record;
         Summary = string.Join(" · ", new[]
         {
             $"{r.Worker}{(r.Runtime != null ? $" ({r.Runtime})" : "")} {r.ModelVersion}",
@@ -47,44 +49,89 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
             r.CreatedUtc.ToLocalTime().ToString("g"),
         }.Where(s => !string.IsNullOrEmpty(s)));
         SettingsText = r.Settings.Count == 0 ? "" : "Shared settings: " + r.Settings.ToJsonString();
+        NoTranscriptText = "Not transcribed: the worker said where each part is.";
 
         // The transcript shows against all the parts' text, one line each, as it was compared when cutting.
         if (r.Transcript is { } words)
         {
             TranscriptSource = string.Join("\n", r.Parts.Select(p => p.Text));
-            TranscriptCheck = TranscriptCheck.Compare(session.Engine.SpokenText(r.Worker, TranscriptSource), words);
-            // A heard word is wrong when a difference that was heard (another word, an extra one) falls on its time.
-            var errors = TranscriptCheck.Words.Where(c => c.IsError && c.Heard != null).ToList();
-            WrongWords = words.Where(w => errors.Any(c => c.StartMs < w.EndMs && c.EndMs > w.StartMs || c.StartMs == w.StartMs)).ToHashSet();
+            Compare(session.Engine.SpokenText(r.Worker, TranscriptSource), words);
         }
-        LoadPeaks();
+        _ = LoadPeaksAsync(() => Peaks.FromWav(AudioPath));
     }
 
-    public FusionRecord Record { get; }
+    /// <summary>One take that has a transcript: its audio against the segment's text.</summary>
+    public GenerationInspectorViewModel(MainWindowViewModel main, ProjectSession session, ItemViewModel item, TakeInfo take)
+    {
+        _main = main;
+        _folder = session.Paths.SegmentAudioDir(item.Id);
+        AudioPath = session.Takes.TakeAudio(item.Id, take.Take);
+        Title = $"Generation inspector – take {take.Take}";
+
+        Summary = string.Join(" · ", new[]
+        {
+            $"{take.Worker}{(take.Runtime != null ? $" ({take.Runtime})" : "")} {take.ModelVersion}",
+            $"seed {take.Seed?.ToString() ?? "–"}",
+            take.Gpu,
+            take.GenerationMs > 0 ? $"{take.GenerationMs / 1000.0:0.0} s" : null,
+            take.CreatedUtc.ToLocalTime().ToString("g"),
+        }.Where(s => !string.IsNullOrEmpty(s)));
+        NoTranscriptText = "Not transcribed.";
+
+        if (StoredTranscript.TryLoad(session.Paths.TakeTranscript(item.Id, take.Take)) is { } stored)
+        {
+            Summary += $" · heard by {stored.Worker}";
+            TranscriptSource = item.Model.Text ?? "";
+            Compare(session.Engine.SpokenText(item.Model, take.Take), stored.Words);
+        }
+        var peaksPath = session.Takes.TakePeaks(item.Id, take.Take);
+        _ = LoadPeaksAsync(async () => await session.PeaksCache.LoadAsync(peaksPath, AudioPath));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="take"/> has anything to inspect: a kept fused generation or a transcript.
+    /// </summary>
+    public static bool CanInspect(ProjectSession session, Guid itemId, TakeInfo take) =>
+        take.Fusion?.Record != null || File.Exists(session.Paths.TakeTranscript(itemId, take.Take));
+
+    private void Compare(string spokenText, IReadOnlyList<HeardWord> words)
+    {
+        Words = words;
+        TranscriptCheck = TranscriptCheck.Compare(spokenText, words);
+        // A heard word is wrong when a difference that was heard (another word, an extra one) falls on its time.
+        var errors = TranscriptCheck.Words.Where(c => c.IsError && c.Heard != null).ToList();
+        WrongWords = words.Where(w => errors.Any(c => c.StartMs < w.EndMs && c.EndMs > w.StartMs || c.StartMs == w.StartMs)).ToHashSet();
+    }
+
+    /// <summary>The kept fused generation; null when this shows a single take.</summary>
+    public FusionRecord? Record { get; }
     public string AudioPath { get; }
-    public string Title => $"Fused generation inspector – {Record.Id}";
+    public string Title { get; }
     public string Summary { get; }
-    public string SettingsText { get; }
+    public string SettingsText { get; } = "";
     public bool HasSettings => SettingsText.Length > 0;
-    public IReadOnlyList<FusionPartRow> Parts { get; }
-    public IReadOnlyList<FusionMarker> Markers { get; }
+
+    /// <summary>The parts the worker was sent (fused generations only; a single take has none to show).</summary>
+    public IReadOnlyList<FusionPartRow> Parts { get; } = [];
+    public bool HasParts => Record != null;
+    public IReadOnlyList<FusionMarker> Markers { get; } = [];
 
     /// <summary>For a worker that doesn't fuse: the one text it was sent.</summary>
-    public string? RequestText => Record.RequestText;
-    public bool HasRequestText => Record.RequestText != null;
-    public string? Error => Record.Error;
-    public bool HasError => Record.Error != null;
+    public string? RequestText => Record?.RequestText;
+    public bool HasRequestText => RequestText != null;
+    public string? Error => Record?.Error;
+    public bool HasError => Error != null;
 
     public string? TranscriptSource { get; }
-    public TranscriptCheck? TranscriptCheck { get; }
+    public TranscriptCheck? TranscriptCheck { get; private set; }
 
     /// <summary>The heard words with their times, shown on the waveform; null when nothing was transcribed.</summary>
-    public IReadOnlyList<HeardWord>? Words => Record.Transcript;
+    public IReadOnlyList<HeardWord>? Words { get; private set; }
 
     /// <summary>The heard words that don't match the text (their bars are red).</summary>
-    public IReadOnlySet<HeardWord>? WrongWords { get; }
+    public IReadOnlySet<HeardWord>? WrongWords { get; private set; }
     public bool HasTranscript => TranscriptCheck != null;
-    public string NoTranscriptText => "Not transcribed: the worker said where each part is.";
+    public string NoTranscriptText { get; }
 
     [ObservableProperty] private Peaks? _peaks;
     [ObservableProperty] private double _durationMs;
@@ -93,16 +140,18 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
     [ObservableProperty] private double _playheadMs = -1;
     [ObservableProperty] private bool _isPlaying;
 
-    private async void LoadPeaks()
+    private async Task LoadPeaksAsync(Func<Peaks?> load) => await LoadPeaksAsync(() => Task.Run(load));
+
+    private async Task LoadPeaksAsync(Func<Task<Peaks?>> load)
     {
         try
         {
-            Peaks = await Task.Run(() => Peaks.FromWav(AudioPath));
-            DurationMs = Peaks.DurationMs;
+            Peaks = await load();
+            DurationMs = Peaks?.DurationMs ?? 0;
         }
         catch (Exception e) when (e is IOException or InvalidDataException or FormatException)
         {
-            _main.StatusText = "Cannot read the fused generation's audio: " + e.Message;
+            _main.StatusText = "Cannot read the generation's audio: " + e.Message;
         }
     }
 
@@ -172,7 +221,7 @@ public sealed partial class FusionRecordViewModel : ObservableObject, IWaveformH
 }
 
 /// <summary>One part of a kept fused generation, as the worker was sent it, and what became of it.</summary>
-public sealed partial class FusionPartRow(FusionRecordViewModel owner, int number, FusionRecordPart part, string speakerName, bool isCurrent)
+public sealed partial class FusionPartRow(GenerationInspectorViewModel owner, int number, FusionRecordPart part, string speakerName, bool isCurrent)
 {
     public int Number { get; } = number;
     public FusionRecordPart Part { get; } = part;

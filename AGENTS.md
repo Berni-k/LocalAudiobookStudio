@@ -117,9 +117,11 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
   and raises `Unfusable` for a combination it can't do (no retry; the app generates one by one). Workers without
   `fusion` never see parts (the bundled .NET workers refuse them); context still works for them: the app sends the
   context lines and the segment as one ordinary text (a blank line between them) and trims with transcription. Batching needs `fusion.speakers` > 1.
-  Fused generation inspector: with its setting on (`AppSettings.KeepFusedGenerations`) each one is kept in the
-  project's `fused/<id>/` (`audio.wav` and `record.json`: `FusionRecord` with the parts, spans, cuts, notes and
-  transcript); its takes link it (`TakeFusion.Record`) and open it in `FusionRecordWindow`.
+  Generation inspector (`GenerationInspectorWindow`, the magnifying glass on a segment row and a take card): shows
+  any take that has a transcript (its audio against the segment's text) and, with the *Keep fused generations* setting
+  on (`AppSettings.KeepFusedGenerations`), a fused generation kept in the project's `fused/<id>/` (`audio.wav` and
+  `record.json`: `FusionRecord` with the parts, spans, cuts, notes and transcript); its takes link it
+  (`TakeFusion.Record`) and open it with the parts shown.
 - Settings can come from a file: a setting with `"addsSettings": "<reader>"` (usually `"type": "asset"`) picks a file,
   and the reader in `SettingSources.cs` turns it into more settings shown below it. The ComfyUI bridge's workflow
   (`comfyWorkflow`) is the first; add a reader there for other kinds of file.

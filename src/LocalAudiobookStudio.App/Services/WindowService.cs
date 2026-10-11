@@ -43,13 +43,21 @@ public static class WindowService
     }
 
     /// <summary>
-    /// Opens a kept fused generation (non-modal, one window each), with <paramref name="itemId"/>'s part highlighted.
-    /// Returns false when its record is gone (deleted, or kept by another copy of the project).
+    /// Opens the generation inspector for a take (non-modal, one window each): its kept fused generation, with the
+    /// segment's part highlighted, else the take's own audio and transcript. Returns false when there is nothing to
+    /// show (the record is gone, deleted or kept by another copy of the project, and no transcript).
     /// </summary>
-    public static bool ShowFusionRecord(MainWindowViewModel main, ProjectSession session, string recordId, Guid? itemId)
+    public static bool ShowGenerationInspector(ProjectSession session, ItemViewModel item, Core.Model.TakeInfo take)
     {
-        if (!File.Exists(Path.Combine(session.Paths.FusionRecordDir(recordId), Core.Model.FusionRecord.RecordFile))) return false;
-        var window = new FusionRecordWindow { DataContext = new FusionRecordViewModel(main, session, recordId, itemId) };
+        if ((Owner?.DataContext ?? Dialogs.Owner?.DataContext) is not MainWindowViewModel main) return false;
+        GenerationInspectorViewModel vm;
+        if (take.Fusion?.Record is { } id && File.Exists(Path.Combine(session.Paths.FusionRecordDir(id), Core.Model.FusionRecord.RecordFile)))
+            vm = new GenerationInspectorViewModel(main, session, id, item.Id);
+        else if (File.Exists(session.Paths.TakeTranscript(item.Id, take.Take)))
+            vm = new GenerationInspectorViewModel(main, session, item, take);
+        else return false;
+
+        var window = new GenerationInspectorWindow { DataContext = vm };
         if (Owner is { } owner) window.Show(owner);
         else window.Show();
         return true;

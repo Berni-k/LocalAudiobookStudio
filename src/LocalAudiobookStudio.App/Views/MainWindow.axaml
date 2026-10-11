@@ -668,6 +668,13 @@
                               <PathIcon Data="{StaticResource IconStop}" IsVisible="{Binding IsRecording}" Foreground="#F04B4B" />
                             </Panel>
                           </Button>
+                          <Button Classes="icon" Command="{Binding ShowInspectorCommand}" IsVisible="{Binding CanInspect}"
+                                  ToolTip.Tip="Open the current take in the generation inspector">
+                            <Panel>
+                              <PathIcon Data="{StaticResource IconSearch}" IsVisible="{Binding !HasFusionRecord}" />
+                              <PathIcon Data="{StaticResource IconSearch}" IsVisible="{Binding HasFusionRecord}" Foreground="#E5B800" />
+                            </Panel>
+                          </Button>
                           <Button Classes="icon" Command="{Binding DeleteTakeCommand}" IsVisible="{Binding HasTakes}" ToolTip.Tip="Delete the current take">
                             <PathIcon Data="{StaticResource IconTrash}" />
                           </Button>

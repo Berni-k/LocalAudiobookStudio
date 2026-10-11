@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace LocalAudiobookStudio.App.Views;
 
-public partial class FusionRecordWindow : Window
+public partial class GenerationInspectorWindow : Window
 {
-    public FusionRecordWindow()
+    public GenerationInspectorWindow()
     {
         InitializeComponent();
         Closed += (_, _) => (DataContext as IDisposable)?.Dispose();

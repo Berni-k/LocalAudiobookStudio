@@ -542,6 +542,8 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
     /// <summary>Everything shown from the transcript may have changed.</summary>
     private void RaiseTranscript()
     {
+        OnPropertyChanged(nameof(CanInspect));
+        OnPropertyChanged(nameof(HasFusionRecord));
         OnPropertyChanged(nameof(TranscriptMarks));
         OnPropertyChanged(nameof(TranscriptSource));
         OnPropertyChanged(nameof(TranscriptFlagged));
@@ -599,6 +601,18 @@ public sealed partial class ItemViewModel : ObservableObject, Controls.IWaveform
     private async Task DeleteTake()
     {
         if (SelectedTakeInfo is { } take) await ConfirmDeleteTakeAsync(take.Take);
+    }
+
+    /// <summary>The current take has a transcript or a kept fused generation: the generation inspector has something to show.</summary>
+    public bool CanInspect => SelectedTakeInfo is { } take && GenerationInspectorViewModel.CanInspect(Session, Id, take);
+
+    /// <summary>The current take's fused generation was kept (the magnifying glass turns yellow).</summary>
+    public bool HasFusionRecord => SelectedTakeInfo?.Fusion?.Record != null;
+
+    [RelayCommand]
+    private void ShowInspector()
+    {
+        if (SelectedTakeInfo is { } take) Services.WindowService.ShowGenerationInspector(Session, this, take);
     }
 
     /// <summary>Deletes one take after confirmation (row trash button, inspector take cards).</summary>

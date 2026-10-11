@@ -1,11 +1,12 @@
-<!-- A kept fused generation (non-modal): the worker's whole output across the top with where its takes were cut, the
-     transcript under it (highlighted as it plays, mistakes marked), and the parts as the worker was sent them. -->
+<!-- The generation inspector (non-modal): a take's audio, or a kept fused generation's whole output, across the top with
+     where its takes were cut, the transcript under it (highlighted as it plays, mistakes marked), and for a fused
+     generation the parts as the worker was sent them. -->
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
         xmlns:ctl="using:LocalAudiobookStudio.App.Controls"
-        x:Class="LocalAudiobookStudio.App.Views.FusionRecordWindow"
-        x:DataType="vm:FusionRecordViewModel"
+        x:Class="LocalAudiobookStudio.App.Views.GenerationInspectorWindow"
+        x:DataType="vm:GenerationInspectorViewModel"
         Title="{Binding Title}"
         Width="1100" Height="780" MinWidth="700" MinHeight="450">
   <DockPanel Margin="16">
@@ -49,7 +50,7 @@
       </Panel>
     </Border>
 
-    <!-- What the transcription heard, against all the parts' text: highlighted as it plays, differences marked. -->
+    <!-- What the transcription heard, against the text: highlighted as it plays, differences marked. -->
     <Border DockPanel.Dock="Top" Classes="card" Margin="0,8,0,0" Padding="10,8">
       <StackPanel Spacing="4">
         <TextBlock Text="Transcript" FontWeight="SemiBold" />
@@ -67,9 +68,9 @@
       </StackPanel>
     </Border>
 
-    <!-- The parts, in the order the worker got them. -->
-    <TextBlock DockPanel.Dock="Top" Text="Parts" FontWeight="SemiBold" Margin="0,10,0,4" />
-    <ScrollViewer>
+    <!-- The parts, in the order the worker got them (a fused generation only). -->
+    <TextBlock DockPanel.Dock="Top" Text="Parts" FontWeight="SemiBold" Margin="0,10,0,4" IsVisible="{Binding HasParts}" />
+    <ScrollViewer IsVisible="{Binding HasParts}">
       <ItemsControl ItemsSource="{Binding Parts}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:FusionPartRow">

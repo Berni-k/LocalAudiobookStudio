@@ -78,8 +78,8 @@
               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
               <TextBlock Text="Debugging" Classes="formLabel" />
               <StackPanel Grid.Column="1" Spacing="2">
-                <CheckBox IsChecked="{Binding KeepFusedGenerations}" Content="Fused generation inspector" />
-                <TextBlock Text="Saves raw fused generation results. Their takes get a magnifying glass button to inspect them."
+                <CheckBox IsChecked="{Binding KeepFusedGenerations}" Content="Keep fused generations" />
+                <TextBlock Text="Saves raw fused generation results. Their takes show them, with what was sent, in the generation inspector (the magnifying glass button)."
                            Classes="caption" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>

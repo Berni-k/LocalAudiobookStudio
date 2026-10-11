@@ -228,9 +228,12 @@
                       <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open containing folder">
                         <PathIcon Data="{StaticResource IconFolder}" />
                       </Button>
-                      <Button Classes="icon" Command="{Binding ShowFusionRecordCommand}" IsVisible="{Binding HasFusionRecord}"
-                              ToolTip.Tip="Open in the fused generation inspector: what was sent, what came back, the transcript">
-                        <PathIcon Data="{StaticResource IconSearch}" />
+                      <Button Classes="icon" Command="{Binding ShowInspectorCommand}" IsVisible="{Binding CanInspect}"
+                              ToolTip.Tip="Open in the generation inspector: the transcript against the audio (for a fused generation also what was sent and what came back)">
+                        <Panel>
+                          <PathIcon Data="{StaticResource IconSearch}" IsVisible="{Binding !HasFusionRecord}" />
+                          <PathIcon Data="{StaticResource IconSearch}" IsVisible="{Binding HasFusionRecord}" Foreground="#E5B800" />
+                        </Panel>
                       </Button>
                       <Button Classes="icon" Command="{Binding ExportWavCommand}" ToolTip.Tip="Export this take as WAV">
                         <PathIcon Data="{StaticResource IconExport}" />

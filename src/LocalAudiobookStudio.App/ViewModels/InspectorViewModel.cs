@@ -473,15 +473,18 @@ public sealed partial class TakeRowViewModel : ObservableObject
         if (_main.Session != null) Dialogs.Reveal(_main.Session.Takes.TakeAudio(Item.Id, Take));
     }
 
-    /// <summary>The take was cut out of a fused generation kept for the fused generation inspector.</summary>
+    /// <summary>The take has a transcript, or was cut out of a fused generation that was kept: the generation inspector has something to show.</summary>
+    public bool CanInspect => _main.Session is { } s && GenerationInspectorViewModel.CanInspect(s, Item.Id, Info);
+
+    /// <summary>The take's fused generation was kept (the magnifying glass turns yellow).</summary>
     public bool HasFusionRecord => Info.Fusion?.Record != null;
 
     [RelayCommand]
-    private void ShowFusionRecord()
+    private void ShowInspector()
     {
-        if (_main.Session is not { } s || Info.Fusion?.Record is not { } id) return;
-        if (!WindowService.ShowFusionRecord(_main, s, id, Item.Id))
-            _main.StatusText = "The fused generation inspector has nothing for this take: its record is no longer kept.";
+        if (_main.Session is not { } s) return;
+        if (!WindowService.ShowGenerationInspector(s, Item, Info))
+            _main.StatusText = "The generation inspector has nothing for this take: it has no transcript and its fused generation is no longer kept.";
     }
 
     [RelayCommand]
