@@ -42,6 +42,19 @@ public static class WindowService
         return ShowDialog<object>(new SpeakersDialog { DataContext = vm });
     }
 
+    /// <summary>
+    /// Opens a kept fused generation (non-modal, one window each), with <paramref name="itemId"/>'s part highlighted.
+    /// Returns false when its record is gone (deleted, or kept by another copy of the project).
+    /// </summary>
+    public static bool ShowFusionRecord(MainWindowViewModel main, ProjectSession session, string recordId, Guid? itemId)
+    {
+        if (!File.Exists(Path.Combine(session.Paths.FusionRecordDir(recordId), Core.Model.FusionRecord.RecordFile))) return false;
+        var window = new FusionRecordWindow { DataContext = new FusionRecordViewModel(main, session, recordId, itemId) };
+        if (Owner is { } owner) window.Show(owner);
+        else window.Show();
+        return true;
+    }
+
     public static void ShowJobs(MainWindowViewModel main)
     {
         if (_jobs != null)

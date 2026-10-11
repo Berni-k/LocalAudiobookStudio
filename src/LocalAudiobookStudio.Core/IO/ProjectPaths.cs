@@ -15,6 +15,10 @@ public sealed class ProjectPaths(string root)
     public string ExportDir => Path.Combine(Root, "export");
     public string CacheDir => Path.Combine(Root, ".cache");
 
+    /// <summary>Kept fused generations (<see cref="Model.FusionRecord"/>), one folder each, when the setting is on.</summary>
+    public string FusedDir => Path.Combine(Root, "fused");
+    public string FusionRecordDir(string id) => Path.Combine(FusedDir, id);
+
     /// <summary>Scratch space for exports; wiped before and after each export.</summary>
     public string TempDir => Path.Combine(Root, ".temp");
 

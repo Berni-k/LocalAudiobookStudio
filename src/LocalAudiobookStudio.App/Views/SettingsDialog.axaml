@@ -76,6 +76,15 @@
             </Grid>
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <TextBlock Text="Debugging" Classes="formLabel" />
+              <StackPanel Grid.Column="1" Spacing="2">
+                <CheckBox IsChecked="{Binding KeepFusedGenerations}" Content="Fused generation inspector" />
+                <TextBlock Text="Saves raw fused generation results. Their takes get a magnifying glass button to inspect them."
+                           Classes="caption" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
               <TextBlock Text="Hugging Face token" Classes="formLabel" />
               <StackPanel Grid.Column="1" Spacing="2">
                 <TextBox Text="{Binding HuggingFaceToken}" PasswordChar="•" RevealPassword="False" Watermark="hf_…"

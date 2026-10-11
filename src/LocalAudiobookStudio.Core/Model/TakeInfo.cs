@@ -61,7 +61,75 @@ public sealed class TakeFusion
     /// <summary>How it was cut out: <see cref="Worker"/> (the worker said where) or <see cref="Transcript"/>.</summary>
     public string Split { get; set; } = Worker;
 
+    /// <summary>The kept record of the generation (<see cref="FusionRecord"/>), when the fused generation inspector was on.</summary>
+    public string? Record { get; set; }
+
     public const string Worker = "worker", Transcript = "transcript";
+}
+
+/// <summary>
+/// What a fused generation was sent and gave back, kept for the fused generation inspector: <c>fused/&lt;id&gt;/record.json</c>
+/// next to the worker's whole output (<c>audio.wav</c>). For seeing how its segments were cut.
+/// </summary>
+public sealed class FusionRecord
+{
+    public string Id { get; set; } = "";
+    public DateTime CreatedUtc { get; set; }
+    public string Worker { get; set; } = "";
+    public string? Runtime { get; set; }
+    public string ModelVersion { get; set; } = "";
+    public long? Seed { get; set; }
+    public string? Device { get; set; }
+    public int GenerationMs { get; set; }
+
+    /// <summary>The settings all parts shared (for a worker that doesn't fuse: the segment's settings).</summary>
+    public System.Text.Json.Nodes.JsonObject Settings { get; set; } = new();
+
+    /// <summary>For a worker that doesn't fuse: the one text it was sent, context and segment in a row.</summary>
+    public string? RequestText { get; set; }
+
+    public List<FusionRecordPart> Parts { get; set; } = [];
+
+    /// <summary>How the takes were cut out: <see cref="TakeFusion.Worker"/> or <see cref="TakeFusion.Transcript"/>.</summary>
+    public string Split { get; set; } = TakeFusion.Worker;
+
+    /// <summary>The transcription worker that found the parts, and what it heard (times in <c>audio.wav</c>).</summary>
+    public string? Transcriber { get; set; }
+    public List<Transcripts.HeardWord>? Transcript { get; set; }
+
+    /// <summary>Why cutting it went wrong as a whole (the transcription failed), if it did.</summary>
+    public string? Error { get; set; }
+
+    public const string RecordFile = "record.json", AudioFile = "audio.wav";
+}
+
+/// <summary>One part of a <see cref="FusionRecord"/>, as the worker was sent it, and what became of it.</summary>
+public sealed class FusionRecordPart
+{
+    /// <summary>"generate" (a segment) or "context".</summary>
+    public string Role { get; set; } = "";
+    public string Speaker { get; set; } = "";
+    public string Text { get; set; } = "";
+    public string? Voice { get; set; }
+    public System.Text.Json.Nodes.JsonObject? Settings { get; set; }
+
+    /// <summary>Context heard from a take instead of generated: that take's audio.</summary>
+    public string? Audio { get; set; }
+
+    /// <summary>A segment: its item and the take cut out for it (null when it wasn't cut out).</summary>
+    public Guid? ItemId { get; set; }
+    public int? Take { get; set; }
+
+    /// <summary>Where the worker said the part is in <c>audio.wav</c>, if it did.</summary>
+    public int? SpanStartMs { get; set; }
+    public int? SpanEndMs { get; set; }
+
+    /// <summary>Where the segment's take was cut out of <c>audio.wav</c>.</summary>
+    public int? CutStartMs { get; set; }
+    public int? CutEndMs { get; set; }
+
+    /// <summary>What happened to it, when it wasn't the plain case ("not cut out: …").</summary>
+    public string? Note { get; set; }
 }
 
 /// <summary>How a project stores its audio (takes, recordings, imported WAVs).</summary>

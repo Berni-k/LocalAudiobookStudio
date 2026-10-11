@@ -18,6 +18,7 @@ public sealed partial class AppSettingsViewModel : ObservableObject
         FfmpegPath = s.FfmpegPath ?? "";
         IdleTimeout = s.WorkerIdleTimeoutMin;
         GenerationTimeout = s.GenerationTimeoutMin;
+        KeepFusedGenerations = s.KeepFusedGenerations;
         HuggingFaceToken = s.HuggingFaceToken ?? "";
         SilenceThreshold = (decimal)s.SilenceThresholdDb;
         TrimPadding = (decimal)s.TrimPaddingMs;
@@ -43,6 +44,8 @@ public sealed partial class AppSettingsViewModel : ObservableObject
     [ObservableProperty] private string _ffmpegFound;
     [ObservableProperty] private decimal _idleTimeout;
     [ObservableProperty] private decimal _generationTimeout;
+    /// <summary>Keep each fused generation's whole output, request and transcript in the project (for checking the cuts).</summary>
+    [ObservableProperty] private bool _keepFusedGenerations;
     /// <summary>For gated models; sent only to Hugging Face when the app downloads a model.</summary>
     [ObservableProperty] private string _huggingFaceToken = "";
     /// <summary>Silence trim of new takes: threshold in dBFS and the silence kept in ms.</summary>
@@ -108,6 +111,7 @@ public sealed partial class AppSettingsViewModel : ObservableObject
         s.FfmpegPath = string.IsNullOrWhiteSpace(FfmpegPath) ? null : FfmpegPath;
         s.WorkerIdleTimeoutMin = (int)IdleTimeout;
         s.GenerationTimeoutMin = Math.Max(1, (int)GenerationTimeout);
+        s.KeepFusedGenerations = KeepFusedGenerations;
         s.HuggingFaceToken = string.IsNullOrWhiteSpace(HuggingFaceToken) ? null : HuggingFaceToken.Trim();
         s.SilenceThresholdDb = (double)Math.Clamp(SilenceThreshold, -90, -20);
         s.TrimPaddingMs = (double)Math.Clamp(TrimPadding, 0, 1000);

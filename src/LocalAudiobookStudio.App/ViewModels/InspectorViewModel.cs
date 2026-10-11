@@ -473,6 +473,17 @@ public sealed partial class TakeRowViewModel : ObservableObject
         if (_main.Session != null) Dialogs.Reveal(_main.Session.Takes.TakeAudio(Item.Id, Take));
     }
 
+    /// <summary>The take was cut out of a fused generation kept for the fused generation inspector.</summary>
+    public bool HasFusionRecord => Info.Fusion?.Record != null;
+
+    [RelayCommand]
+    private void ShowFusionRecord()
+    {
+        if (_main.Session is not { } s || Info.Fusion?.Record is not { } id) return;
+        if (!WindowService.ShowFusionRecord(_main, s, id, Item.Id))
+            _main.StatusText = "The fused generation inspector has nothing for this take: its record is no longer kept.";
+    }
+
     [RelayCommand]
     private async Task ExportWav()
     {

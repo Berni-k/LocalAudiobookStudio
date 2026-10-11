@@ -3,6 +3,7 @@ using LocalAudiobookStudio.Audio.Decoding;
 using LocalAudiobookStudio.Core.Hashing;
 using LocalAudiobookStudio.Core.IO;
 using LocalAudiobookStudio.Core.Model;
+using LocalAudiobookStudio.Core.Serialization;
 using LocalAudiobookStudio.Core.Transcripts;
 using LocalAudiobookStudio.Workers.Manifest;
 using LocalAudiobookStudio.Workers.Protocol;
@@ -26,8 +27,16 @@ public sealed class FusedJobTag(ProjectEngine engine)
     public ProjectEngine Engine { get; } = engine;
     public List<FusedMember> Members { get; init; } = [];
 
-    /// <summary>Every part's text, context included, in order.</summary>
-    public List<string> PartTexts { get; init; } = [];
+    /// <summary>
+    /// Every part, context included, in order: as the worker was sent them, or for a worker that doesn't fuse, the lines
+    /// its one text was made of.
+    /// </summary>
+    public List<GeneratePart> Parts { get; init; } = [];
+
+    public List<string> PartTexts => Parts.Select(p => p.Text ?? "").ToList();
+
+    /// <summary>The record kept of it for the fused generation inspector (<see cref="FusionRecord"/>), or null.</summary>
+    public string? RecordId { get; init; }
 
     public int ContextCount => PartTexts.Count - Members.Count;
 
@@ -58,6 +67,17 @@ public sealed class FusedJobTag(ProjectEngine engine)
 
     /// <summary>Files to delete once it is over (decoded context takes).</summary>
     public List<string> TempFiles { get; } = [];
+
+    // ---- for the record
+
+    /// <summary>Where each member's take was cut out of the whole, by item.</summary>
+    public Dictionary<Guid, (int StartMs, int EndMs)> Cuts { get; } = [];
+
+    /// <summary>Why a member wasn't cut out, by item.</summary>
+    public Dictionary<Guid, string> Notes { get; } = [];
+
+    /// <summary>What the transcription heard in the whole, when it was used to cut it.</summary>
+    public List<HeardWord>? Transcript { get; set; }
 }
 
 /// <summary>Identifies the job that transcribes a fused generation to cut it into takes.</summary>
@@ -252,7 +272,7 @@ public sealed partial class ProjectEngine
         foreach (var c in after) parts.Add(ContextPart(c, manifest, contextAudio));
 
         var request = new GenerateRequest { Settings = first.Shared, Seed = OneShot.SeedFrom(first.Settings), Parts = parts };
-        return FusedJob(group, members, parts.Select(p => p.Text ?? "").ToList(), contextAudio, request, priority);
+        return FusedJob(group, members, parts, contextAudio, request, priority);
     }
 
     /// <summary>
@@ -261,27 +281,32 @@ public sealed partial class ProjectEngine
     /// </summary>
     private GenerationJob TextContextJob(FusionPlan plan, List<TimelineItem> before, List<TimelineItem> after, JobPriority priority)
     {
-        var texts = before.Select(i => i.Text!).Append(plan.Item.Text!).Concat(after.Select(i => i.Text!)).ToList();
+        // Not sent as parts: they describe the lines the one text is made of, for cutting and the record.
+        GeneratePart Line(TimelineItem i, string role) => new() { Role = role, Speaker = i.Speaker ?? "", Text = i.Text };
+        var parts = before.Select(i => Line(i, PartRoles.Context))
+            .Append(new GeneratePart { Speaker = plan.Item.Speaker ?? "", Text = plan.Item.Text, Voice = ResolveVoice(plan.Speaker.Voice) })
+            .Concat(after.Select(i => Line(i, PartRoles.Context))).ToList();
         var member = new FusedMember(plan.Item.Id, before.Count, plan.Item.Text!, ComputeHash(plan.Item));
         var request = new GenerateRequest
         {
-            Text = string.Join(" ", texts),
+            Text = string.Join(" ", parts.Select(p => p.Text)),
             Voice = ResolveVoice(plan.Speaker.Voice),
             Settings = plan.Settings,
             Seed = OneShot.SeedFrom(plan.Settings),
         };
-        return FusedJob([plan], [member], texts, [], request, priority);
+        return FusedJob([plan], [member], parts, [], request, priority);
     }
 
     /// <summary>The job of a fused generation: its audio goes to the cache, and <see cref="CutFused"/> makes the takes.</summary>
-    private GenerationJob FusedJob(List<FusionPlan> group, List<FusedMember> members, List<string> partTexts,
+    private GenerationJob FusedJob(List<FusionPlan> group, List<FusedMember> members, List<GeneratePart> parts,
         List<(GeneratePart, string)> contextAudio, GenerateRequest request, JobPriority priority)
     {
         var first = group[0];
         var tag = new FusedJobTag(this)
         {
             Members = members,
-            PartTexts = partTexts,
+            Parts = parts,
+            RecordId = Host.Settings.KeepFusedGenerations ? DateTime.Now.ToString("yyyyMMdd-HHmmss-") + Guid.NewGuid().ToString("N")[..6] : null,
             Transcriber = first.Transcriber,
             TranscriberSettings = first.TranscriberSettings,
             ContextAudio = contextAudio,
@@ -357,7 +382,7 @@ public sealed partial class ProjectEngine
         if (spans != null && tag.Members.All(m => spans[m.Part] is { } s && s.EndMs > s.StartMs))
         {
             var audio = AudioDecoder.Decode(tag.FusedPath);
-            var fusion = new TakeFusion { Segments = tag.Members.Count, Context = tag.ContextCount, Split = TakeFusion.Worker };
+            var fusion = new TakeFusion { Segments = tag.Members.Count, Context = tag.ContextCount, Split = TakeFusion.Worker, Record = tag.RecordId };
             foreach (var m in tag.Members)
             {
                 var span = spans[m.Part]!;
@@ -373,7 +398,11 @@ public sealed partial class ProjectEngine
         else
         {
             Host.Log.LogWarning("{Worker} didn't say where the parts are, and no transcription worker is set to find them", job.WorkerId);
-            tag.Uncut.AddRange(tag.Members.Select(m => m.ItemId));
+            foreach (var m in tag.Members)
+            {
+                tag.Uncut.Add(m.ItemId);
+                tag.Notes[m.ItemId] = "Not cut out: the worker didn't say where it is, and no transcription worker is set.";
+            }
         }
         return Task.CompletedTask;
     }
@@ -387,6 +416,7 @@ public sealed partial class ProjectEngine
         var to = Math.Clamp((long)endMs * audio.SampleRate / 1000, from, audio.Frames);
         var samples = audio.Samples.AsSpan((int)(from * audio.Channels), (int)((to - from) * audio.Channels)).ToArray();
         AudioDecoder.WriteWav(new DecodedAudio(samples, audio.SampleRate, audio.Channels), wav);
+        tag.Cuts[m.ItemId] = (startMs, endMs);
         return SaveTake(job, m.ItemId, take, wav, m.InputHash, job.Result?.Seed ?? job.Request.Seed, m.Text.Length, fusion);
     }
 
@@ -409,6 +439,7 @@ public sealed partial class ProjectEngine
         var at = 0;
         foreach (var t in tag.PartTexts) { ranges.Add((at, at + t.Length)); at += t.Length + 1; }
         var heard = transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence)).ToList();
+        tag.Transcript = heard;
         var check = TranscriptCheck.Compare(joined, heard);
         var words = ranges.Select(r => check.Words.Where(w => w.TextStart >= r.Start && w.TextStart < r.End).ToList()).ToList();
         (int Start, int End)? Heard(int part)
@@ -420,7 +451,7 @@ public sealed partial class ProjectEngine
 
         var audio = AudioDecoder.Decode(tag.FusedPath);
         var durationMs = (int)audio.DurationMs;
-        var fusion = new TakeFusion { Segments = tag.Members.Count, Context = tag.ContextCount, Split = TakeFusion.Transcript };
+        var fusion = new TakeFusion { Segments = tag.Members.Count, Context = tag.ContextCount, Split = TakeFusion.Transcript, Record = tag.RecordId };
         foreach (var m in tag.Members)
         {
             var own = words[m.Part];
@@ -429,8 +460,12 @@ public sealed partial class ProjectEngine
             if (spans[m.Part] is not { } span || expected.Count == 0 || expected[0].Kind == WordMatch.Missing
                 || expected[^1].Kind == WordMatch.Missing || errors * 3 > expected.Count)
             {
+                var heardText = string.Join(" ", own.Select(w => w.Heard ?? $"[{w.Expected}?]"));
                 Host.Log.LogInformation("Not cutting out \"{Text}\": heard {Heard} ({Errors} of {Words} words wrong)", m.Text,
-                    string.Join(" ", own.Select(w => w.Heard ?? $"[{w.Expected}?]")), errors, expected.Count);
+                    heardText, errors, expected.Count);
+                tag.Notes[m.ItemId] = expected.Count > 0 && (expected[0].Kind == WordMatch.Missing || expected[^1].Kind == WordMatch.Missing)
+                    ? $"Not cut out: its first or last word wasn't heard (heard \"{heardText}\")."
+                    : $"Not cut out: {errors} of {expected.Count} words wrong (heard \"{heardText}\").";
                 tag.Uncut.Add(m.ItemId);
                 continue;
             }
@@ -442,6 +477,7 @@ public sealed partial class ProjectEngine
             if (prev is { } p2 && p2.End > span.Start || next is { } n2 && span.End > n2.Start || end <= start)
             {
                 Host.Log.LogInformation("Not cutting out \"{Text}\": its words overlap a neighbour's", m.Text);
+                tag.Notes[m.ItemId] = "Not cut out: its words overlap a neighbour's.";
                 tag.Uncut.Add(m.ItemId);
                 continue;
             }
@@ -514,10 +550,77 @@ public sealed partial class ProjectEngine
 
         if (!pending)
         {
+            if (tag.RecordId != null && tag.Generation != null && File.Exists(tag.FusedPath))
+            {
+                try { SaveRecord(tag, split != null ? job : null); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    Host.Log.LogWarning(e, "Could not keep the fused generation {Id}", tag.RecordId);
+                }
+            }
             foreach (var file in tag.TempFiles.Append(tag.FusedPath).Append(tag.TranscriptWav).OfType<string>())
                 try { File.Delete(file); } catch (IOException) { /* cache */ }
         }
         return outcome;
+    }
+
+    /// <summary>
+    /// Keeps a finished fused generation for the fused generation inspector: the worker's whole
+    /// output, what it was sent, where each take was cut, and what the transcription heard.
+    /// </summary>
+    private void SaveRecord(FusedJobTag tag, GenerationJob? split)
+    {
+        var gen = tag.Generation!;
+        var manifest = Catalog.Get(gen.WorkerId);
+        var dir = Paths.FusionRecordDir(tag.RecordId!);
+        Directory.CreateDirectory(dir);
+        File.Move(tag.FusedPath, Path.Combine(dir, FusionRecord.AudioFile), overwrite: true);
+
+        var spans = gen.Result?.Spans;
+        var record = new FusionRecord
+        {
+            Id = tag.RecordId!,
+            CreatedUtc = gen.FinishedUtc ?? DateTime.UtcNow,
+            Worker = gen.WorkerId,
+            Runtime = manifest?.Runtime,
+            ModelVersion = manifest != null ? Host.ModelVersionOf(manifest) : "",
+            Seed = gen.Result?.Seed ?? gen.Request.Seed,
+            Device = gen.DeviceName,
+            GenerationMs = gen is { StartedUtc: { } s, FinishedUtc: { } f } ? (int)(f - s).TotalMilliseconds : 0,
+            Settings = (JsonObject)gen.Request.Settings.DeepClone(),
+            RequestText = gen.Request.Parts == null ? gen.Request.Text : null,
+            Split = tag.Transcript != null ? TakeFusion.Transcript : TakeFusion.Worker,
+            Transcriber = tag.Transcript != null ? tag.Transcriber : null,
+            Transcript = tag.Transcript,
+            Error = split is { State: JobState.Failed } ? $"The transcription failed: {split.LastError}" : null,
+        };
+        for (var i = 0; i < tag.Parts.Count; i++)
+        {
+            var p = tag.Parts[i];
+            var member = tag.Members.FirstOrDefault(m => m.Part == i);
+            var audio = tag.ContextAudio.FirstOrDefault(c => ReferenceEquals(c.Part, p)).Audio;
+            var part = new FusionRecordPart
+            {
+                Role = p.Role,
+                Speaker = p.Speaker,
+                Text = p.Text ?? "",
+                Voice = p.Voice,
+                Settings = (JsonObject?)p.Settings?.DeepClone(),
+                Audio = audio != null ? Paths.MakeRelative(audio) : null,
+                SpanStartMs = spans?.ElementAtOrDefault(i)?.StartMs,
+                SpanEndMs = spans?.ElementAtOrDefault(i)?.EndMs,
+            };
+            if (member != null)
+            {
+                part.ItemId = member.ItemId;
+                part.Take = tag.Taken.FirstOrDefault(t => t.ItemId == member.ItemId)?.Take;
+                if (tag.Cuts.TryGetValue(member.ItemId, out var cut)) (part.CutStartMs, part.CutEndMs) = cut;
+                part.Note = tag.Notes.GetValueOrDefault(member.ItemId)
+                            ?? (tag.Uncut.Contains(member.ItemId) || part.Take == null ? "Not cut out: generated again on its own." : null);
+            }
+            record.Parts.Add(part);
+        }
+        AtomicFile.WriteAllBytes(Path.Combine(dir, FusionRecord.RecordFile), CoreJson.SerializeToUtf8(record));
     }
 
     /// <summary>The job that transcribes a fused generation so <see cref="CutByTranscript"/> can cut it.</summary>

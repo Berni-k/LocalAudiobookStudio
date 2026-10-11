@@ -362,6 +362,36 @@ public sealed class FusionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task KeptGenerationsRecordWhatWasSentAndHowItWasCut()
+    {
+        _host.Settings.KeepFusedGenerations = true;
+        using var p = await Open("duet", transcriber: "listen", lastLine: "Off she went, mumble");
+        var lines = Lines(p);
+
+        await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+
+        var id = p.Engine.Takes.Selected(lines[0])!.Fusion!.Record!;
+        var dir = p.Project.Paths.FusionRecordDir(id);
+        Assert.True(File.Exists(Path.Combine(dir, FusionRecord.AudioFile)));
+        var record = Core.Serialization.CoreJson.Deserialize<FusionRecord>(File.ReadAllText(Path.Combine(dir, FusionRecord.RecordFile)));
+        Assert.Equal("duet", record.Worker);
+        Assert.Equal(TakeFusion.Transcript, record.Split);
+        Assert.Equal("listen", record.Transcriber);
+        Assert.NotEmpty(record.Transcript!);
+        Assert.Equal(["narrator", "anna", "ben"], record.Parts.Select(x => x.Speaker));
+        Assert.All(record.Parts, x => Assert.True(x.CutEndMs > x.CutStartMs));
+        Assert.Equal(p.Engine.Takes.Selected(lines[1])!.Take, record.Parts[1].Take);
+
+        // The other batch's last line wasn't cut out, and says why.
+        var other = p.Engine.Takes.Selected(lines[4])!.Fusion!.Record!;
+        var second = Core.Serialization.CoreJson.Deserialize<FusionRecord>(
+            File.ReadAllText(Path.Combine(p.Project.Paths.FusionRecordDir(other), FusionRecord.RecordFile)));
+        Assert.Null(second.Parts[1].Take);
+        Assert.Contains("wasn't heard", second.Parts[1].Note);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(p.Project.Paths.CacheDir, "fused")));
+    }
+
+    [Fact]
     public async Task WithoutSpansOrTranscriberNothingIsFused()
     {
         using var p = await Open("duet");

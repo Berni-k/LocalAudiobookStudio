@@ -228,6 +228,10 @@
                       <Button Classes="icon" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Open containing folder">
                         <PathIcon Data="{StaticResource IconFolder}" />
                       </Button>
+                      <Button Classes="icon" Command="{Binding ShowFusionRecordCommand}" IsVisible="{Binding HasFusionRecord}"
+                              ToolTip.Tip="Open in the fused generation inspector: what was sent, what came back, the transcript">
+                        <PathIcon Data="{StaticResource IconSearch}" />
+                      </Button>
                       <Button Classes="icon" Command="{Binding ExportWavCommand}" ToolTip.Tip="Export this take as WAV">
                         <PathIcon Data="{StaticResource IconExport}" />
                       </Button>

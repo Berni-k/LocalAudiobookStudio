@@ -37,6 +37,12 @@ public sealed class AppSettings
 
     public int WorkerIdleTimeoutMin { get; set; } = 15;
     public int GenerationTimeoutMin { get; set; } = 10;
+
+    /// <summary>
+    /// The fused generation inspector: keep what each fused generation (batch or context) was sent and gave back, with
+    /// its transcript, in the project's fused folder; its takes then open it. For checking how the segments were cut.
+    /// </summary>
+    public bool KeepFusedGenerations { get; set; }
     public bool FirstRunCompleted { get; set; }
     public UiSettings Ui { get; set; } = new();
 

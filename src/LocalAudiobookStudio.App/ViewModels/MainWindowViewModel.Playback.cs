@@ -309,14 +309,14 @@ public sealed partial class MainWindowViewModel
     }
 
     /// <summary>Plays an audio file on its own (assets, voice references, speaker previews): WAV, Opus or MP3.</summary>
-    public Task PlayFileAsync(string path)
+    public Task PlayFileAsync(string path, double fromMs = 0)
     {
         if (_engine == null) return Task.CompletedTask;
         try
         {
             var info = Audio.Decoding.AudioDecoder.ReadInfo(path);
             var plan = new MixPlan([new MixItem(Guid.Empty, 0, info.DurationMs, path, 0, 0, 0, 0)], info.DurationMs);
-            _engine.Play(plan, 0, plan.TotalMs, PlaybackMode.Preview);
+            _engine.Play(plan, Math.Clamp(fromMs, 0, plan.TotalMs), plan.TotalMs, PlaybackMode.Preview);
             _singleItem = null;
             StartClock();
         }
@@ -325,6 +325,31 @@ public sealed partial class MainWindowViewModel
             StatusText = "Cannot play file: " + ex.Message;
         }
         return Task.CompletedTask;
+    }
+
+    private (string Path, MixPlan Plan)? _scrubFile;
+
+    /// <summary>
+    /// Audible scrubbing in a file shown on its own (a kept fused generation), as the segment rows scrub the timeline:
+    /// a short grain at <paramref name="ms"/> per mouse move.
+    /// </summary>
+    public void ScrubFile(string path, double ms)
+    {
+        if (_engine == null) return;
+        if (_scrubFile?.Path != path)
+        {
+            var info = Audio.Decoding.AudioDecoder.ReadInfo(path);
+            _scrubFile = (path, new MixPlan([new MixItem(Guid.Empty, 0, info.DurationMs, path, 0, 0, 0, 0)], info.DurationMs));
+        }
+        ClearAssetPlayback();
+        _clock.Stop();
+        _engine.ScrubGrain(_scrubFile.Value.Plan, ms);
+    }
+
+    public void ScrubFileEnd()
+    {
+        _engine?.Stop();
+        IsPlaying = false;
     }
 
     /// <summary>Where a file played with <see cref="PlayFileAsync"/> is, in ms; null when no such file is playing.</summary>
