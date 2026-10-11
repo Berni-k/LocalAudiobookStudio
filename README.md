@@ -59,6 +59,14 @@ AI inference is done by workers, each running in its own process on one of these
 <td align="center">Speakers</td>
 <td align="center">Workers</td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/images/screenshot_inspector.PNG" alt="Generation inspector"></td>
+<td width="50%"></td>
+</tr>
+<tr>
+<td align="center">Generation inspector</td>
+<td></td>
+</tr>
 </table>
 
 ## Getting started
