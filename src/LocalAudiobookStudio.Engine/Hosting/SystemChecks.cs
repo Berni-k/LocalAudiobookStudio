@@ -186,7 +186,8 @@ public static class SystemChecks
         const string title = "CUDA libraries";
         var cudart = FindLibrary(CudartNames, out var cudartName);
         var cublas = FindLibrary(CublasNames, out _);
-        var cudnn = FindLibrary(CudnnNames, out _);
+        // The app adds cuDNN's install folder to the workers' PATH itself (CudaToolkit.CudnnFolder).
+        var cudnn = FindLibrary(CudnnNames, out _) ?? CudaToolkit.CudnnFolder();
         var lines = new List<CheckLine>();
         if (cudart != null)
             lines.Add(CheckLine.Path(cudart, $"CUDA {(cudartName!.Contains("13") ? 13 : 12)} runtime"));
@@ -195,23 +196,27 @@ public static class SystemChecks
         lines.Add(cublas != null
             ? CheckLine.Path(cublas, "cuBLAS")
             : CheckLine.Warn("not found (CUDA 12 or 13; the CUDA toolkit provides it)", "cuBLAS"));
-        if (cudnn != null)
-        {
-            lines.Add(CheckLine.Path(cudnn, "cuDNN 9"));
-        }
-        else if (FindInstalledCudnn() is { } installed)
-        {
-            lines.Add(CheckLine.Warn("not on the PATH (optional, for faster convolutions); add this folder:", "cuDNN 9"));
-            lines.Add(CheckLine.Path(installed));
-        }
-        else
-        {
-            lines.Add(CheckLine.Warn("not found (optional, for faster convolutions)", "cuDNN 9"));
-        }
+        lines.Add(cudnn != null ? CheckLine.Path(cudnn, "cuDNN 9") : CheckLine.Warn(CudnnMissing(), "cuDNN 9"));
         if (cudart == null || cublas == null)
             lines.Add(CheckLine.Plain("Without the CUDA toolkit, HartsyInference workers run on the CPU, and the internal GPU runtime uses Vulkan or the CPU. Python workers are not affected."));
         var status = cudart == null || cublas == null ? CheckStatus.Warning : cudnn == null ? CheckStatus.Partial : CheckStatus.Ok;
         return new(title, status, lines);
+    }
+
+    /// <summary>Why no usable cuDNN was found: none installed, or the installed builds don't fit the toolkit and driver.</summary>
+    private static string CudnnMissing()
+    {
+        const string optional = " (optional, for faster convolutions)";
+        var builds = CudaToolkit.CudnnBuilds();
+        if (builds.Count == 0) return "not found" + optional;
+        var toolkit = CudaToolkit.MajorVersion();
+        var driver = CudaToolkit.DriverMajorVersion();
+        if (toolkit == null) return "installed, but it needs the CUDA toolkit too" + optional;
+        if (driver is { } d && d != toolkit)
+            return $"installed, but not used: the driver runs CUDA {d} and the toolkit is CUDA {toolkit}. "
+                + $"Install the CUDA {d} toolkit to use cuDNN's CUDA {d} build" + optional;
+        var have = string.Join(" and ", builds.Select(b => b.CudaMajor).Distinct().Order());
+        return $"installed for CUDA {have} only; install its build for CUDA {toolkit}" + optional;
     }
 
     private static SystemCheck FfmpegCheck(string? configured, string dataRoot)
@@ -376,23 +381,6 @@ public static class SystemChecks
         catch
         {
             return null; // not glibc
-        }
-    }
-
-    /// <summary>The cuDNN installer for Windows puts it under Program Files\NVIDIA\CUDNN without adding it to the PATH.</summary>
-    private static string? FindInstalledCudnn()
-    {
-        if (!OperatingSystem.IsWindows()) return null;
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA", "CUDNN");
-        try
-        {
-            return Directory.Exists(root)
-                ? Directory.EnumerateFiles(root, CudnnNames[0], SearchOption.AllDirectories).Select(Path.GetDirectoryName).Max()
-                : null;
-        }
-        catch
-        {
-            return null;
         }
     }
 }

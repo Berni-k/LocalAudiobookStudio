@@ -91,18 +91,27 @@ internal sealed class SpeechWorker(WorkerOptions options) : IModelWorker
             }
             await UseAsync(spec, cts.Token);
 
-            // The stream splits long text into sentences for models that need it (Kokoro); other models yield one chunk.
             var samples = new List<float>();
             int sampleRate = 0, channels = 1;
-            var expectedSec = Math.Max(1.0, text.Length / 15.0); // rough: ~15 characters per second of speech
             Protocol.Progress(id, 0.05, "Synthesizing");
-            await foreach (AudioChunk chunk in _engine.Speech.SynthesizeStreamAsync(spec, request, cts.Token))
+            if (Streams(options.Model))
             {
-                sampleRate = chunk.SampleRate;
-                channels = Math.Max(1, chunk.Channels);
-                samples.AddRange(chunk.Samples);
-                var seconds = samples.Count / (double)(sampleRate * channels);
-                Protocol.Progress(id, Math.Min(0.95, seconds / expectedSec), $"{seconds:0.0} s generated");
+                // The stream splits long text into sentences (Kokoro).
+                var expectedSec = Math.Max(1.0, text.Length / 15.0); // rough: ~15 characters per second of speech
+                await foreach (AudioChunk chunk in _engine.Speech.SynthesizeStreamAsync(spec, request, cts.Token))
+                {
+                    sampleRate = chunk.SampleRate;
+                    channels = Math.Max(1, chunk.Channels);
+                    samples.AddRange(chunk.Samples);
+                    var seconds = samples.Count / (double)(sampleRate * channels);
+                    Protocol.Progress(id, Math.Min(0.95, seconds / expectedSec), $"{seconds:0.0} s generated");
+                }
+            }
+            else
+            {
+                var lease = _lease!;
+                samples.AddRange(await Task.Run(() => lease.Synthesize(text, request, cts.Token), cts.Token));
+                sampleRate = lease.SampleRate;
             }
             cts.Token.ThrowIfCancellationRequested();
             if (samples.Count == 0 || sampleRate <= 0) throw new InvalidOperationException("the model returned no audio");
@@ -120,6 +129,13 @@ internal sealed class SpeechWorker(WorkerOptions options) : IModelWorker
             lock (_gate) { _currentId = null; _currentCts = null; }
         }
     }
+
+    /// <summary>
+    /// Whether the model's audio comes from HartsyInference's stream. The others synthesize the whole text in one go:
+    /// the worker only needs the whole clip, and streaming is much slower for some (CosyVoice 2's flow runs again over a
+    /// growing window for every piece: 30 s instead of 5 s for 8 s of speech on an RTX 3090).
+    /// </summary>
+    private static bool Streams(string model) => model.Equals("kokoro", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A reference clip (to clone) and/or a built-in voice id.</summary>
     private readonly record struct Reference(AudioClip? Clip, string? VoiceId);

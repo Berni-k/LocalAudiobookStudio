@@ -182,7 +182,8 @@ public static class InternalGpuRuntime
 /// <summary>
 /// The NVIDIA CUDA toolkit on this machine, as GPU builds load it: its runtime library (cudart) by name from the PATH
 /// (Windows) or the library path (Linux). The toolkit's own folder (CUDA_PATH, /usr/local/cuda) counts too, and is added
-/// to a worker's search path (<see cref="LibraryFolders"/>), in case its installer didn't put it on the PATH.
+/// to a worker's search path (<see cref="LibraryFolders"/>), in case its installer didn't put it on the PATH. So is
+/// cuDNN's (<see cref="CudnnFolder"/>), whose installer never does.
 /// </summary>
 public static class CudaToolkit
 {
@@ -197,8 +198,11 @@ public static class CudaToolkit
         return null;
     }
 
-    /// <summary>The toolkit's library folders that may not be on the search path: added for the GPU builds.</summary>
-    public static IEnumerable<string> LibraryFolders()
+    /// <summary>The toolkit's and cuDNN's library folders that may not be on the search path: added for the GPU builds.</summary>
+    public static IEnumerable<string> LibraryFolders() =>
+        CudnnFolder() is { } cudnn ? [.. ToolkitFolders(), cudnn] : ToolkitFolders();
+
+    private static IEnumerable<string> ToolkitFolders()
     {
         if (Environment.GetEnvironmentVariable("CUDA_PATH") is { Length: > 0 } cuda)
         {
@@ -209,11 +213,65 @@ public static class CudaToolkit
         if (OperatingSystem.IsLinux()) yield return "/usr/local/cuda/lib64";
     }
 
+    /// <summary>
+    /// Windows: the folder of the cuDNN 9 build HartsyInference can use, which cuDNN's installer puts under
+    /// Program Files\NVIDIA\CUDNN\v9.x\bin\&lt;cuda&gt;[\x64] (one per CUDA version) without adding it to the PATH.
+    /// The build must be for the toolkit's CUDA major version (it needs that toolkit's cuBLAS; another crashes the
+    /// worker) and the driver's (HartsyInference refuses a mismatch, which can hang it). Null when none fits.
+    /// </summary>
+    public static string? CudnnFolder()
+    {
+        if (MajorVersion() is not int toolkit || DriverMajorVersion() is { } driver && driver != toolkit) return null;
+        return CudnnBuilds().FirstOrDefault(b => b.CudaMajor == toolkit).Folder;
+    }
+
+    /// <summary>The cuDNN 9 builds installed under Program Files\NVIDIA\CUDNN (Windows), newest first.</summary>
+    public static IReadOnlyList<(string Folder, int CudaMajor)> CudnnBuilds()
+    {
+        if (!OperatingSystem.IsWindows()) return [];
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA", "CUDNN");
+        if (!Directory.Exists(root)) return [];
+        try
+        {
+            return Directory.EnumerateDirectories(root, "v9.*")
+                .OrderByDescending(d => FolderVersion(d, 1))
+                .Where(d => Directory.Exists(Path.Combine(d, "bin")))
+                .SelectMany(d => Directory.EnumerateDirectories(Path.Combine(d, "bin")).OrderByDescending(b => FolderVersion(b, 0)))
+                .SelectMany(b => new[] { (Folder: Path.Combine(b, "x64"), CudaMajor: FolderVersion(b, 0).Major), (Folder: b, CudaMajor: FolderVersion(b, 0).Major) })
+                .Where(b => File.Exists(Path.Combine(b.Folder, "cudnn64_9.dll")))
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>The CUDA major version the NVIDIA driver supports (13 for 13.3), or null without a driver.</summary>
+    public static int? DriverMajorVersion()
+    {
+        try
+        {
+            return CuDriverGetVersion(out var version) == 0 && version > 0 ? version / 1000 : null;
+        }
+        catch
+        {
+            return null; // no NVIDIA driver
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("nvcuda.dll", EntryPoint = "cuDriverGetVersion")]
+    private static extern int CuDriverGetVersion(out int version);
+
+    // "v9.26" (skip 1) or "12.9" as a version, for picking the newest folder.
+    private static Version FolderVersion(string dir, int skip) =>
+        Version.TryParse(Path.GetFileName(dir)[skip..], out var v) ? v : new Version();
+
     private static IEnumerable<string> SearchFolders()
     {
         var variable = OperatingSystem.IsWindows() ? "PATH" : "LD_LIBRARY_PATH";
         var dirs = (Environment.GetEnvironmentVariable(variable) ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Select(d => d.Trim('"')).Concat(LibraryFolders());
+            .Select(d => d.Trim('"')).Concat(ToolkitFolders());
         if (OperatingSystem.IsLinux()) dirs = dirs.Concat(["/usr/lib/x86_64-linux-gnu", "/usr/lib64"]);
         return dirs.Where(d => d.Length > 0).Distinct();
     }

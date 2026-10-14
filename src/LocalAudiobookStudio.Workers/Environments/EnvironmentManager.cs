@@ -206,6 +206,20 @@ public sealed class EnvironmentManager
         return env;
     }
 
+    /// <summary>
+    /// CUDA builds (HartsyInference, the internal GPU runtime) load cudart, cuBLAS and cuDNN from the user's installs by
+    /// name. Their folders go on the search path in case the installers didn't add them (Windows PATH, Linux
+    /// LD_LIBRARY_PATH); cuDNN's Windows installer never does.
+    /// </summary>
+    private static void AddCudaFolders(Dictionary<string, string> env)
+    {
+        var variable = OperatingSystem.IsWindows() ? "PATH" : "LD_LIBRARY_PATH";
+        var current = env.TryGetValue(variable, out var v) ? v : Environment.GetEnvironmentVariable(variable);
+        var extra = CudaToolkit.LibraryFolders().Where(Directory.Exists).ToList();
+        if (extra.Count > 0)
+            env[variable] = string.Join(Path.PathSeparator, string.IsNullOrEmpty(current) ? extra : [.. extra, current]);
+    }
+
     /// <summary>Environment for a single-file worker that comes with the app (HartsyInference, internal).</summary>
     private Dictionary<string, string> BundledWorkerEnvironment()
     {
@@ -671,22 +685,14 @@ public sealed class EnvironmentManager
         if (w.IsHartsy)
         {
             env = HartsyEnvironment();
+            AddCudaFolders(env);
         }
         else if (w.IsInternal)
         {
             env = BundledWorkerEnvironment();
             // What the engine loads (the manifest's engineConfig): model ids and files per worker-setting value.
             if (w.EngineConfig != null) env["LAS_ENGINE_CONFIG"] = w.EngineConfig.ToJsonString();
-            // CUDA builds load cudart and cuBLAS from the user's CUDA toolkit by name. Its folders go on the search
-            // path in case the toolkit's installer didn't add them (Windows PATH, Linux LD_LIBRARY_PATH).
-            if (w.IsInternalGpu)
-            {
-                var variable = OperatingSystem.IsWindows() ? "PATH" : "LD_LIBRARY_PATH";
-                var current = env.TryGetValue(variable, out var v) ? v : Environment.GetEnvironmentVariable(variable);
-                var extra = CudaToolkit.LibraryFolders().Where(Directory.Exists).ToList();
-                if (extra.Count > 0)
-                    env[variable] = string.Join(Path.PathSeparator, string.IsNullOrEmpty(current) ? extra : [.. extra, current]);
-            }
+            if (w.IsInternalGpu) AddCudaFolders(env);
         }
         else
         {
