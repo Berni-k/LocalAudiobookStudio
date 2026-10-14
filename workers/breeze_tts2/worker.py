@@ -128,8 +128,17 @@ class BreezeTts2Worker:
             # there would fail without Triton.
             torch.compile = _no_compile
             report(0.5, "Capturing CUDA graphs")
+            from models.warmup_profile import BackbonePrefillWarmupGraph
+
             profile = load_warmup_profile(Path(ensure_source()) / "configs" / "fast.json")
-            self.runtime.warmup_from_profile(replace(profile, codec_chunk_frames=self.runtime.codec_chunk_frames))
+            # Upstream's profile has no graph for a clone (batch 1) prompt over 256 tokens, and the graphs are frozen
+            # after warmup: a reference clip over about 10 s failed with "was not declared in the warmup profile".
+            # Add the sizes up to 768 (a clip of about 30 s plus text).
+            declared = {(g.branch_batch_size, g.sequence_length) for g in profile.backbone_prefill_graphs}
+            extra = tuple(BackbonePrefillWarmupGraph(1, n) for n in range(32, 769, 32) if (1, n) not in declared)
+            self.runtime.warmup_from_profile(replace(
+                profile, codec_chunk_frames=self.runtime.codec_chunk_frames,
+                backbone_prefill_graphs=profile.backbone_prefill_graphs + extra))
 
         # Upstream encodes the reference clip on every request; keep the codes per clip instead.
         encode = templates._encode_prompt_audio

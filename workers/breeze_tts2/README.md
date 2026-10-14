@@ -16,6 +16,8 @@ with them self-hosted fall under the **BreezeBlue Research and Non-Commercial Li
 - **Source code:** upstream's inference code isn't a package, so the worker downloads it at the pinned commit
   once (into `HF_HOME/breeze-tts-src`) and puts it on `sys.path`, like `fish_s2`. Its top-level package is
   named `models`.
+- **Long clips:** upstream's CUDA graph profile stops at 256 prompt tokens for cloning (about a 10 s clip) and the
+  graphs are frozen after warmup, so the worker adds batch-1 sizes up to 768 tokens.
 - **Cloning:** the clip should be clean, non-looping speech. Upstream needs the clip's exact transcript
   (repetitions included); leave **Reference transcript** empty and the worker transcribes it with Whisper
   large-v3 turbo (downloaded the first time, 1.6 GB; the transcript goes to the worker log). The clip's codes

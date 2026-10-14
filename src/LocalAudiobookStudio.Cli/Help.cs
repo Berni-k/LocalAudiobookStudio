@@ -41,6 +41,7 @@ internal static class Help
           --json          Print the result as JSON on stdout
           -v, --verbose   Show details and worker logs on stderr
           -q, --quiet     Only errors on stderr
+          --gpu <n>       Run on GPU n only (see 'devices'); other GPUs stay idle for this run
           -h, --help      Help ('las help tts', 'las help transcribe', 'las help compare', 'las help project')
 
         Exit codes: 0 ok, 1 something failed, 2 wrong usage, 3 setup needed (worker, ffmpeg, project open in

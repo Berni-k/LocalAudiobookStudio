@@ -22,15 +22,25 @@ internal static class Program
         var quiet = false;
         var json = false;
         var help = false;
+        int? gpu = null;
         var rest = new List<string>();
-        foreach (var a in args)
+        for (int i = 0; i < args.Length; i++)
         {
+            var a = args[i];
             switch (a)
             {
                 case "-v" or "--verbose": verbose = true; break;
                 case "-q" or "--quiet": quiet = true; break;
                 case "--json": json = true; break;
                 case "-h" or "--help" or "-?" or "/?": help = true; break;
+                case "--gpu":
+                    if (i + 1 >= args.Length || !int.TryParse(args[++i], out var g) || g < 0)
+                    {
+                        CliContext.Error("--gpu takes a GPU number (see 'las devices').");
+                        return ExitUsage;
+                    }
+                    gpu = g;
+                    break;
                 default: rest.Add(a); break;
             }
         }
@@ -55,7 +65,7 @@ internal static class Program
             cts.Cancel();
         };
 
-        var ctx = new CliContext(verbose, quiet, json, cts.Token);
+        var ctx = new CliContext(verbose, quiet, json, cts.Token) { OnlyGpu = gpu };
         var command = rest[0].ToLowerInvariant();
         var tail = rest.Skip(1).ToList();
         try

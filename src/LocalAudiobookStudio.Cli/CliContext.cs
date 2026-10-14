@@ -36,6 +36,9 @@ public sealed class CliContext
     public CancellationToken Cancel { get; }
     public StudioHost? Host { get; private set; }
 
+    /// <summary>--gpu: run on this GPU only, for this run (several las processes can then each use their own GPU).</summary>
+    public int? OnlyGpu { get; init; }
+
     /// <summary>Starts the host (once): the app must have been set up on this machine.</summary>
     public async Task<StudioHost> StartHostAsync()
     {
@@ -51,6 +54,15 @@ public sealed class CliContext
         });
         if (Verbose) Host.WorkerLogLine += line => Console.Error.WriteLine(line);
         await Host.DetectGpusAsync(addMissing: false);
+        if (OnlyGpu is { } only)
+        {
+            // In memory only: the CLI never saves the app's settings.
+            if (!Host.Settings.Devices.Any(d => d.Gpu == only))
+                throw new UsageException($"--gpu {only}: no such GPU. See 'las devices'.");
+            foreach (var d in Host.Settings.Devices.Where(d => d.Gpu >= 0))
+                d.Enabled = d.Gpu == only;
+            Host.ApplyDeviceSettings();
+        }
         return Host;
     }
 

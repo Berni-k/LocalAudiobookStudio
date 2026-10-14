@@ -772,6 +772,18 @@
       "files": {
         "voxceleb_resnet34_LM.onnx": { "size": 26530309, "sha256": "7bb2f06e9df17cdf1ef14ee8a15ab08ed28e8d0ef5054ee135741560df2ec068" }
       }
+    },
+    "wavlm-base-plus-sv": {
+      "displayName": "WavLM Base Plus speaker verification",
+      "sources": [
+        { "repo": "microsoft/wavlm-base-plus-sv", "revision": "feb593a6c23c1cc3d9510425c29b0a14d2b07b1e" }
+      ],
+      "include": ["config.json", "preprocessor_config.json", "pytorch_model.bin"],
+      "files": {
+        "config.json": { "size": 58639, "gitSha1": "1b6ea0f4e7116bf5ff45c29c05d161dbc083b2c8" },
+        "preprocessor_config.json": { "size": 215, "gitSha1": "10f6def8c83d70a2b087a567dcf523b75152a80b" },
+        "pytorch_model.bin": { "size": 404547053, "sha256": "e906bce2fa42fb497a1d1a9ecf81548adb7e03b12a5644e32d2f42f0d6500fad" }
+      }
     }
   }
 }

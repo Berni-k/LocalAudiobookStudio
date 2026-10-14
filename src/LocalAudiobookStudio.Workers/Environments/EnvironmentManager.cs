@@ -312,7 +312,7 @@ public sealed class EnvironmentManager
 
     /// <summary>
     /// Installs one worker: creates its group's environment if needed (otherwise adds the worker's packages
-    /// to it), then self-tests every installed worker of the group, since new packages can affect them.
+    /// to it), then self-tests the installed worker (all workers of the group when the environment was rebuilt).
     /// </summary>
     public Task<bool> InstallWorkerAsync(string workerId, Action<string> log, CancellationToken ct) =>
         InstallCoreAsync(workerId, rebuild: false, log, ct);
@@ -408,6 +408,15 @@ public sealed class EnvironmentManager
             };
             foreach (var w in installed.Select(id => Catalog.InGroup(id, group)!))
             {
+                // Importing torch is slow, so a reused environment only tests the worker that was just installed;
+                // the others keep their earlier result.
+                if (reuse && !toInstall.Contains(w) && old!.SelfTests.TryGetValue(w.Id, out var earlier))
+                {
+                    state.SelfTests[w.Id] = earlier;
+                    if (old.SelfTestOutput.TryGetValue(w.Id, out var earlierOutput)) state.SelfTestOutput[w.Id] = earlierOutput;
+                    state.WorkerHashes[w.Id] = old.WorkerHashes.GetValueOrDefault(w.Id) ?? WorkerHash(w);
+                    continue;
+                }
                 var output = new StringBuilder();
                 var code = await RunSelfTestAsync(w, l => { output.AppendLine(l); log($"[{w.Id}] {l}"); }, ct);
                 state.SelfTests[w.Id] = code == 0;
@@ -417,7 +426,7 @@ public sealed class EnvironmentManager
                 log(code == 0 ? $"   {w.DisplayName}: PASS" : $"   {w.DisplayName}: FAIL (exit code {code})");
             }
             WriteState(group, state);
-            var ok = state.SelfTests.Values.All(v => v);
+            var ok = reuse ? state.SelfTests.GetValueOrDefault(worker.Id) : state.SelfTests.Values.All(v => v);
             log(ok ? $"== Done: {worker.DisplayName} is ready." : "== Finished with self-test failures. See the log above.");
             return ok;
         }

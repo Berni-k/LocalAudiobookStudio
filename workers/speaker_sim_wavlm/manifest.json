@@ -1,0 +1,16 @@
+{
+  "id": "speaker_sim_wavlm",
+  "displayName": "Speaker SIM Score (WavLM)",
+  "description": "Scores how much a recording sounds like a voice with Microsoft's WavLM Base Plus speaker verification model: compare takes with a speaker's voice clip or with each other. A larger self-supervised model than Speaker SIM Score's; it judges timbre and pitch range, not rhythm or emotion, and scores of different models can't be compared.",
+  "tags": ["Speaker Verification"],
+  "priority": 29,
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "modelVersion": "v1",
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": true,
+  "cpuNote": "Fast enough on the CPU: a few seconds of audio take well under a second.",
+  "approxVramGb": 1,
+  "models": ["wavlm-base-plus-sv"]
+}
