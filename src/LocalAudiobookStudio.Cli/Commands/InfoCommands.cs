@@ -132,7 +132,7 @@ public static class InfoCommands
         var file = a.Positionals[0];
         if (file != "-" && !File.Exists(file)) throw new UsageException($"split: {file} doesn't exist.");
         var host = await ctx.StartHostAsync();
-        var text = file == "-" ? Console.In.ReadToEnd() : TextDecoding.ReadFile(file);
+        var text = file == "-" ? ctx.Io.ReadStdin() : TextDecoding.ReadFile(file);
         var options = ProjectImport.Options(host, null, a.GetInt("--max-chars", 50, 100_000) ?? 1500);
         if (a.Get("--chapter-regex") is { } rx)
         {

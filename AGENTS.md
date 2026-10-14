@@ -68,6 +68,10 @@ workers installed there, so whatever works in the app works here. Its log is the
   `-t "expected text"` it lists missing, extra and changed words. Use **Whisper** (internal GPU runtime) to judge *where*
   words are: its word times are close (within tens of ms), ~100 languages. Use **Parakeet** (internal CPU runtime) to
   check *what* was said: very fast and strict about words, but its times are loose (ends run on into pauses).
+- **Many calls in a loop**: `las --proxy tts …` (also `transcribe`, `compare`) runs in the las proxy, a background
+  las that keeps the workers loaded between calls (`Cli/Proxy/`; one per user and las folder, exits when idle).
+  Run `las proxy stop` when done: a running proxy keeps its las.exe and workers open, so its folder can't be
+  deleted or rebuilt.
 - **Whole projects headless**: `las project <dir> import book.txt generate export -o book.m4b`, also `status`,
   `erase-takes`, `generate --all`. For batching and context, make a scratch project in a temporary folder, then edit
   its `speakers/<id>.json` (`worker`, `settings`, `transcriber`, `context`: `include`, `before`, `after`, `batch`) and

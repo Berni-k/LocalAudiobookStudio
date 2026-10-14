@@ -67,7 +67,7 @@ public static class TranscribeCommand
                                            $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
             if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
             listeners = new Listeners(manifest, settings, alignerManifest,
-                OneShot.MergeSettings(alignerManifest.DefaultSettings(), null, alignerManifest, Path.GetFullPath));
+                OneShot.MergeSettings(alignerManifest.DefaultSettings(), null, alignerManifest, ctx.FullPath));
         }
         var mode = listeners != null ? ListenMode.TranscribeAlign : ModeOf(manifest, a.Get("--mode"));
         // Aligning finds the words of a given text: without the text it has nothing to do, and comparing its words
@@ -106,7 +106,7 @@ public static class TranscribeCommand
         if (a.Has("--text") && a.Has("--text-file")) throw new UsageException("transcribe: give either --text or --text-file, not both.");
 
         var files = new List<string>();
-        foreach (var input in a.Positionals)
+        foreach (var input in a.Positionals.Select(ctx.FullPath))
         {
             if (Directory.Exists(input))
             {
@@ -125,10 +125,10 @@ public static class TranscribeCommand
             }
             else throw new UsageException($"transcribe: {input} doesn't exist.");
         }
-        files = files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        files = files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         // The expected text: --text for one file; --text-file is a file for one, or a folder of <audio name>.txt.
-        var textFile = a.Get("--text-file");
+        var textFile = a.Get("--text-file") is { } tf ? ctx.FullPath(tf) : null;
         var textFolder = textFile != null && Directory.Exists(textFile) ? textFile : null;
         if (files.Count > 1 && (a.Has("--text") || (textFile != null && textFolder == null)))
             throw new UsageException("transcribe: --text and a --text-file file go with one audio file; for several, give --text-file a folder of <audio name>.txt files.");
@@ -187,8 +187,8 @@ public static class TranscribeCommand
                        ?? throw new UsageException($"transcribe: unknown worker '{workerId}'. Transcription workers: {string.Join(", ", transcribers.Select(m => m.Id))}.");
         if (!manifest.IsTranscriber)
             throw new UsageException($"transcribe: {manifest.DisplayName} doesn't transcribe. Transcription workers: {string.Join(", ", transcribers.Select(m => m.Id))}.");
-        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "transcribe");
-        if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "transcribe");
+        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "transcribe", ctx.Shared);
+        if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "transcribe", ctx.Shared);
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
 
@@ -201,7 +201,7 @@ public static class TranscribeCommand
                 throw new UsageException($"transcribe: --set {key}: {ex.Message}");
             }
         }
-        return (manifest, OneShot.MergeSettings(manifest.DefaultSettings(), overrides, manifest, Path.GetFullPath));
+        return (manifest, OneShot.MergeSettings(manifest.DefaultSettings(), overrides, manifest, ctx.FullPath));
     }
 
     // ------------------------------------------------------------------ transcribing
@@ -226,10 +226,10 @@ public static class TranscribeCommand
             }
             // The unit is the job's tag: with an aligner, the job that finishes is the one that continues this one.
             var job = listeners != null
-                ? Transcription.Listen(listeners, unit.Wav, unit.Expected, Path.GetFileName(unit.Audio), JobPriority.Normal, unit, i,
+                ? Transcription.Listen(listeners, unit.Wav, unit.Expected, Path.GetFileName(unit.Audio), JobPriority.Normal, unit, ctx.Order(i),
                     speakers, speakerCount: speakerCount)!
                 : Transcription.Job(manifest, unit.Wav, unit.Expected, settings, Path.GetFileName(unit.Audio),
-                    JobPriority.Normal, tag: unit, readingOrder: i, mode: mode, speakers: speakers, speakerCount: speakerCount);
+                    JobPriority.Normal, tag: unit, readingOrder: ctx.Order(i), mode: mode, speakers: speakers, speakerCount: speakerCount);
             jobs.Add(job);
         }
 
@@ -268,8 +268,7 @@ public static class TranscribeCommand
             scheduler.JobFailed += Finished;
             try
             {
-                await using var reg = ctx.Cancel.Register(scheduler.CancelAll);
-                scheduler.EnqueueMany(jobs);
+                await using var reg = ctx.Enqueue(scheduler, jobs);
                 await all.Task;
             }
             finally

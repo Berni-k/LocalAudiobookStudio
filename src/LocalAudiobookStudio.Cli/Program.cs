@@ -1,7 +1,5 @@
 using System.Text;
-using LocalAudiobookStudio.Cli.Commands;
-using LocalAudiobookStudio.Engine.Export;
-using Microsoft.Extensions.Logging;
+using LocalAudiobookStudio.Cli.Proxy;
 
 namespace LocalAudiobookStudio.Cli;
 
@@ -18,41 +16,34 @@ internal static class Program
         Console.OutputEncoding = new UTF8Encoding(false);
         Console.InputEncoding = new UTF8Encoding(false);
 
-        var verbose = false;
-        var quiet = false;
-        var json = false;
-        var help = false;
-        int? gpu = null;
-        var rest = new List<string>();
-        for (int i = 0; i < args.Length; i++)
+        GlobalOptions g;
+        try { g = GlobalOptions.Parse(args); }
+        catch (UsageException ex)
         {
-            var a = args[i];
-            switch (a)
-            {
-                case "-v" or "--verbose": verbose = true; break;
-                case "-q" or "--quiet": quiet = true; break;
-                case "--json": json = true; break;
-                case "-h" or "--help" or "-?" or "/?": help = true; break;
-                case "--gpu":
-                    if (i + 1 >= args.Length || !int.TryParse(args[++i], out var g) || g < 0)
-                    {
-                        CliContext.Error("--gpu takes a GPU number (see 'las devices').");
-                        return ExitUsage;
-                    }
-                    gpu = g;
-                    break;
-                default: rest.Add(a); break;
-            }
+            Console.Error.WriteLine(ex.Message);
+            return ExitUsage;
         }
-        if (rest.Count == 0 || rest[0] is "help")
+        if (g.Command is null or "help")
         {
-            Console.Out.Write(Help.Text(rest.Count > 1 ? rest[1] : null));
-            return rest.Count == 0 && !help ? ExitUsage : ExitOk;
+            Console.Out.Write(Help.Text(g.Rest.Count > 1 ? g.Rest[1] : null));
+            return g.Rest.Count == 0 && !g.Help ? ExitUsage : ExitOk;
         }
-        if (help)
+        if (g.Help)
         {
-            Console.Out.Write(Help.Text(rest[0]));
+            Console.Out.Write(Help.Text(g.Rest[0]));
             return ExitOk;
+        }
+
+        // --proxy (or LAS_PROXY=1 for a whole script): the command runs in the las proxy, which keeps its workers loaded.
+        if (g.Command != "proxy" && (g.Proxy || ProxyClient.EnabledByEnvironment))
+        {
+            if (ProxyServer.Commands.Contains(g.Command))
+                return await ProxyClient.RunAsync(g, args.Where(a => a != "--proxy").ToArray());
+            if (g.Proxy)
+            {
+                Console.Error.WriteLine($"'las {g.Command}' doesn't run in the las proxy; only {string.Join(", ", ProxyServer.Commands)} do. Leave out --proxy.");
+                return ExitUsage;
+            }
         }
 
         using var cts = new CancellationTokenSource();
@@ -61,58 +52,14 @@ internal static class Program
             // The first Ctrl+C cancels the queue and stops the workers cleanly; a second one ends at once.
             if (cts.IsCancellationRequested) return;
             e.Cancel = true;
-            CliContext.Error("Cancelling… (Ctrl+C again to quit at once)");
+            Console.Error.WriteLine("Cancelling… (Ctrl+C again to quit at once)");
             cts.Cancel();
         };
 
-        var ctx = new CliContext(verbose, quiet, json, cts.Token) { OnlyGpu = gpu };
-        var command = rest[0].ToLowerInvariant();
-        var tail = rest.Skip(1).ToList();
+        var ctx = new CliContext(g.Verbose, g.Quiet, g.Json, cts.Token) { OnlyGpu = g.Gpu };
         try
         {
-            var code = command switch
-            {
-                "tts" => await TtsCommand.RunAsync(ctx, tail),
-                "transcribe" => await TranscribeCommand.RunAsync(ctx, tail),
-                "compare" => await CompareCommand.RunAsync(ctx, tail),
-                "project" => await ProjectCommand.RunAsync(ctx, tail),
-                "workers" => await InfoCommands.WorkersAsync(ctx, tail),
-                "models" => await ModelsCommand.RunAsync(ctx, tail),
-                "devices" => await InfoCommands.DevicesAsync(ctx, tail),
-                "doctor" => await InfoCommands.DoctorAsync(ctx, tail),
-                "split" => await InfoCommands.SplitAsync(ctx, tail),
-                "version" => InfoCommands.Version(ctx),
-                _ => throw new UsageException($"Unknown command '{rest[0]}'."),
-            };
-            return cts.IsCancellationRequested ? ExitCancelled : code;
-        }
-        catch (UsageException ex)
-        {
-            CliContext.Error(ex.Message);
-            CliContext.Error($"Run 'las help{(command is "tts" or "transcribe" or "compare" or "project" ? " " + command : "")}' for usage.");
-            return ExitUsage;
-        }
-        catch (SetupException ex)
-        {
-            CliContext.Error(ex.Message);
-            return ExitSetup;
-        }
-        catch (FfmpegNotFoundException ex)
-        {
-            CliContext.Error(ex.Message);
-            return ExitSetup;
-        }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested)
-        {
-            CliContext.Error("Cancelled.");
-            return ExitCancelled;
-        }
-        catch (Exception ex)
-        {
-            CliContext.Error("Error: " + ex.Message);
-            ctx.Host?.Log.LogError(ex, "Command failed");
-            if (verbose) CliContext.Error(ex.ToString());
-            return ExitFailures;
+            return await CommandRunner.RunAsync(ctx, g.Rest);
         }
         finally
         {

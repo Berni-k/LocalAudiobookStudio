@@ -132,7 +132,7 @@ public static class ModelsCommand
 
         var root = JsonNode.Parse(File.ReadAllText(file), documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true })!;
         var catalog = ModelCatalog.Load(Path.GetDirectoryName(Path.GetFullPath(file))!);
-        foreach (var e in catalog.LoadErrors) CliContext.Error(e);
+        foreach (var e in catalog.LoadErrors) ctx.Error(e);
         var ids = a.Positionals.Count > 0 ? a.Positionals.Select(id => Model(catalog, id).Id).ToList()
             : catalog.All.Where(m => m.Sources.Any(s => s.IsHub) && (a.Has("--all") || m.Files.Count == 0)).Select(m => m.Id).OrderBy(id => id).ToList();
 
@@ -154,7 +154,7 @@ public static class ModelsCommand
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failures++;
-                CliContext.Error($"  {ex.Message}");
+                ctx.Error($"  {ex.Message}");
             }
         }
         ctx.Out($"Pinned {ids.Count - failures} of {ids.Count} model(s) in {file}.");

@@ -30,7 +30,7 @@ public static class CompareCommand
     public static async Task<int> RunAsync(CliContext ctx, IReadOnlyList<string> tokens)
     {
         var a = CliArgs.Parse("compare", tokens, Options);
-        var references = a.GetAll("--ref").Select(f => Existing(f, "--ref")).ToList();
+        var references = a.GetAll("--ref").Select(f => Existing(ctx.FullPath(f), "--ref")).ToList();
         var files = CollectFiles(ctx, a).Where(f => !references.Contains(f, StringComparer.OrdinalIgnoreCase)).ToList();
         if (references.Count == 0 && files.Count < 2)
             throw new UsageException("compare: give at least two audio files to compare with each other, or one or more files and --ref <clip>.");
@@ -72,13 +72,13 @@ public static class CompareCommand
     {
         if (!File.Exists(path)) throw new UsageException($"compare: {option} {path} doesn't exist.");
         if (!AudioDecoder.CanDecode(path)) throw new UsageException($"compare: {path} isn't a file it can read ({string.Join(", ", AudioDecoder.Extensions)}).");
-        return Path.GetFullPath(path);
+        return path;
     }
 
     private static List<string> CollectFiles(CliContext ctx, CliArgs a)
     {
         var files = new List<string>();
-        foreach (var input in a.Positionals)
+        foreach (var input in a.Positionals.Select(ctx.FullPath))
         {
             if (Directory.Exists(input))
             {
@@ -89,7 +89,7 @@ public static class CompareCommand
             }
             else files.Add(Existing(input, "file"));
         }
-        return files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>The worker (--worker, else the first installed speaker verification worker) and its settings with the --set overrides.</summary>
@@ -104,8 +104,8 @@ public static class CompareCommand
                        ?? throw new UsageException($"compare: unknown worker '{workerId}'. Speaker verification workers: {string.Join(", ", checkers.Select(m => m.Id))}.");
         if (!manifest.VerifiesSpeaker)
             throw new UsageException($"compare: {manifest.DisplayName} doesn't compare voices. Speaker verification workers: {string.Join(", ", checkers.Select(m => m.Id))}.");
-        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "compare");
-        if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "compare");
+        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "compare", ctx.Shared);
+        if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "compare", ctx.Shared);
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
 
@@ -118,13 +118,13 @@ public static class CompareCommand
                 throw new UsageException($"compare: --set {key}: {ex.Message}");
             }
         }
-        return (manifest, OneShot.MergeSettings(manifest.DefaultSettings(), overrides, manifest, Path.GetFullPath));
+        return (manifest, OneShot.MergeSettings(manifest.DefaultSettings(), overrides, manifest, ctx.FullPath));
     }
 
     private static async Task<VoiceScores> ScoreAsync(CliContext ctx, StudioHost host, WorkerManifest manifest, JsonObject settings,
         List<VoiceFile> files)
     {
-        var job = SpeakerVerification.Job(manifest, files, settings, $"Compare {files.Count} files", JobPriority.Normal);
+        var job = SpeakerVerification.Job(manifest, files, settings, $"Compare {files.Count} files", JobPriority.Normal, readingOrder: ctx.Order(0));
         var done = new TaskCompletionSource<GenerationJob>(TaskCreationOptions.RunContinuationsAsynchronously);
         void Finished(GenerationJob j) { if (ReferenceEquals(j, job)) done.TrySetResult(j); }
 
@@ -133,9 +133,8 @@ public static class CompareCommand
         scheduler.JobFailed += Finished;
         try
         {
-            await using var reg = ctx.Cancel.Register(scheduler.CancelAll);
             ctx.Info($"{manifest.DisplayName}: {files.Count} file(s)");
-            scheduler.Enqueue(job);
+            await using var reg = ctx.Enqueue(scheduler, [job]);
             var finished = await done.Task;
             if (finished.State == JobState.Cancelled) throw new OperationCanceledException();
             return finished.VoiceScores ?? throw new InvalidOperationException(finished.LastError ?? "The comparison failed.");

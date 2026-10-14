@@ -208,6 +208,20 @@ public class SchedulingPolicyTests
     }
 
     [Fact]
+    public void PinnedJobOnlyRunsOnItsGpu()
+    {
+        var g0 = Gpu(0);
+        var g1 = Gpu(1);
+        var job = Job("a");
+        job.OnlyGpu = 1;
+        Assert.Null(Pick(g0, [job], devices: [g0, g1]));
+        Assert.Same(job, Pick(g1, [job], devices: [g0, g1])!.Job);
+        Assert.True(job.MayRunOn(Cpu()));                                  // --gpu always left the CPU on
+        // Its worker idling on another GPU doesn't hold it back: it can't go there.
+        Assert.Same(job, Pick(g1, [job], [Proc(g0, "a")], [g0, g1])!.Job);
+    }
+
+    [Fact]
     public void DisabledWorkerIsSkipped()
     {
         var d = Gpu(0);
@@ -462,6 +476,47 @@ public class GenerationSchedulerTests
         s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = "." });
         Assert.NotNull(failed);
         Assert.Contains("set to run on a GPU", failed!.LastError);
+    }
+
+    [Fact]
+    public async Task JobPinnedToAMissingGpuFailsImmediately()
+    {
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w), _ => new WorkerHosting(WorkerPlacement.Gpu));
+        s.ConfigureDevices(Gpus(2));
+        GenerationJob? failed = null;
+        s.JobFailed += j => failed = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = ".", OnlyGpu = 3 });
+        Assert.NotNull(failed);
+        Assert.Contains("GPU 3", failed!.LastError);
+    }
+
+    [Fact]
+    public async Task CancelManyLeavesOtherJobsAndQueueStatusCountsWhatIsAhead()
+    {
+        using var tmp = new TempDir();
+        var gate = new TaskCompletionSource();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w, async (_, _) => await gate.Task), _ => WorkerHosting.AnyLocal);
+        s.ConfigureDevices(Gpus(1));
+        var cancelled = 0;
+        var completed = 0;
+        s.JobFailed += j => { if (j.State == JobState.Cancelled) Interlocked.Increment(ref cancelled); };
+        s.JobCompleted += _ => Interlocked.Increment(ref completed);
+
+        var other = new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = tmp.Path, ReadingOrder = 0 };
+        s.Enqueue(other);
+        await WaitUntil(() => s.RunningCount == 1);
+        var mine = Enumerable.Range(1, 2)
+            .Select(i => new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = tmp.Path, ReadingOrder = i }).ToList();
+        s.EnqueueMany(mine);
+        var ids = mine.Select(j => j.Id).ToHashSet();
+        Assert.Equal((false, 1), s.QueueStatus(ids));                      // the other run's job is ahead
+        Assert.Equal((true, 0), s.QueueStatus(new HashSet<Guid> { other.Id }));
+
+        s.CancelMany(ids);
+        Assert.Equal(2, cancelled);
+        Assert.Equal(1, s.RunningCount);                                    // the other run's job goes on
+        gate.SetResult();
+        await WaitUntil(() => completed == 1);
     }
 
     [Fact]

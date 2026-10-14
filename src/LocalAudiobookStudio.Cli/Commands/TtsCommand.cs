@@ -91,8 +91,8 @@ public static class TtsCommand
     private static List<Unit> CollectUnits(CliContext ctx, CliArgs a, out int skipped)
     {
         skipped = 0;
-        var output = a.Get("--output");
-        var inputs = a.GetAll("--input");
+        var output = a.Get("--output") is { } o && o != "-" ? ctx.FullPath(o) : a.Get("--output");
+        var inputs = a.GetAll("--input").Select(ctx.FullPath).ToList();
         if (inputs.Count > 0 && a.Positionals.Count > 0)
             throw new UsageException("tts: give either text or --input files, not both.");
 
@@ -100,12 +100,12 @@ public static class TtsCommand
         {
             string text;
             if (a.Positionals.Count > 0) text = string.Join(' ', a.Positionals);
-            else if (Console.IsInputRedirected) text = Console.In.ReadToEnd();
+            else if (ctx.Io.IsInputRedirected) text = ctx.Io.ReadStdin();
             else throw new UsageException("tts: give the text as arguments, pipe it in, or use --input <file or folder>.");
             if (string.IsNullOrWhiteSpace(text)) throw new UsageException("tts: the text is empty.");
             if (output == null) throw new UsageException("tts: say where the audio goes with -o <file.wav> (or -o - for stdout).");
             if (output != "-" && Directory.Exists(output)) throw new UsageException($"tts: {output} is a folder; -o takes a .wav file here.");
-            return [new Unit(a.Positionals.Count > 0 ? "text" : "stdin", text, output == "-" ? "-" : Path.GetFullPath(output))];
+            return [new Unit(a.Positionals.Count > 0 ? "text" : "stdin", text, output)];
         }
 
         var files = new List<string>();
@@ -125,7 +125,7 @@ public static class TtsCommand
             else if (File.Exists(input)) files.Add(input);
             else throw new UsageException($"tts: {input} doesn't exist.");
         }
-        files = files.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        files = files.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         // One file may go to a named .wav; otherwise -o is a folder (made if needed), or each WAV goes next to its text.
         var singleFile = !anyFolder && files.Count == 1 && output != null && output != "-"
@@ -134,7 +134,7 @@ public static class TtsCommand
         string? outDir = null;
         if (output != null && !singleFile)
         {
-            outDir = Path.GetFullPath(output);
+            outDir = output;
             if (File.Exists(outDir)) throw new UsageException($"tts: {output} is a file; with several inputs -o takes a folder.");
             Directory.CreateDirectory(outDir);
         }
@@ -144,7 +144,7 @@ public static class TtsCommand
         foreach (var f in files)
         {
             var target = singleFile
-                ? Path.GetFullPath(output!)
+                ? output!
                 : Path.Combine(outDir ?? Path.GetDirectoryName(f)!, Path.GetFileNameWithoutExtension(f) + ".wav");
             if (!outputs.Add(target)) throw new UsageException($"tts: two inputs would both write {target}.");
             if (a.Has("--skip-existing") && File.Exists(target)) { skipped++; continue; }
@@ -162,10 +162,11 @@ public static class TtsCommand
     {
         JsonObject? baseSettings = null;
         string? voice = null;
-        Func<string, string> resolve = Path.GetFullPath;
+        Func<string, string> resolve = ctx.FullPath;
         string workerId;
-        if (a.Get("--project") is { } projectDir)
+        if (a.Get("--project") is { } projectArg)
         {
+            var projectDir = ctx.FullPath(projectArg);
             if (!ProjectStore.IsProjectFolder(projectDir)) throw new UsageException($"tts: no project in {projectDir}.");
             var project = ProjectStore.Load(projectDir);
             var id = a.Get("--speaker")!;
@@ -185,7 +186,7 @@ public static class TtsCommand
 
         var manifest = host.Catalog.Get(workerId)
                        ?? throw new UsageException($"tts: unknown worker '{workerId}'. Workers: {string.Join(", ", host.Catalog.All.Select(m => m.Id))}.");
-        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "tts");
+        if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "tts", ctx.Shared);
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
         baseSettings ??= manifest.DefaultSettings();
@@ -197,10 +198,10 @@ public static class TtsCommand
             {
                 overrides[WorkerManifest.VoiceKey] = v;
             }
-            else if (File.Exists(v))
+            else if (File.Exists(ctx.FullPath(v)))
             {
                 if (!manifest.VoiceCloning) throw new UsageException($"tts: {manifest.DisplayName} doesn't clone voices from a clip.{VoiceList(manifest)}");
-                voice = Path.GetFullPath(v);
+                voice = ctx.FullPath(v);
             }
             else
             {
@@ -241,7 +242,7 @@ public static class TtsCommand
                 var path = Path.Combine(temp, $"{u:D5}-{k:D5}.wav");
                 var label = parts.Count == 1 ? unit.Name : $"{unit.Name} {k + 1}/{parts.Count}";
                 var job = OneShot.Job(manifest, parts[k].text, voice, settings, path, label, JobPriority.Normal, seed, length,
-                    tag: "las-tts", readingOrder: u * 1_000_000L + k);
+                    tag: "las-tts", readingOrder: ctx.Order(u * 1_000_000L + k));
                 jobs.Add(job);
                 owner[job.Id] = unit;
                 unit.Parts.Add(path);
@@ -276,8 +277,7 @@ public static class TtsCommand
         scheduler.JobFailed += Finished;
         try
         {
-            await using var reg = ctx.Cancel.Register(scheduler.CancelAll);
-            scheduler.EnqueueMany(jobs);
+            await using var reg = ctx.Enqueue(scheduler, jobs);
             await all.Task;
         }
         finally
@@ -319,7 +319,7 @@ public static class TtsCommand
                 unit.DurationMs = AudioDecoder.ReadInfo(target).DurationMs;
                 if (unit.Output == "-")
                 {
-                    using var stdout = Console.OpenStandardOutput();
+                    using var stdout = ctx.Io.OpenStdout();
                     using var wav = File.OpenRead(target);
                     wav.CopyTo(stdout);
                 }

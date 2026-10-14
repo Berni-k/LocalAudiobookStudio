@@ -58,6 +58,16 @@ public sealed class GenerationJob
     /// <summary>For previews: write exactly here instead of allocating a take number.</summary>
     public string? FixedOutPath { get; init; }
 
+    /// <summary>
+    /// Run on this GPU and no other (the command line's --gpu); the CPU and external devices may still take it.
+    /// Null: any device the worker may use.
+    /// </summary>
+    public int? OnlyGpu { get; set; }
+
+    /// <summary>Whether <see cref="OnlyGpu"/> lets the job run on the device (the worker's own rules are checked apart).</summary>
+    public bool MayRunOn(ComputeDevice device) =>
+        OnlyGpu is not int gpu || device.Kind != DeviceKind.Gpu || device.GpuIndex == gpu;
+
     /// <summary>Human-readable label for the Jobs panel.</summary>
     public string Label { get; init; } = "";
 

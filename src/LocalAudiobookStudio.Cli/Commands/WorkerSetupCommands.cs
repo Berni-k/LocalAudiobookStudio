@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using LocalAudiobookStudio.Engine.Hosting;
 using LocalAudiobookStudio.Workers.Environments;
 using LocalAudiobookStudio.Workers.Manifest;
+using LocalAudiobookStudio.Workers.Scheduling;
 
 namespace LocalAudiobookStudio.Cli.Commands;
 
@@ -63,27 +64,45 @@ public static class WorkerSetupCommands
 
     /// <summary>
     /// The worker with another of its runtimes for this run (--runtime). In memory only: the CLI never saves the app's
-    /// settings, so the app keeps the runtime chosen in its Workers window.
+    /// settings, so the app keeps the runtime chosen in its Workers window. In the las proxy (<paramref name="shared"/>)
+    /// other runs use the same worker: another runtime is only taken while the worker isn't loaded, and then stays for
+    /// the proxy's later runs too.
     /// </summary>
-    public static WorkerManifest UseRuntime(StudioHost host, WorkerManifest manifest, string runtime, string context)
+    public static WorkerManifest UseRuntime(StudioHost host, WorkerManifest manifest, string runtime, string context, bool shared = false)
     {
         var runtimes = host.Catalog.RuntimesOf(manifest.Id);
         var chosen = runtimes.FirstOrDefault(r => r.Runtime.Equals(runtime, StringComparison.OrdinalIgnoreCase))
                      ?? throw new UsageException($"{context}: {manifest.DisplayName} has no runtime '{runtime}'. Its runtimes: {string.Join(", ", runtimes.Select(r => r.Runtime))}.");
+        if (chosen.Runtime.Equals(manifest.Runtime, StringComparison.OrdinalIgnoreCase)) return manifest;
+        if (shared) EnsureNotInUse(host, manifest, $"--runtime {chosen.Runtime}", $"runs on {manifest.Runtime}", context);
         if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
         values[WorkerRuntimes.SettingKey] = chosen.Runtime;
         return host.Catalog.Get(manifest.Id)!;
     }
 
     /// <summary>Runs the worker on the GPU or the CPU for this run (--device), in memory like <see cref="UseRuntime"/>.</summary>
-    public static void UseDevice(StudioHost host, WorkerManifest manifest, string device, string context)
+    public static void UseDevice(StudioHost host, WorkerManifest manifest, string device, string context, bool shared = false)
     {
         device = device.Trim().ToLowerInvariant();
         if (device is not (WorkerManifest.DeviceGpu or WorkerManifest.DeviceCpu))
             throw new UsageException($"{context}: --device is gpu or cpu.");
         if (device == WorkerManifest.DeviceGpu ? !manifest.RunsOnGpu : !manifest.RunsOnCpu)
             throw new UsageException($"{context}: {manifest.DisplayName} ({manifest.RuntimeLabel}) doesn't run on the {device.ToUpperInvariant()}.");
+        var current = host.HostingOf(manifest.Id).Device == WorkerPlacement.Cpu ? WorkerManifest.DeviceCpu : WorkerManifest.DeviceGpu;
+        if (device == current) return;
+        if (shared) EnsureNotInUse(host, manifest, $"--device {device}", $"runs on the {current.ToUpperInvariant()}", context);
         if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
         values[WorkerManifest.DeviceKey] = device;
+    }
+
+    /// <summary>In the las proxy a worker's runtime or device only changes while none of its processes or jobs are there.</summary>
+    private static void EnsureNotInUse(StudioHost host, WorkerManifest manifest, string option, string now, string context)
+    {
+        var scheduler = host.Scheduler;
+        bool Mine(string id) => string.Equals(id, manifest.Id, StringComparison.OrdinalIgnoreCase);
+        if (scheduler.WorkerSnapshots().Any(w => Mine(w.WorkerId)) ||
+            scheduler.JobSnapshots().Any(j => Mine(j.WorkerId) && j.State is JobState.Queued or JobState.Running))
+            throw new UsageException($"{context}: {option} can't be used now: {manifest.DisplayName} is loaded in the las proxy and {now}. " +
+                                     $"Unload it first ('las proxy unload {manifest.Id}'), or leave out --proxy.");
     }
 }

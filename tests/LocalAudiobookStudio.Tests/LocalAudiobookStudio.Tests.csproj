@@ -19,5 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\LocalAudiobookStudio.Engine\LocalAudiobookStudio.Engine.csproj" />
+    <!-- las: its proxy server is tested in process. -->
+    <ProjectReference Include="..\..\src\LocalAudiobookStudio.Cli\LocalAudiobookStudio.Cli.csproj" />
   </ItemGroup>
 </Project>

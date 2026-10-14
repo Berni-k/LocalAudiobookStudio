@@ -57,12 +57,14 @@ public sealed class StudioHost
 
     /// <summary>
     /// A host for unit tests: the given catalog and scheduler, default settings, no log file and no environments
-    /// (so nothing that installs or checks workers).
+    /// (so nothing that installs or checks workers). Its data folder is the user's unless <paramref name="dataRoot"/> is given.
     /// </summary>
-    internal static StudioHost CreateForTests(WorkerCatalog catalog, GenerationScheduler scheduler, AppSettings? settings = null) =>
+    internal static StudioHost CreateForTests(WorkerCatalog catalog, GenerationScheduler scheduler, AppSettings? settings = null,
+        string? dataRoot = null) =>
         new(new StudioHostOptions { ReadOnlySettings = true })
         {
             Catalog = catalog, Scheduler = scheduler, Settings = settings ?? new AppSettings(), _fakeWorkers = true,
+            DataRoot = dataRoot != null ? new DataRootPaths(dataRoot) : new DataRootPaths(SettingsStore.DefaultDataRoot),
         };
 
     /// <summary>A host for tests: its scheduler runs fake workers, so every known worker counts as installed.</summary>

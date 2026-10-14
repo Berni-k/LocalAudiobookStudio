@@ -175,7 +175,7 @@ public static class ProjectCommand
     private static object Import(CliContext ctx, HeadlessProject p, CliArgs a)
     {
         var file = a.Positionals[0];
-        var text = file == "-" ? Console.In.ReadToEnd() : TextDecoding.ReadFile(file);
+        var text = file == "-" ? ctx.Io.ReadStdin() : TextDecoding.ReadFile(file);
         var options = ProjectImport.Options(p.Host, p.Project, a.GetInt("--max-chars") ?? 1500);
         if (a.Get("--chapter-regex") is { } rx) options.ChapterRegex = rx;
         options.EveryLineIsParagraph = a.Has("--every-line");

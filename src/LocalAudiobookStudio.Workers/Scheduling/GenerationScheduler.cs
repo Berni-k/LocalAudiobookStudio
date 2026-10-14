@@ -246,7 +246,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         {
             foreach (var job in jobs)
             {
-                var reason = CheckWorkerRunnable?.Invoke(job.WorkerId) ?? WhyNoDevice(job.WorkerId);
+                var reason = CheckWorkerRunnable?.Invoke(job.WorkerId) ?? WhyNoDevice(job);
                 if (reason != null)
                 {
                     job.State = JobState.Failed;
@@ -275,11 +275,16 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         Signal();
     }
 
-    /// <summary>Why no configured device can run the worker (null when one can). Call under the lock.</summary>
-    private string? WhyNoDevice(string workerId)
+    /// <summary>Why no configured device can run the job's worker (null when one can). Call under the lock.</summary>
+    private string? WhyNoDevice(GenerationJob job)
     {
+        var workerId = job.WorkerId;
         var hosting = _hostingOf(workerId);
-        if (_devices.Count == 0 || _devices.Any(d => d.Allows(workerId, hosting))) return null;
+        if (_devices.Count == 0 || _devices.Any(d => d.Allows(workerId, hosting) && job.MayRunOn(d))) return null;
+        if (job.OnlyGpu is int gpu && _devices.Any(d => d.Allows(workerId, hosting)))
+            return _devices.Any(d => d.Kind == DeviceKind.Gpu && d.GpuIndex == gpu && d.Enabled)
+                ? $"{workerId} may not run on GPU {gpu} (see its worker settings)."
+                : $"GPU {gpu} isn't an enabled device.";
         if (hosting.Device.HasFlag(WorkerPlacement.External)) return $"{workerId} has no device to run on.";
         if (hosting.Device == WorkerPlacement.Gpu)
             return hosting.Gpus is { Count: > 0 } ids
@@ -326,6 +331,44 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 .Concat(RunningJobs.Where(j => j.Items.Any(set.Contains)).Select(j => j.Id))
                 .ToList();
         foreach (var id in ids) Cancel(id);
+    }
+
+    /// <summary>
+    /// Cancels these jobs, and the jobs that continue them (<see cref="GenerationJob.Then"/>), and leaves the others
+    /// alone: one command line run among several sharing the queue.
+    /// </summary>
+    public void CancelMany(IReadOnlyCollection<Guid> jobIds)
+    {
+        List<Guid> ids;
+        lock (_lock)
+            ids = _queue.Concat(RunningJobs).Where(j => InGroup(j, jobIds)).Select(j => j.Id).ToList();
+        foreach (var id in ids) Cancel(id);
+    }
+
+    /// <summary>Whether the job is one of these, or continues one of them.</summary>
+    public static bool InGroup(GenerationJob job, IReadOnlyCollection<Guid> jobIds)
+    {
+        for (var j = job; j != null; j = j.ContinuesFrom)
+            if (jobIds.Contains(j.Id)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// For a group of jobs (one command line request): whether one of them has started, and if not, how many other jobs
+    /// run or are queued before the first of them.
+    /// </summary>
+    public (bool started, int ahead) QueueStatus(IReadOnlyCollection<Guid> jobIds)
+    {
+        lock (_lock)
+        {
+            if (RunningJobs.Any(j => InGroup(j, jobIds))) return (true, 0);
+            var ordered = _queue.ToList();
+            ordered.Sort(SchedulingPolicy.Compare);
+            var first = ordered.FindIndex(j => InGroup(j, jobIds));
+            // None queued or running: they have finished (or failed at once).
+            if (first < 0) return (true, 0);
+            return (false, RunningJobs.Count() + first);
+        }
     }
 
     /// <summary>Clears the queue and cancels running jobs.</summary>
@@ -618,6 +661,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 if (job.Then?.Invoke(job) is { } next)
                 {
                     next.ContinuesFrom = job;
+                    next.OnlyGpu ??= job.OnlyGpu;
                     job.State = JobState.Completed;
                     job.FinishedUtc = DateTime.UtcNow;
                     EnqueueMany([next]);

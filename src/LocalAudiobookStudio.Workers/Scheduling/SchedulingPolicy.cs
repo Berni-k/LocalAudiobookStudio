@@ -58,7 +58,7 @@ public static class SchedulingPolicy
         {
             if (job.State != JobState.Queued) continue;
             var hosting = hostingOf(job.WorkerId);
-            if (!device.Allows(job.WorkerId, hosting)) continue;
+            if (!device.Allows(job.WorkerId, hosting) || !job.MayRunOn(device)) continue;
 
             var idle = processes.FirstOrDefault(p => ReferenceEquals(p.Device, device) && p.IsIdle && !p.NeedsRestart &&
                                                      string.Equals(p.WorkerId, job.WorkerId, StringComparison.OrdinalIgnoreCase));
@@ -82,7 +82,7 @@ public static class SchedulingPolicy
                         .OrderBy(p => p.IdleSinceUtc).FirstOrDefault();
                     if (evict == null) continue; // full of busy processes
                 }
-                if (OtherDeviceHasIdle(device, job.WorkerId, hosting, processes, hostingOf)) continue; // rule 4
+                if (OtherDeviceHasIdle(device, job, hosting, processes, hostingOf)) continue; // rule 4
                 candidate = new Assignment(job, device, null, evict);
             }
 
@@ -99,14 +99,15 @@ public static class SchedulingPolicy
         return affinity;
     }
 
-    private static bool OtherDeviceHasIdle(ComputeDevice self, string workerId, WorkerHosting hosting,
+    /// <summary>Only devices the job may run on count: a job pinned to this GPU would wait forever for another one.</summary>
+    private static bool OtherDeviceHasIdle(ComputeDevice self, GenerationJob job, WorkerHosting hosting,
         IReadOnlyList<WorkerProcess> processes, Func<string, WorkerHosting> hostingOf)
     {
         foreach (var p in processes)
         {
             if (ReferenceEquals(p.Device, self) || !p.IsIdle || p.NeedsRestart) continue;
-            if (!string.Equals(p.WorkerId, workerId, StringComparison.OrdinalIgnoreCase)) continue;
-            if (p.Device.Allows(workerId, hosting) && HasRoom(p.Device, processes, hostingOf)) return true;
+            if (!string.Equals(p.WorkerId, job.WorkerId, StringComparison.OrdinalIgnoreCase)) continue;
+            if (p.Device.Allows(job.WorkerId, hosting) && job.MayRunOn(p.Device) && HasRoom(p.Device, processes, hostingOf)) return true;
         }
         return false;
     }

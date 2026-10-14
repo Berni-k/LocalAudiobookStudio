@@ -135,9 +135,15 @@ las workers            # installed workers; 'las workers kokoro' shows settings 
 las models             # downloaded models and their size on disk
 las doctor             # system check
 las --json project MyBook status
+
+# In a script: keep the workers loaded between calls (tts, transcribe and compare)
+for f in lines/*.txt; do las --proxy tts -i "$f" -o audio/; done
+las proxy stop         # or let it exit by itself once idle
 ```
 
 Run `las help`, `las help tts` or `las help project` for all options. Exit codes: 0 ok, 1 something failed, 2 wrong usage, 3 setup needed, 130 cancelled. A project can't be open in the app and in `las` at the same time.
+
+With `--proxy` (or `LAS_PROXY=1` for a whole script) a command runs in the *las proxy*, a background las that the first such call starts. It keeps the workers loaded, so only the first call waits for a model to load. Calls from several scripts share the GPUs as in the app and are served in the order they came; while one waits, it shows its place in the queue. `las proxy unload <worker or model>` stops those workers (to free their memory, or to switch one to another `--runtime` or `--device`). The proxy exits after the workers' idle timeout with nothing to do, or with `las proxy stop`. `las help proxy` has the details.
 
 ## Troubleshooting
 

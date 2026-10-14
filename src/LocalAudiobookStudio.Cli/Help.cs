@@ -8,6 +8,7 @@ internal static class Help
         "transcribe" => Transcribe,
         "compare" => Compare,
         "project" => Project,
+        "proxy" => Proxy,
         _ => Main,
     };
 
@@ -35,6 +36,8 @@ internal static class Help
                      worker, ffmpeg, disk space
                      (--fix downloads a missing uv, and ffmpeg on Windows, into the data folder)
           split      Show how a text file would be split into chapters and segments
+          proxy      The las proxy that --proxy runs commands in: 'proxy status', 'proxy unload <worker>',
+                     'proxy stop', 'proxy start'
           version    Print the version
 
         Global options:
@@ -42,7 +45,10 @@ internal static class Help
           -v, --verbose   Show details and worker logs on stderr
           -q, --quiet     Only errors on stderr
           --gpu <n>       Run on GPU n only (see 'devices'); other GPUs stay idle for this run
-          -h, --help      Help ('las help tts', 'las help transcribe', 'las help compare', 'las help project')
+          --proxy         Run in the las proxy, which keeps workers loaded between calls (tts, transcribe,
+                          compare); LAS_PROXY=1 does it for every such command. See 'las help proxy'
+          -h, --help      Help ('las help tts', 'las help transcribe', 'las help compare', 'las help project',
+                          'las help proxy')
 
         Exit codes: 0 ok, 1 something failed, 2 wrong usage, 3 setup needed (worker, ffmpeg, project open in
         the app), 130 cancelled.
@@ -145,6 +151,44 @@ internal static class Help
           las compare seed1.wav seed2.wav seed3.wav seed4.wav seed5.wav
           las compare takes/ --ref voice.wav --set model=campplus
           las --json compare a.wav b.wav
+
+        """;
+
+    private const string Proxy = """
+        las --proxy <command> …
+        las proxy start [--idle <min>] | status | unload [<worker or model>…] | stop
+
+        Every las call starts its workers and loads their models again. With --proxy the command runs in the
+        las proxy instead: a background las, started by the first such call, that keeps the workers loaded, so
+        later calls start at once. Its output, exit code and Ctrl+C are as if it ran here. tts, transcribe and
+        compare run there; other commands refuse --proxy. LAS_PROXY=1 sends every command that can run there
+        and runs the others here as usual (for a whole script).
+
+        Calls from several scripts share one queue and the GPUs, as in the app, and are served in the order
+        they came; one that has to wait shows how many jobs are ahead of it (not with --json or -q). --gpu <n>
+        keeps a call's jobs on GPU n; without it they go to whichever GPU is free. Other calls share the
+        workers, so --runtime and --device only switch a worker that isn't loaded ('proxy unload' it first);
+        the switch then stays for later calls until the next one.
+
+        The proxy uses the app's settings as they were when it started. It exits once it has had nothing to do
+        for the workers' idle timeout (the app's setting; 'proxy start --idle <min>' sets another), or with
+        'las proxy stop', which waits until it and its workers have exited. Its log is logs/proxy-*.log in the
+        data folder.
+
+          proxy start [--idle <min>]   Start it now (it starts by itself otherwise)
+          proxy status                 Its process, queue and loaded workers
+          proxy unload [<id>…]         Stop these workers, or the workers that use these models (all loaded
+                                       workers when none are named). Busy ones finish their job first; it
+                                       returns once they have exited
+          proxy stop                   Cancel what it is doing and stop it
+
+        Examples:
+          for f in lines/*.txt; do las --proxy tts -i "$f" -o audio/; done
+          las --proxy --gpu 1 transcribe take.wav -t "The expected text."
+          for r in hartsy onnx python; do
+            las --proxy tts "A test." -o test-$r.wav -w kokoro --runtime $r && las proxy unload kokoro
+          done
+          las proxy stop
 
         """;
 
