@@ -1,0 +1,5 @@
+{
+  "hartsyModel": "cosyvoice",
+  "models": ["cosyvoice2-0.5b", "chatterbox"],
+  "unsupportedSettings": ["instruct", "speed"]
+}

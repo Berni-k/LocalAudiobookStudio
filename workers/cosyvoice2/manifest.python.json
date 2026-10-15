@@ -1,0 +1,8 @@
+{
+  "envGroup": "torch2_11-cu128-tx4",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "models": ["cosyvoice2-0.5b", "cosyvoice2-0.5b-frontend", "cosyvoice-code", "matcha-tts-code"],
+  "inlineTags": "\\[(?:breath|quick_breath|laughter|cough|clucking|accent|noise|hissing|sigh|vocalized-noise|lipsmack|mn)\\]|</?(?:strong|laughter)>",
+  "description": "Zero-shot voice cloning: needs a reference clip on the speaker, ideally with its transcript. Natural, stable narration. Type [breath], [laughter], [sigh] or [cough] in the text, or wrap words in <strong>…</strong> or <laughter>…</laughter>. Apache 2.0 license."
+}

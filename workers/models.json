@@ -387,11 +387,73 @@
         { "repo": "FunAudioLLM/CosyVoice2-0.5B", "revision": "eec1ae6c79877dbd9379285cf8789c9e0879293d" }
       ],
       "include": ["llm.pt", "flow.pt", "hift.pt"],
-      "requires": ["chatterbox"],
       "files": {
         "flow.pt": { "size": 450575567, "sha256": "ff4c2f867674411e0a08cee702996df13fa67c1cd864c06108da88d16d088541" },
         "hift.pt": { "size": 83390254, "sha256": "3386cc880324d4e98e05987b99107f49e40ed925b8ecc87c1f4939432d429879" },
         "llm.pt": { "size": 2023316821, "sha256": "b144ef55b51ce8cfb79a73c90dbba0bdaba4e451c0ebcfab20f769264f84a608" }
+      }
+    },
+    "cosyvoice2-0.5b-frontend": {
+      "displayName": "CosyVoice 2 0.5B frontend (text tokenizer, speech tokenizer, speaker encoder)",
+      "sources": [
+        { "repo": "FunAudioLLM/CosyVoice2-0.5B", "revision": "eec1ae6c79877dbd9379285cf8789c9e0879293d" }
+      ],
+      "include": ["campplus.onnx", "speech_tokenizer_v2.onnx", "CosyVoice-BlankEN/*.json", "CosyVoice-BlankEN/merges.txt"],
+      "files": {
+        "CosyVoice-BlankEN/config.json": { "size": 659, "gitSha1": "463b055262b6c66c4629a74a4b300bfe2ed31d3c" },
+        "CosyVoice-BlankEN/generation_config.json": { "size": 242, "gitSha1": "dfc11073787daf1b0f9c0f1499487ab5f4c93738" },
+        "CosyVoice-BlankEN/merges.txt": { "size": 1402109, "gitSha1": "90d3d82d027eadcc6a5e77c38eb82d43fc51b53b" },
+        "CosyVoice-BlankEN/tokenizer_config.json": { "size": 1287, "gitSha1": "ff55d7b9eb1384e5d4d7e75dc0f564c1a8833d6e" },
+        "CosyVoice-BlankEN/vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" },
+        "campplus.onnx": { "size": 28303423, "sha256": "a6ac6a63997761ae2997373e2ee1c47040854b4b759ea41ec48e4e42df0f4d73" },
+        "speech_tokenizer_v2.onnx": { "size": 496082973, "sha256": "d43342aa12163a80bf07bffb94c9de2e120a8df2f9917cd2f642e7f4219c6f71" }
+      }
+    },
+    "cosyvoice-code": {
+      "displayName": "CosyVoice inference code (FunAudioLLM/CosyVoice, Apache 2.0)",
+      "sources": [
+        { "url": "https://raw.githubusercontent.com/FunAudioLLM/CosyVoice/074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc/{file}" }
+      ],
+      "requires": ["matcha-tts-code"],
+      "files": {
+        "LICENSE": { "size": 11357, "gitSha1": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64" },
+        "cosyvoice/cli/frontend.py": { "size": 12553, "gitSha1": "6d397cc99be417e98b8d9fc7a1438ec722312276" },
+        "cosyvoice/cli/model.py": { "size": 28138, "gitSha1": "92a15d985dfbca4bb676d3fdc02732be1d07c461" },
+        "cosyvoice/flow/decoder.py": { "size": 19866, "gitSha1": "97768a459fbb89a2c99f98de302628d8ccafda67" },
+        "cosyvoice/flow/flow.py": { "size": 19736, "gitSha1": "c25518621bf98e95d5ed75b83c5a2a610d0822be" },
+        "cosyvoice/flow/flow_matching.py": { "size": 10552, "gitSha1": "d3beb9ec2ce8c26972433080c458f90c3f2c0467" },
+        "cosyvoice/hifigan/f0_predictor.py": { "size": 3757, "gitSha1": "c896890612053d97a9567bfe261dce000dae0f52" },
+        "cosyvoice/hifigan/generator.py": { "size": 30487, "gitSha1": "bbc2a2112bfd260963765af33760c95c3161fe14" },
+        "cosyvoice/llm/llm.py": { "size": 35971, "gitSha1": "e8e81d942af886d85b1331f9ce8b72ba42f8843b" },
+        "cosyvoice/tokenizer/tokenizer.py": { "size": 11253, "gitSha1": "6ecf4ae84b1b88d10c42e110db4665f944cc0317" },
+        "cosyvoice/transformer/activation.py": { "size": 3089, "gitSha1": "8cea54816385d3b6585ccc2417bc71630d578177" },
+        "cosyvoice/transformer/attention.py": { "size": 14389, "gitSha1": "8c0c0983a833a6a91cae306a8198ebb2ca82696f" },
+        "cosyvoice/transformer/convolution.py": { "size": 9772, "gitSha1": "edb32b241035852ae07f027d1ea6fcf42f7aaba4" },
+        "cosyvoice/transformer/embedding.py": { "size": 11777, "gitSha1": "ba20d71bec11baa7081bed522399cf3a2046ef56" },
+        "cosyvoice/transformer/encoder_layer.py": { "size": 9602, "gitSha1": "efbb12dd365770bebe8bca75276fe63be260a08f" },
+        "cosyvoice/transformer/label_smoothing_loss.py": { "size": 3459, "gitSha1": "feacabf09609ee6eb047c89ce18d372256c72c71" },
+        "cosyvoice/transformer/positionwise_feed_forward.py": { "size": 4219, "gitSha1": "b7a2cf6e7315e3a5ed2794423daff0a59cc5b208" },
+        "cosyvoice/transformer/subsampling.py": { "size": 12666, "gitSha1": "e17c2e324e3afb24e1b619effe29cef07c9c5b3a" },
+        "cosyvoice/transformer/upsample_encoder.py": { "size": 14229, "gitSha1": "baf7481977d7079dbbabd20332eced7b046738c4" },
+        "cosyvoice/utils/class_utils.py": { "size": 3588, "gitSha1": "aab83266a2644b5110aeaa64317c25b61419ba0d" },
+        "cosyvoice/utils/common.py": { "size": 9323, "gitSha1": "3f235a62e0455abbbf028635978b800e8be951af" },
+        "cosyvoice/utils/file_utils.py": { "size": 4887, "gitSha1": "b173ef2014f76fcfd28ce4f927fa05773970692b" },
+        "cosyvoice/utils/frontend_utils.py": { "size": 4273, "gitSha1": "ea1c9fc8cc7438f257eecffe460a8b6f4ddf8584" },
+        "cosyvoice/utils/mask.py": { "size": 9728, "gitSha1": "5d3dfd6ca6cd84e95f237a9aef4467cb7d2d4c33" },
+        "cosyvoice/utils/onnx.py": { "size": 2867, "gitSha1": "b459eb54df934ff304829891de7bac87f1606168" }
+      }
+    },
+    "matcha-tts-code": {
+      "displayName": "Matcha-TTS flow-matching code (shivammehta25/Matcha-TTS, MIT)",
+      "sources": [
+        { "url": "https://raw.githubusercontent.com/shivammehta25/Matcha-TTS/dd9105b34bf2be2230f4aa1e4769fb586a3c824e/{file}" }
+      ],
+      "files": {
+        "LICENSE": { "size": 1069, "gitSha1": "858018e750da7be7b271bb7307e68d159ed67ef6" },
+        "matcha/models/components/decoder.py": { "size": 14459, "gitSha1": "1137cd7008e9d07b4f306926a82e44c2b2cddbdf" },
+        "matcha/models/components/flow_matching.py": { "size": 4657, "gitSha1": "5cad7431ef66a8d11da32a77c1af7f6e31d6b774" },
+        "matcha/models/components/transformer.py": { "size": 13237, "gitSha1": "dd1afa3aff5383912209e508676c6885e13ef4ee" },
+        "matcha/utils/audio.py": { "size": 2282, "gitSha1": "0bcd74df47fb006f68deb5a5f4a4c2fb0aa84f57" }
       }
     },
     "audiogen-medium": {

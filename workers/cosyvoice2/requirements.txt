@@ -1,0 +1,20 @@
+# torch, torchaudio and transformers come from the shared environment (workers/environments.json). Upstream pins
+# transformers 4.51.3 / 4.57.1 for CosyVoice 2, which is why it lives in the tx4 environment.
+# The CosyVoice and Matcha-TTS code itself isn't a package: the app downloads the files it needs, pinned in
+# workers/models.json (cosyvoice-code, matcha-tts-code). These are the libraries that code imports for inference.
+# Left out on purpose: ttsfrd (Linux only), wetext (downloads its grammars at run time), vllm and TensorRT
+# (Linux only), and Matcha's training stack (Lightning, Hydra).
+transformers
+openai-whisper==20250625
+tiktoken
+conformer==0.3.2
+diffusers
+einops
+omegaconf
+inflect
+regex
+onnxruntime
+librosa
+scipy
+soundfile
+numpy

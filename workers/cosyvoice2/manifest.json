@@ -4,8 +4,7 @@
   "description": "Zero-shot voice cloning: needs a reference clip on the speaker, ideally with its transcript. Natural, stable narration. Apache 2.0 license.",
   "experimental": true,
   "tags": ["Voice", "Voice clone"],
-  "runtime": "hartsy",
-  "hartsyModel": "cosyvoice",
+  "runtimeOrder": ["hartsy", "python"],
   "modelVersion": "0.5B",
   "maxChars": 1000,
   "sampleRate": 24000,
@@ -14,10 +13,12 @@
   "devices": ["cuda", "cpu"],
   "cpuRecommended": false,
   "cpuNote": "Works on the CPU, but slowly.",
-  "models": ["cosyvoice2-0.5b"],
   "settings": [
     { "key": "refText", "type": "string", "label": "Reference transcript", "default": "",
       "description": "The exact words spoken in the reference clip. Strongly recommended: without it the voice match is weaker." },
+    { "key": "instruct", "type": "string", "label": "Instruction", "default": "",
+      "description": "How to say it, e.g. \"Speak slowly and sadly.\" or a dialect. Uses the clip's voice but not its transcript. Leave empty for plain cloning." },
+    { "key": "speed", "type": "float", "min": 0.5, "max": 2.0, "step": 0.05, "default": 1.0, "label": "Speed" },
     { "key": "seed", "type": "seed", "label": "Seed" }
   ]
 }
