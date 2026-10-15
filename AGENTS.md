@@ -217,7 +217,8 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
    - `internal-gpu`: the same with the engine's GPU builds, downloaded on install and pinned in `InternalGpuRuntime.cs`
      (whisper: Vulkan, and the CUDA 12 or 13 build matching the user's toolkit; cudart and cuBLAS come from that
      toolkit on the PATH, as for HartsyInference). Moving Whisper.net to a new version means new hashes there too.
-6. **Docs**: add the model to the table in `docs/models.md` (task, devices, license, links).
+6. **Docs**: add the model to its category's table in `docs/models.md` (with its speed, measured with `las --proxy`
+   with the model loaded) and to the Runtimes table there.
 7. **Check**: `dotnet test` catches manifest and models.json errors. Then install the worker in the Workers window
    and try it with `las workers <id>` and `las tts "Hello" -o out.wav -w <id> -v` (worker log on stderr).
 

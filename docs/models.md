@@ -2,36 +2,116 @@
 
 A worker is a model the app runs in its own process, on one of the [supported runtimes](../README.md#supported-runtimes). Install workers from *Workers → Manage workers*; the app downloads a worker's model the first time the worker needs it, into its own models folder, so workers that use the same model share one copy. The Workers window lists each worker's models with their sizes; delete them there, or point one at a folder of your own (a finetune).
 
-| Worker | Kind | Runs on | Voice cloning | Model license | Status | Links |
-|---|---|---|---|---|---|---|
-| Kokoro 82M | Speech (English) | CPU, GPU (HartsyInference by default; ONNX and PyTorch too) | No (built-in voices) | Apache 2.0 | Tested | [Model](https://huggingface.co/hexgrad/Kokoro-82M) · [ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) · [Code](https://github.com/hexgrad/kokoro) |
-| Qwen3-TTS | Speech (10 languages) | GPU | Yes (3 s clip), voice design | Apache 2.0 | Tested | [CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) · [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) · [VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) · [Code](https://github.com/QwenLM/Qwen3-TTS) |
-| OmniVoice | Speech (646 languages) | GPU (PyTorch by default; ONNX with CUDA too), CPU (ONNX, slow) | Yes (3–10 s clip), voice design | **CC-BY-NC 4.0 (non-commercial)** | Experimental | [Model](https://huggingface.co/k2-fsa/OmniVoice) · [ONNX](https://huggingface.co/OpenVoiceOS/phoonnx-omnivoice) · [Code](https://github.com/k2-fsa/OmniVoice) |
-| Breeze TTS 2 | Speech (English, Chinese) | GPU (12 GB) | Yes (clip + transcript), voice design and direction | **BreezeBlue Research and Non-Commercial License** | Experimental | [Model](https://huggingface.co/BreezeBlue/Breeze-TTS-2) · [Code](https://github.com/breezeblue-ai/breeze-tts) |
-| VibeVoice | Speech, long-form | GPU | Yes | MIT | Tested | [1.5B](https://huggingface.co/vibevoice/VibeVoice-1.5B) · [7B](https://huggingface.co/vibevoice/VibeVoice-7B) · [Code](https://github.com/vibevoice-community/VibeVoice) |
-| Fish Audio S2 Pro | Speech (80+ languages) | GPU (24 GB) | Yes (clip + transcript) | **Fish Audio Research License (non-commercial)** | Experimental | [Model](https://huggingface.co/fishaudio/s2-pro) · [Code](https://github.com/fishaudio/fish-speech) |
-| Chatterbox | Speech (English) | GPU (HartsyInference) | Yes | MIT | Experimental | [Model](https://huggingface.co/ResembleAI/chatterbox) · [Code](https://github.com/resemble-ai/chatterbox) |
-| CosyVoice 2 | Speech (Chinese, English, Japanese, Korean, Cantonese) | GPU (HartsyInference by default; PyTorch too, with instructions and speed) | Yes (clip required) | Apache 2.0 | Experimental | [Model](https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B) · [Code](https://github.com/FunAudioLLM/CosyVoice) |
-| Stable Audio 3 | Sound effects, music beds | GPU, CPU | – | Stability AI Community License (gated) | Experimental | [Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx) · [Small Music](https://huggingface.co/stabilityai/stable-audio-3-small-music) · [Medium](https://huggingface.co/stabilityai/stable-audio-3-medium) · [Code](https://github.com/Stability-AI/stable-audio-3) |
-| Stable Audio Open Small | Sound effects, short music | GPU (HartsyInference) | – | Stability AI Community License | Experimental | [Model](https://huggingface.co/stabilityai/stable-audio-open-small) |
-| MOSS-SoundEffect v2.0 | Sound effects | GPU | – | Apache 2.0 | Experimental | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-SoundEffect-v2.0) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
-| AudioGen | Sound effects | GPU (HartsyInference) | – | **CC-BY-NC 4.0 (non-commercial)** | Experimental | [Model](https://huggingface.co/facebook/audiogen-medium) · [Code](https://github.com/facebookresearch/audiocraft) |
-| ACE-Step 1.5 | Music | GPU | – | MIT | Experimental | [Turbo](https://huggingface.co/ACE-Step/acestep-v15-xl-turbo-diffusers) · [SFT](https://huggingface.co/ACE-Step/acestep-v15-xl-sft-diffusers) · [Code](https://github.com/ace-step/ACE-Step-1.5) |
-| Parakeet TDT 0.6B v3 | Transcription with word timings (25 European languages) | CPU (built in, comes with the app; or ONNX), GPU (ONNX) | – | CC-BY-4.0 | New | [Model](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) · [ONNX](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) · [Code](https://github.com/istupakov/onnx-asr) |
-| Whisper | Transcription with word timings (about 100 languages) | CPU (whisper.cpp, comes with the app), GPU (whisper.cpp with CUDA or Vulkan, downloaded on install; or PyTorch) | – | MIT | New | [large-v3 turbo](https://huggingface.co/openai/whisper-large-v3-turbo) · [large-v3](https://huggingface.co/openai/whisper-large-v3) · [ggml](https://huggingface.co/ggerganov/whisper.cpp) · [Code](https://github.com/openai/whisper) · [whisper.cpp](https://github.com/ggml-org/whisper.cpp) |
-| Granite Speech 4.1 2B Plus | Transcription with word timings (English, French, German, Spanish, Portuguese) | GPU, CPU (PyTorch) | – | Apache 2.0 | New | [Model](https://huggingface.co/ibm-granite/granite-speech-4.1-2b-plus) |
-| Qwen3-ASR 0.6B + Forced Aligner | Fast transcription on a GPU in 30 languages, with very accurate word timings for 11 (Chinese, English, Cantonese, French, German, Italian, Japanese, Korean, Portuguese, Russian, Spanish) | GPU, CPU (PyTorch) | – | Apache 2.0 | New | [ASR](https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf) · [Aligner](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf) · [Code](https://github.com/QwenLM/Qwen3-ASR) |
-| MMS forced aligner | Word timings for a known text (letters a–z; accents are dropped) | CPU (built in, comes with the app; or ONNX), GPU (ONNX) | – | **CC-BY-NC 4.0 (non-commercial)** | New | [Model](https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner) · [ONNX](https://huggingface.co/tatsu020/mms-300m-fa-onnx) · [Code](https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html) |
-| Speaker SIM Score | Scores how much a take sounds like a voice (speaker verification): against a reference clip, with yellow and red thresholds (Speakers window, Speaker Verification); `las compare` for seed and model tests. Pick one of three models: ERes2NetV2 (default), CAM++ or WeSpeaker | CPU (built in, comes with the app) | – | 3D-Speaker ERes2NetV2 and CAM++: Apache 2.0; WeSpeaker ResNet34-LM: CC-BY-4.0 | New | [ERes2NetV2 and CAM++](https://github.com/modelscope/3D-Speaker) · [ONNX files](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models) · [WeSpeaker](https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34-LM) · [Code](https://github.com/wenet-e2e/wespeaker) |
-| Speaker SIM Score (WavLM) | The same as Speaker SIM Score with WavLM Base Plus, a larger model that speech synthesis papers' similarity metrics are based on; use it as a second opinion (its scores differ from the other's) | CPU, GPU (PyTorch) | – | UniSpeech license (CC BY-SA 3.0, see the model card) | New | [Model](https://huggingface.co/microsoft/wavlm-base-plus-sv) · [WavLM](https://github.com/microsoft/unilm/tree/master/wavlm) |
-| Test tones | Debug | CPU | – | – | For testing the pipeline | – |
+**The app's MIT license does not cover the models.** Each model has its own license, and some don't allow commercial use (⚠️). Check the model's page before publishing audio made with it. Gated models (Stable Audio 3) need you to accept their terms on Hugging Face and put a read-only access token in *Settings → Hugging Face token*.
 
-**The app's MIT license does not cover the models.** Each model has its own license, and some don't allow commercial use. Check the model's page before publishing audio made with it. Gated models (Stable Audio 3) need you to accept their terms on Hugging Face and put a read-only access token in *Settings → Hugging Face token*.
+**Speed** is how many seconds of audio a model makes (or hears) per second on an RTX 3090, on its fastest runtime: 2× is twice as fast as real time, 0.5× half as fast. Measured with `las` with the model already loaded. Sound effects were timed at 10 s and music at 30 s: these models take about the same time for any length, so longer clips are faster per second. **RAM/VRAM** is roughly how much memory the model needs.
+
+## Voice generation
+
+| Model | Languages | Preset voices | Voice cloning | Voice design | Direction | Inline tags | Conversations | Speed | RAM/VRAM | License | Links |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Kokoro 82M | English | ✅ | – | – | – | – | – | 73× | 2 GB | Apache 2.0 | [Model](https://huggingface.co/hexgrad/Kokoro-82M) · [ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) · [Code](https://github.com/hexgrad/kokoro) |
+| Qwen3-TTS | 10 | ✅ | ✅ 3 s clip | ✅ | ✅ | – | – | 3.1× | 6 GB | Apache 2.0 | [CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) · [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) · [VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) · [Code](https://github.com/QwenLM/Qwen3-TTS) |
+| OmniVoice | 646 | – | ✅ 3–10 s clip | ✅ | – | ✅ `[laughter]` | – | 6.5× | 4 GB | CC-BY-NC 4.0 ⚠️ | [Model](https://huggingface.co/k2-fsa/OmniVoice) · [ONNX](https://huggingface.co/OpenVoiceOS/phoonnx-omnivoice) · [Code](https://github.com/k2-fsa/OmniVoice) |
+| Breeze TTS 2 | English, Chinese | – | ✅ Clip + transcript | ✅ | ✅ | ✅ `(laugh)` `[…]` | – | 1.5× | 9 GB | BreezeBlue Research and Non-Commercial License ⚠️ | [Model](https://huggingface.co/BreezeBlue/Breeze-TTS-2) · [Code](https://github.com/breezeblue-ai/breeze-tts) |
+| VibeVoice | English, Chinese | ✅ | ✅ 10–30 s clip | – | – | – | ✅ [4 voices](#conversations-and-context) | 2.7× | 8 GB (7B: 19 GB) | MIT | [1.5B](https://huggingface.co/vibevoice/VibeVoice-1.5B) · [7B](https://huggingface.co/vibevoice/VibeVoice-7B) · [Code](https://github.com/vibevoice-community/VibeVoice) |
+| Fish Audio S2 Pro | 80+ | – | ✅ Clip + transcript | – | – | ✅ `[…]` | ✅ [5 voices](#conversations-and-context) | 0.4× | 20 GB | Fish Audio Research License ⚠️ | [Model](https://huggingface.co/fishaudio/s2-pro) · [Code](https://github.com/fishaudio/fish-speech) |
+| Chatterbox | English | ✅ | ✅ Clip | – | – | – | – | 1.2× | 5 GB | MIT | [Model](https://huggingface.co/ResembleAI/chatterbox) · [Code](https://github.com/resemble-ai/chatterbox) |
+| CosyVoice 2 | Chinese, English, Japanese, Korean, Cantonese | – | ✅ Clip max 17 s | – | ✅ | – | – | 1.5× | 4 GB | Apache 2.0 | [Model](https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B) · [Code](https://github.com/FunAudioLLM/CosyVoice) |
+
+- **Voice cloning**: what the model needs to copy a voice. "Clip + transcript" means it also needs the clip's words.
+- **Voice design**: makes a new voice from a description or attributes, without a clip.
+- **Direction**: an instruction for how to say a line (calm, whispering, faster).
+- **Inline tags**: directions typed into the text that the model acts out but doesn't say.
+- Some features exist only on some runtimes (Qwen3-TTS's design and direction, CosyVoice 2's direction, VibeVoice's conversations); see [Runtimes](#runtimes).
+
+## Sound effects
+
+| Model | Max length | Sample rate | Negative prompt | Speed | RAM/VRAM | License | Links |
+|---|---|---|---|---|---|---|---|
+| Stable Audio 3 (Small SFX, Medium) | 120 s (Medium: 380 s) | 44.1 kHz | – | 20× | 3 GB | Stability AI Community License (gated) | [Small SFX](https://huggingface.co/stabilityai/stable-audio-3-small-sfx) · [Medium](https://huggingface.co/stabilityai/stable-audio-3-medium) · [Code](https://github.com/Stability-AI/stable-audio-3) |
+| Stable Audio Open Small | 11 s | 44.1 kHz | – | ? | 3 GB | Stability AI Community License | [Model](https://huggingface.co/stabilityai/stable-audio-open-small) |
+| MOSS-SoundEffect v2.0 | 30 s | 48 kHz | ✅ | 0.4× | 10 GB | Apache 2.0 | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-SoundEffect-v2.0) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
+| AudioGen | 30 s | 16 kHz | – | 1.7× | 6 GB | CC-BY-NC 4.0 ⚠️ | [Model](https://huggingface.co/facebook/audiogen-medium) · [Code](https://github.com/facebookresearch/audiocraft) |
+
+Stable Audio Open Small is broken for now: on HartsyInference its audio comes out as screeching noise. Use Stable Audio 3.
+
+## Music generation
+
+| Model | Max length | Vocals | BPM and key | Speed | RAM/VRAM | License | Links |
+|---|---|---|---|---|---|---|---|
+| ACE-Step 1.5 | 10 min | ✅ Lyrics in 10 languages | ✅ | 25× (SFT: 3×) | 16 GB | MIT | [Turbo](https://huggingface.co/ACE-Step/acestep-v15-xl-turbo-diffusers) · [SFT](https://huggingface.co/ACE-Step/acestep-v15-xl-sft-diffusers) · [Code](https://github.com/ace-step/ACE-Step-1.5) |
+| Stable Audio 3 (Small Music, Medium) | 120 s (Medium: 380 s) | – | – | 50× | 3 GB | Stability AI Community License (gated) | [Small Music](https://huggingface.co/stabilityai/stable-audio-3-small-music) · [Medium](https://huggingface.co/stabilityai/stable-audio-3-medium) · [Code](https://github.com/Stability-AI/stable-audio-3) |
+| Stable Audio Open Small | 11 s | – | – | ? | 3 GB | Stability AI Community License | [Model](https://huggingface.co/stabilityai/stable-audio-open-small) |
+
+## Transcription
+
+| Model | Languages | Transcribe | Align | Word times | Speed | RAM/VRAM | License | Links |
+|---|---|---|---|---|---|---|---|---|
+| Whisper | ~100 | ✅ ⏱️ | – | Close (within tens of ms) | 49× | 4 GB | MIT | [large-v3 turbo](https://huggingface.co/openai/whisper-large-v3-turbo) · [large-v3](https://huggingface.co/openai/whisper-large-v3) · [ggml](https://huggingface.co/ggerganov/whisper.cpp) · [Code](https://github.com/openai/whisper) · [whisper.cpp](https://github.com/ggml-org/whisper.cpp) |
+| Parakeet TDT 0.6B v3 | 25 European | ✅ ⏱️ | – | Loose (ends run on into pauses) | 21× (CPU) | 2 GB | CC-BY-4.0 | [Model](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) · [ONNX](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) · [Code](https://github.com/istupakov/onnx-asr) |
+| Granite Speech 4.1 2B Plus | English, French, German, Spanish, Portuguese | ✅ ⏱️ | – | Close (about 0.05 s late) | 7× (with times: 1.1×) | 5 GB | Apache 2.0 | [Model](https://huggingface.co/ibm-granite/granite-speech-4.1-2b-plus) |
+| Qwen3-ASR 0.6B + Forced Aligner | 30 (times: 11) | ✅ ⏱️ | ✅ 11 languages | Very accurate | 6.7× | 4 GB | Apache 2.0 | [ASR](https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf) · [Aligner](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf) · [Code](https://github.com/QwenLM/Qwen3-ASR) |
+| MMS forced aligner | Letters a–z (accents are dropped) | – | ✅ | Very accurate | 170× (CPU: 11×) | 1 GB | CC-BY-NC 4.0 ⚠️ | [Model](https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner) · [ONNX](https://huggingface.co/tatsu020/mms-300m-fa-onnx) · [Code](https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html) |
+
+- **Transcribe**: hears the words; ⏱️ means it also says when each word is.
+- **Align**: times a text you already have, without changing its words. A speaker can pair a transcription worker
+  with an aligner (*Speakers → Alignment*): the first hears the words, the aligner times them.
+- Use Whisper to judge *where* words are and Parakeet to check *what* was said (fast and strict about words).
+
+## Speaker verification
+
+Scores how much a take sounds like a voice, against a reference clip, with yellow and red thresholds (*Speakers →
+Speaker Verification*); `las compare` for seed and model tests. Scores from different models can't be compared.
+
+| Model | Worker | RAM/VRAM | Notes | License | Links |
+|---|---|---|---|---|---|
+| ERes2NetV2 | Speaker SIM Score | <1 GB | The default | Apache 2.0 | [3D-Speaker](https://github.com/modelscope/3D-Speaker) · [ONNX files](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models) |
+| CAM++ | Speaker SIM Score | <1 GB | | Apache 2.0 | [3D-Speaker](https://github.com/modelscope/3D-Speaker) · [ONNX files](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models) |
+| WeSpeaker ResNet34-LM | Speaker SIM Score | <1 GB | | CC-BY-4.0 | [Model](https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34-LM) · [Code](https://github.com/wenet-e2e/wespeaker) |
+| WavLM Base Plus | Speaker SIM Score (WavLM) | 1 GB | Larger; the model speech synthesis papers' similarity scores are based on. Use it as a second opinion | UniSpeech license (CC BY-SA 3.0, see the model card) | [Model](https://huggingface.co/microsoft/wavlm-base-plus-sv) · [WavLM](https://github.com/microsoft/unilm/tree/master/wavlm) |
+
+## Runtimes
+
+Which runtimes each worker runs on: ⭐ the default, ✅ also supported. *Built in* runtimes come with the app;
+*Built in GPU* is downloaded when the worker is installed. The CPU column says whether the worker can run without a
+GPU: ✅ yes, 🐢 slowly (several times slower than real time), ❌ no.
+
+| Worker | PyTorch | ONNX (CPU) | ONNX (CUDA) | HartsyInference | Built in (CPU) | Built in GPU | CPU |
+|---|---|---|---|---|---|---|---|
+| Kokoro 82M | ✅ | ✅ | ✅ | ⭐ | | | ✅ |
+| Qwen3-TTS | ⭐ | | | ✅ ¹ | | | 🐢 |
+| OmniVoice | ⭐ | ✅ | ✅ | | | | 🐢 |
+| Breeze TTS 2 | ⭐ | | | | | | ❌ |
+| VibeVoice | ⭐ | | | ✅ ² | | | 🐢 |
+| Fish Audio S2 Pro | ⭐ | | | | | | ❌ |
+| Chatterbox | | | | ⭐ | | | 🐢 |
+| CosyVoice 2 | ✅ | | | ⭐ ³ | | | 🐢 |
+| | | | | | | | |
+| Stable Audio 3 | ⭐ | | | | | | ✅ |
+| Stable Audio Open Small | | | | ⭐ | | | ✅ |
+| MOSS-SoundEffect v2.0 | ⭐ | | | | | | 🐢 |
+| AudioGen | | | | ⭐ | | | 🐢 |
+| | | | | | | | |
+| ACE-Step 1.5 | ✅ | | | ✅ | | | ❌ |
+| | | | | | | | |
+| Whisper | ✅ | | | | ⭐ | ✅ | ✅ |
+| Parakeet TDT 0.6B v3 | | ✅ | ✅ | | ⭐ | | ✅ |
+| Granite Speech 4.1 2B Plus | ⭐ | | | | | | 🐢 |
+| Qwen3-ASR 0.6B + Forced Aligner | ⭐ | | | | | | 🐢 |
+| MMS forced aligner | | ✅ | ✅ | | ⭐ | | ✅ |
+| | | | | | | | |
+| Speaker SIM Score | | | | | ⭐ | | ✅ |
+| Speaker SIM Score (WavLM) | ⭐ | | | | | | ✅ |
+
+1. No voice design, direction, language setting or reference transcript; some preset voices are missing.
+2. 1.5B only, and no conversations (batching).
+3. No direction or speed.
 
 ## Conversations and context
 
 Some workers can render several lines in one go, so a conversation sounds like one: **VibeVoice** (up to 4 voices,
-Python runtime) and **Fish Audio S2 Pro** (up to 5). Turn it on per speaker under *Speakers → Context*:
+PyTorch runtime) and **Fish Audio S2 Pro** (up to 5). Turn it on per speaker under *Speakers → Context*:
 
 - **Include context**: the segments before and after a segment that the model also gets, then cut away. Works with
   every worker: one that renders a single voice reads them in the segment's voice. Fish S2 hears lines that already
@@ -49,4 +129,9 @@ Each segment still gets its own take. Fish S2 says where each segment is in the 
 transcription worker finds them. A segment that can't be found cleanly (a word missing at its start or end) is
 generated again on its own. Changing the context settings doesn't make takes stale.
 
-Each worker folder under [`workers/`](../workers) has a README with details. The ComfyUI bridge runs your own ComfyUI workflows instead of a built-in model; see [ComfyUI bridge](comfyui.md).
+## Other workers
+
+- **ComfyUI bridge** runs your own ComfyUI workflows instead of a built-in model; see [ComfyUI bridge](comfyui.md).
+- **Test tones** makes beeps instead of speech, for testing the pipeline without a model.
+
+Each worker folder under [`workers/`](../workers) has a README with details.
