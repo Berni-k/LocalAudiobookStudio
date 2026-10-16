@@ -1,7 +1,7 @@
 {
   "id": "drama3",
   "displayName": "Fish Audio Drama 3",
-  "description": "Very expressive multilingual TTS (80+ languages) for drama and long-form reading; tops the open-weights leaderboards. Type free-form [tags] in a segment's text to steer the delivery: [sighs], [laughs], [whispering], [slow, dangerously quiet]. Clones from a reference clip plus its transcript. A 35B model split over several GPUs with GPU count: about 43 GB (two 24 GB GPUs), or 29 GB with 4-bit experts (two 16 GB, three 12 GB). Free under US$500k annual revenue (Fish Audio Community License).",
+  "description": "Very expressive multilingual TTS (80+ languages). Steer delivery with [tags] in the text: [sighs], [whispering]. Clones from a clip plus its transcript. Needs about 43 GB of VRAM, but runs on as little as 8 GB by offloading to RAM, at the cost of speed. Free under US$500k revenue.",
   "inlineTags": "\\[[^\\[\\]\\n]*\\]",
   "experimental": true,
   "tags": ["Voice", "Voice clone"],
@@ -18,11 +18,21 @@
   "multiGpu": true,
   "models": ["drama-3"],
   "workerSettings": [
-    { "key": "expertPrecision", "type": "enum", "options": ["fp8", "int4"], "optionLabels": ["FP8 (best)", "4-bit (less memory)"],
-      "default": "fp8", "label": "Expert precision",
-      "description": "4-bit re-quantizes the model's experts while loading: about 29 GB instead of 43, so it fits on smaller GPUs (two 16 GB with the codec on the CPU, three 12 GB). Some loss of quality; loading takes a little longer." },
-    { "key": "codecOnCpu", "type": "bool", "default": false, "label": "Codec on the CPU",
-      "description": "Encode reference clips and decode audio on the CPU: about 2 GB more room on the GPUs, a few seconds slower per segment. Without it the codec still falls back to the CPU when a GPU runs out of memory." }
+    { "key": "gpuMemoryGb", "type": "float", "min": 0, "max": 192, "step": 0.5, "default": 0, "label": "GPU memory target (GB)",
+      "description": "How much memory Drama 3 may use on each GPU. The settings below that are on Auto are switched on, in order, until it fits. 0 = the whole GPU (other workers loaded on it aren't counted). If it can't fit, the worker log says so and it tries anyway." },
+    { "key": "expertPrecision", "type": "enum", "options": ["auto", "fp8", "int4"], "optionLabels": ["Auto", "FP8 (best)", "4-bit (less memory)"],
+      "default": "auto", "label": "Expert precision",
+      "description": "4-bit re-quantizes the model's experts while loading: about 29 GB instead of 43, at some loss of quality. Auto: FP8 when it fits without any of the settings below, otherwise 4-bit." },
+    { "key": "expertLayersInRam", "type": "enum", "default": "auto", "label": "Expert layers in RAM",
+      "options": ["auto", "0", "4", "8", "12", "16", "20", "24", "28", "32", "36", "40"],
+      "optionLabels": ["Auto", "None", "4 layers", "8 layers", "12 layers", "16 layers", "20 layers", "24 layers", "28 layers", "32 layers", "36 layers", "All 40 layers"],
+      "description": "Keeps the experts of this many of the 40 layers in system RAM and copies the ones each step needs to the GPU (about 0.4 GB less GPU memory per layer with 4-bit experts, about 0.75 with FP8). Slower: about 0.6x real time with all 40 on one 24 GB GPU. Needs as much free RAM. With a GPU count of 1 only." },
+    { "key": "codecDevice", "type": "enum", "options": ["auto", "gpu", "cpu"], "optionLabels": ["Auto", "GPU", "CPU"],
+      "default": "auto", "label": "Codec",
+      "description": "Where reference clips are encoded and audio is decoded. The CPU leaves about 2 GB more on the GPU and takes a few seconds longer per segment. On the GPU it still falls back to the CPU when the GPU runs out of memory." },
+    { "key": "int8Weights", "type": "enum", "options": ["auto", "off", "on"], "optionLabels": ["Auto", "Off", "On"],
+      "default": "auto", "label": "8-bit attention and audio decoder",
+      "description": "Stores the attention and audio decoder weights in 8 bits: about 2 GB less GPU memory, a little slower, possibly a little less like the reference voice. With a GPU count of 1 only." }
   ],
   "settings": [
     { "key": "refText", "type": "string", "label": "Reference transcript", "default": "", "perVoice": true,

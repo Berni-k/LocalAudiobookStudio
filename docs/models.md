@@ -16,7 +16,7 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 | Breeze TTS 2 | English, Chinese | – | ✅ Clip + transcript | ✅ | ✅ | ✅ `(laugh)` `[…]` | – | 1.5× | 9 GB | BreezeBlue Research and Non-Commercial License ⚠️ | [Model](https://huggingface.co/BreezeBlue/Breeze-TTS-2) · [Code](https://github.com/breezeblue-ai/breeze-tts) |
 | VibeVoice | English, Chinese | ✅ | ✅ 10–30 s clip | – | – | – | ✅ [4 voices](#conversations-and-context) | 2.7× | 8 GB (7B: 19 GB) | MIT | [1.5B](https://huggingface.co/vibevoice/VibeVoice-1.5B) · [7B](https://huggingface.co/vibevoice/VibeVoice-7B) · [Code](https://github.com/vibevoice-community/VibeVoice) |
 | Fish Audio S2 Pro | 80+ | – | ✅ Clip + transcript | – | – | ✅ `[…]` | ✅ [5 voices](#conversations-and-context) | 0.4× | 20 GB | Fish Audio Research License ⚠️ | [Model](https://huggingface.co/fishaudio/s2-pro) · [Code](https://github.com/fishaudio/fish-speech) |
-| Fish Audio Drama 3 | 80+ | – | ✅ Clip + transcript | – | – | ✅ `[…]` | – | 1.1× (2 GPUs) | 43 GB (4-bit: 29 GB), [over several GPUs](#several-gpus) | Fish Audio Community License ⚠️ (free under US$500k revenue) | [Model](https://huggingface.co/fishaudio/drama-3) · [Code](https://github.com/fishaudio/fish-speech) |
+| Fish Audio Drama 3 | 80+ | – | ✅ Clip + transcript | – | – | ✅ `[…]` | – | 1.1× to 0.5× | 43 GB ([down to 8 GB with offload](#big-models-on-small-gpus)) | Fish Audio Community License ⚠️ (free under US$500k revenue) | [Model](https://huggingface.co/fishaudio/drama-3) · [Code](https://github.com/fishaudio/fish-speech) |
 | Chatterbox | English | ✅ | ✅ Clip | – | – | – | – | 1.2× | 5 GB | MIT | [Model](https://huggingface.co/ResembleAI/chatterbox) · [Code](https://github.com/resemble-ai/chatterbox) |
 | CosyVoice 2 | Chinese, English, Japanese, Korean, Cantonese | – | ✅ Clip max 17 s | – | ✅ | – | – | 1.5× | 4 GB | Apache 2.0 | [Model](https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B) · [Code](https://github.com/FunAudioLLM/CosyVoice) |
 
@@ -131,17 +131,14 @@ Each segment still gets its own take. Fish S2 says where each segment is in the 
 transcription worker finds them. A segment that can't be found cleanly (a word missing at its start or end) is
 generated again on its own. Changing the context settings doesn't make takes stale.
 
-## Several GPUs
+## Big models on small GPUs
 
-A model too big for one card can be split over several: workers that can (Fish Audio Drama 3) have a **GPU count**
-in their worker settings (*Workers → Manage workers*). Each of their processes then uses that many GPUs, the model
-divided by each card's free memory. A job of such a worker waits until it has them: it holds the first GPU that is
-free and then takes each next one as soon as its job is done, before any other job. With *GPU ids* set, only those
-GPUs are used. `las tts --gpu-count <n>` does the same for one run.
+Some models can be split over several GPUs, for more speed or more memory: set their **GPU count** in the worker
+settings (*Workers → Manage workers*; `las tts --gpu-count <n>` for one run). A job then waits until it has that many
+GPUs, taking each one as it frees up.
 
-Drama 3 needs about 43 GB (two 24 GB GPUs), or 29 GB with *Expert precision: 4-bit* in its worker settings (two
-16 GB GPUs with *Codec on the CPU*, or three 12 GB GPUs). Each GPU a frame passes through costs some speed: about
-1.1× real time on two GPUs, 0.45× on three.
+Some can also run on a smaller GPU by offloading part of the model to system RAM, at the cost of speed. Their worker
+settings have a *GPU memory target*; the memory settings left on Auto are switched on until the model fits.
 
 ## Other workers
 

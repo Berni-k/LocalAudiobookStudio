@@ -34,6 +34,11 @@ PREFILL_EXPERT_CHUNK = 32
 # Prompt rows per prefill pass: every pass dequantizes all experts once, so the whole prompt goes in one.
 PREFILL_ROWS = 4096
 
+# Set by the worker: bytes each GPU may use (its free memory, or less with the GPU memory target), and whether a split
+# that doesn't fit is an error (else it is placed anyway: the memory plan has already warned).
+BUDGETS = None
+STRICT = True
+
 
 class PlacementError(RuntimeError):
     """The model doesn't fit on the visible GPUs."""
@@ -49,9 +54,27 @@ def _free_bytes(device):
     simulated = os.environ.get("DRAMA3_SIMULATE_GPU_GB")
     if not simulated:
         return free
-    limit = (float(simulated) - 0.5) * GIB
+    limit = float(simulated) * GIB - CONTEXT_BYTES
     torch.cuda.set_per_process_memory_fraction(min(1.0, limit / total), device)
     return max(0, min(free, limit - torch.cuda.memory_reserved(device)))
+
+
+# What a GPU keeps for itself and the CUDA context, which PyTorch can't use (measured: 1.21 GB of an idle 24 GB
+# RTX 3090 on Windows).
+CONTEXT_BYTES = 1.2 * GIB
+
+
+def gpu_bytes(device):
+    """What Drama 3 may plan with on a GPU: all of it but the CUDA context, as if no other process used it (other
+    workers' memory is the app's business). With DRAMA3_SIMULATE_GPU_GB, as if the card had that much (and PyTorch is
+    held to it)."""
+    import os
+
+    simulated = os.environ.get("DRAMA3_SIMULATE_GPU_GB")
+    if simulated:
+        _free_bytes(device)  # holds PyTorch to it
+        return float(simulated) * GIB - CONTEXT_BYTES
+    return torch.cuda.mem_get_info(device)[1] - CONTEXT_BYTES
 
 
 def apply(codec_on_gpu: bool, int4: bool, log) -> bool:
@@ -235,7 +258,8 @@ def _use_int4(moe, omni_model, fp8_to_float):
                 continue
             del pending[key]
             experts = model.get_submodule(f"model.layers.{match['layer']}.mlp.experts")
-            device = experts.w13_q.device
+            # Quantized on a GPU even when the experts are kept in RAM (copy_ moves them there).
+            device = experts.w13_q.device if experts.w13_q.is_cuda else torch.device("cuda", torch.cuda.current_device())
             q, scale, offset = quantize_int4(
                 fp8_to_float(halves["weight"].to(device), halves["weight_scale_inv"].to(device), torch.float32))
             expert = key[1]
@@ -269,15 +293,18 @@ def _materialize(module_bytes, tower_reserve, log):
         tower = devices[-1]
         head = module_bytes(self.model.embed_tokens) + module_bytes(self.model.norm) + module_bytes(self.lm_head)
         sizes = [module_bytes(layer) for layer in layers]
-        free = [_free_bytes(d) for d in devices]
+        free = list(BUDGETS) if BUDGETS else [_free_bytes(d) for d in devices]
         room = [max(0.0, f - LAYER_GPU_RESERVE - ((head + tower_reserve) if d == tower else 0))
                 for d, f in zip(devices, free)]
         needed = sum(sizes)
         if sum(room) < needed:
             total = needed + head + tower_reserve + LAYER_GPU_RESERVE * len(devices)
-            raise PlacementError(
-                f"Drama 3 needs about {total / GIB:.0f} GB of GPU memory and {len(devices)} GPU(s) have "
-                f"{sum(free) / GIB:.0f} GB free. Raise its GPU count in the worker settings, or put the codec on the CPU.")
+            if STRICT:
+                raise PlacementError(
+                    f"Drama 3 needs about {total / GIB:.0f} GB of GPU memory and {len(devices)} GPU(s) have "
+                    f"{sum(free) / GIB:.0f} GB free. Raise its GPU count in the worker settings, or put the codec on the CPU.")
+            # Placed anyway, in proportion to what each GPU has (the memory plan has warned).
+            room = [max(1.0, f) for f in free]
 
         # Proportional split by midpoints (as fish-speech balances by bytes), then fixed up where a range overflows.
         counts = [0] * len(devices)
@@ -319,7 +346,7 @@ def _fit(counts, sizes, room):
         while counts[i] > 0 and used(i) > room[i]:
             counts[i] -= 1
             counts[i - 1] += 1
-    if any(used(i) > room[i] for i in range(len(counts))):
+    if STRICT and any(used(i) > room[i] for i in range(len(counts))):
         raise PlacementError("Drama 3's layers don't fit on the GPUs. Raise its GPU count in the worker settings.")
     return counts
 
@@ -386,6 +413,9 @@ def _segment_graphs(omni_generate):
                 started = time.perf_counter()
                 for kv_len in graphs.buckets:
                     graphs.capture(kv_len)
+                for device in graphs.pools:
+                    with torch.cuda.device(device):
+                        torch.cuda.empty_cache()  # the warm-ups' blocks
                 omni_generate.logger.info(
                     f"Drama 3 decode graphs on {len(graphs.groups)} GPU group(s), buckets {graphs.buckets}, "
                     f"captured in {time.perf_counter() - started:.1f}s")
@@ -425,7 +455,9 @@ def _segment_graphs(omni_generate):
         def record(self, device, fn):
             pool = self.pools.setdefault(device, torch.cuda.graph_pool_handle())
             with torch.cuda.device(device):
-                stream = torch.cuda.Stream()
+                # One capture stream per GPU: PyTorch caches memory per stream, so a new one per graph would keep
+                # each warm-up's blocks apart.
+                stream = self.__dict__.setdefault("streams", {}).setdefault(device, torch.cuda.Stream())
                 stream.wait_stream(torch.cuda.current_stream())
                 with torch.cuda.stream(stream):
                     for _ in range(2):

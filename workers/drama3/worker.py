@@ -153,26 +153,49 @@ class Drama3Worker:
         import drama3_patches
         from fish_speech.models.text2semantic.inference import init_model, load_codec_model
 
+        import drama3_plan
+
         path = self.model_dir or ensure_model(MODEL)
         settings = worker_settings()
-        codec_on_gpu = not settings.get("codecOnCpu", False)
-        int4 = str(settings.get("expertPrecision") or "fp8").lower() == "int4"
-        native = drama3_patches.apply(codec_on_gpu, int4, log)
         count = torch.cuda.device_count()
         self.devices = ",".join(f"cuda:{i}" for i in range(count))
-        report(0.1, f"Loading Drama 3 on {count} GPU{'s' if count > 1 else ''}")
-        log("Experts: " + ("4-bit, re-quantized while loading" if int4
-                           else "FP8 with fish-speech's kernel" if native else "FP8, dequantized when used"))
+        # What each GPU may use: all of it, or less with the GPU memory target.
+        target = float(settings.get("gpuMemoryGb") or 0) * drama3_plan.GIB
+        budgets = [min(drama3_patches.gpu_bytes(i), target) if target > 0 else drama3_patches.gpu_bytes(i)
+                   for i in range(count)]
+        reserves = (drama3_patches.LAYER_GPU_RESERVE, drama3_patches.TOWER_GPU_RESERVE, drama3_patches.CODEC_BYTES)
+        plan = drama3_plan.choose(settings, budgets, drama3_plan.available_ram(), reserves)
+        log(f"Memory plan: {plan.describe(count)}")
+        for warning in plan.warnings:
+            log(f"WARNING: {warning}")
+        drama3_patches.BUDGETS, drama3_patches.STRICT = budgets, plan.fits
+        native = drama3_patches.apply(not plan.codec_cpu, plan.precision == "int4", log)
+        if plan.lean:
+            import drama3_offload
+
+            drama3_offload.prepare(plan, log)
+        report(0.1, f"Loading Drama 3: {plan.describe(count)}")
+        if native:
+            log("FP8 experts on fish-speech's own kernel")
         try:
             self.model, _ = init_model(path, self.devices, torch.bfloat16)
+            if plan.lean:
+                report(0.8, "Moving experts to RAM" if plan.layers_in_ram else "Quantizing attention and tower")
+                drama3_offload.finish(self.model, plan, log)
         except torch.OutOfMemoryError as e:
-            raise RuntimeError("Drama 3 doesn't fit in the GPUs' memory. Raise its GPU count in the worker settings, "
-                               f"or put the codec on the CPU. ({e})") from e
+            raise RuntimeError("Drama 3 ran out of GPU memory while loading. Raise its GPU count, lower its GPU memory "
+                               f"target, or set its memory settings to Auto. ({e})") from e
         report(0.9, "Loading the codec")
-        device = str(self.model.device) if codec_on_gpu else None
+        log("Model loaded; GPU memory in use " + ", ".join(f"{torch.cuda.memory_allocated(i) / 2**30:.2f} GB" for i in range(count)))
+        device = None if plan.codec_cpu else str(self.model.device)
         self.codec = Codec(os.path.join(path, "codec.pth"), device, self.model.dtype, load_codec_model)
+        for i in range(count):
+            with torch.cuda.device(i):
+                torch.cuda.empty_cache()  # loading's temporaries (dequantized experts, the codec's float32 copy)
         report(1.0, "Ready")
-        log(f"Drama 3 loaded on {self.devices}, codec on {device or 'the CPU'}")
+        log(f"Drama 3 loaded on {self.devices}, codec on {device or 'the CPU'}; GPU memory in use "
+            + ", ".join(f"{torch.cuda.memory_allocated(i) / 2**30:.1f} GB (reserved {torch.cuda.memory_reserved(i) / 2**30:.1f})"
+                        for i in range(count)))
 
     def _reference(self, clip):
         """The clip's VQ codes, encoded once: kept in memory and on disk by the clip's content."""
@@ -233,6 +256,8 @@ class Drama3Worker:
 
         torch.manual_seed(req.seed)
         torch.cuda.manual_seed_all(req.seed)
+        for i in range(torch.cuda.device_count()):
+            torch.cuda.reset_peak_memory_stats(i)
         codes = []
         original_tqdm = omni_generate.tqdm
         omni_generate.tqdm = progress_tqdm
@@ -260,7 +285,12 @@ class Drama3Worker:
         if not codes:
             raise RuntimeError("Drama 3 produced no audio (check the text)")
         report(0.93, "Decoding")
+        # Decoding needs large blocks of its own: hand generation's cached ones back first, or the two add up.
+        torch.cuda.empty_cache()
         audio = np.asarray(self.codec.decode(torch.cat(codes, dim=1)), dtype=np.float32)
+        # What the memory plan has to cover: this segment's peak (reserved: what the GPU actually gave PyTorch).
+        log("GPU memory peak: " + ", ".join(f"cuda:{i} {torch.cuda.max_memory_reserved(i) / 2**30:.1f} GB"
+                                            for i in range(torch.cuda.device_count())))
         torch.cuda.empty_cache()
         sr = self.codec.sample_rate
         duration_ms = write_wav(req.out_path, audio, sr)
