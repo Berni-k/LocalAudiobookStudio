@@ -311,10 +311,16 @@
                   <TextBlock Text="Parallel" VerticalAlignment="Center" />
                   <NumericUpDown Value="{Binding Parallel}" Minimum="1" Maximum="16" Increment="1" FormatString="0" Width="72" MinWidth="0" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4" IsVisible="{Binding ShowGpuIds}"
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,20,4" IsVisible="{Binding ShowGpuIds}"
                             ToolTip.Tip="{Binding GpuIdsHelp}">
                   <TextBlock Text="GPU ids" VerticalAlignment="Center" />
                   <TextBox Text="{Binding GpuIds, UpdateSourceTrigger=LostFocus}" Watermark="All" Width="110" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4" IsVisible="{Binding ShowGpuCount}"
+                            ToolTip.Tip="{Binding GpuCountHelp}">
+                  <TextBlock Text="GPU count" VerticalAlignment="Center" />
+                  <NumericUpDown Value="{Binding GpuCount}" Minimum="1" Maximum="{Binding MaxGpuCount}" Increment="1" FormatString="0"
+                                 Width="72" MinWidth="0" />
                 </StackPanel>
               </WrapPanel>
               <ContentControl Content="{Binding Settings}" IsVisible="{Binding HasSettings}" />

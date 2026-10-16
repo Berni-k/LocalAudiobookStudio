@@ -319,7 +319,8 @@ public sealed partial class WorkerItemViewModel : ObservableObject
                      {
                          nameof(Manifest), nameof(Tags), nameof(Description), nameof(EnvFolder), nameof(HasHosting), nameof(DeviceOptions),
                          nameof(ShowDevice), nameof(CanChooseDevice), nameof(DeviceHelp), nameof(ParallelHelp), nameof(GpuIdsHelp),
-                         nameof(ShowGpuIds), nameof(HasSize), nameof(CanCheckSize), nameof(EnvLabel), nameof(IsRuntimeExperimental),
+                         nameof(ShowGpuIds), nameof(ShowGpuCount), nameof(GpuCountHelp), nameof(HasSize), nameof(CanCheckSize),
+                         nameof(EnvLabel), nameof(IsRuntimeExperimental),
                      })
                 OnPropertyChanged(n);
         }
@@ -348,15 +349,21 @@ public sealed partial class WorkerItemViewModel : ObservableObject
     public string? DeviceHelp => HostingHelp(WorkerManifest.DeviceKey);
     public string? ParallelHelp => HostingHelp(WorkerManifest.ParallelKey);
     public string? GpuIdsHelp => HostingHelp(WorkerManifest.GpusKey);
+    public string? GpuCountHelp => HostingHelp(WorkerManifest.GpuCountKey);
+    public int MaxGpuCount => WorkerManifest.MaxGpuCount;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowGpuIds))]
+    [NotifyPropertyChangedFor(nameof(ShowGpuIds), nameof(ShowGpuCount))]
     private DeviceOption? _device;
     [ObservableProperty] private decimal? _parallel;
     [ObservableProperty] private string _gpuIds = "";
+    [ObservableProperty] private decimal? _gpuCount;
 
     /// <summary>GPU ids only matter on the GPU.</summary>
     public bool ShowGpuIds => Device?.Value == WorkerManifest.DeviceGpu && Manifest.RunsOnGpu;
+
+    /// <summary>Multi-GPU workers on the GPU: how many GPUs a process uses.</summary>
+    public bool ShowGpuCount => ShowGpuIds && Manifest.MultiGpu;
 
     private void LoadHosting()
     {
@@ -370,6 +377,8 @@ public sealed partial class WorkerItemViewModel : ObservableObject
             Device = DeviceOptions.FirstOrDefault(o => o.Value == value) ?? DeviceOptions.FirstOrDefault();
             Parallel = hosting.Lanes;
             GpuIds = saved?[WorkerManifest.GpusKey] is JsonValue v && v.TryGetValue<string>(out var ids) ? ids : "";
+            // On the CPU the hosting says 1; the saved count still applies when it goes back to the GPU.
+            GpuCount = Manifest.Hosting(saved).GpuCount;
         }
         finally
         {
@@ -387,6 +396,12 @@ public sealed partial class WorkerItemViewModel : ObservableObject
     {
         if (!_loadingHosting && value != null)
             SaveWorkerSetting(WorkerManifest.ParallelKey, JsonValue.Create((int)Math.Clamp(value.Value, 1, 16)));
+    }
+
+    partial void OnGpuCountChanged(decimal? value)
+    {
+        if (!_loadingHosting && value != null)
+            SaveWorkerSetting(WorkerManifest.GpuCountKey, JsonValue.Create((int)Math.Clamp(value.Value, 1, WorkerManifest.MaxGpuCount)));
     }
 
     partial void OnGpuIdsChanged(string value)

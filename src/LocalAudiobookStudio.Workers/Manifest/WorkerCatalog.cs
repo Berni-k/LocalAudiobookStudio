@@ -203,6 +203,8 @@ public sealed class WorkerCatalog
             if (m.InlineTags is { Length: > 0 } tags)
                 try { _ = new System.Text.RegularExpressions.Regex(tags); }
                 catch (ArgumentException ex) { LoadErrors.Add($"{file}: \"inlineTags\" isn't a valid regular expression: {ex.Message}"); }
+            if (m.MultiGpu && !m.RunsOnGpu)
+                LoadErrors.Add($"{file}: \"multiGpu\" needs a worker that runs on the GPU (\"devices\" with \"cuda\")");
             // Alignment times what the worker hears: without Transcription it has nothing to time. An aligner of a
             // given text is tagged Alignment Forced.
             if (m.CanAlign && !m.CanTranscribe)

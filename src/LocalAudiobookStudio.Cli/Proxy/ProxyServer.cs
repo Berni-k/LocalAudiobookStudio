@@ -197,7 +197,7 @@ public sealed class ProxyServer
         var workers = host?.Scheduler.WorkerSnapshots()
             // Its runtime can only change while it isn't loaded, so the chosen one is the one it runs on.
             .Select(w => new ProxyWorker(w.WorkerId, host.Catalog.Get(w.WorkerId)?.Runtime ?? "?",
-                devices.GetValueOrDefault(w.DeviceIndex) ?? "?", w.State.ToString(), w.JobLabel))
+                string.Join(" + ", w.DeviceIndexes.Select(i => devices.GetValueOrDefault(i) ?? "?")), w.State.ToString(), w.JobLabel))
             .ToList() ?? [];
         return new ProxyStatus(Environment.ProcessId, AppVersion.Display, _startedUtc, Math.Max(0, Volatile.Read(ref _clients) - 1),
             host?.Scheduler.QueuedCount ?? 0, host?.Scheduler.RunningCount ?? 0, Math.Round(IdleFor.TotalMinutes, 1), workers);

@@ -17,6 +17,9 @@ public sealed record Assignment(GenerationJob Job, ComputeDevice Device, WorkerP
 ///    process of another worker if needed. Different workers start and load side by side.
 /// 4. If a job needs a new process here but another device with room already has an idle process of
 ///    that worker, leave the job for that device.
+/// A job of a multi-GPU worker picked here doesn't start yet: the scheduler claims this device for it and waits
+/// for more (GenerationScheduler.MultiGpu.cs). A multi-GPU process counts on each of its devices, and is reused
+/// from the device it was started for.
 /// </summary>
 public static class SchedulingPolicy
 {
@@ -31,11 +34,12 @@ public static class SchedulingPolicy
         return c != 0 ? c : a.Sequence.CompareTo(b.Sequence);
     }
 
+    // A multi-GPU process counts on every device it uses.
     public static int ActiveOn(ComputeDevice d, IReadOnlyList<WorkerProcess> processes) =>
-        processes.Count(p => ReferenceEquals(p.Device, d) && p.IsActive);
+        processes.Count(p => p.Uses(d) && p.IsActive);
 
     public static int TotalOn(ComputeDevice d, IReadOnlyList<WorkerProcess> processes) =>
-        processes.Count(p => ReferenceEquals(p.Device, d));
+        processes.Count(p => p.Uses(d));
 
     public static bool HasRoom(ComputeDevice d, IReadOnlyList<WorkerProcess> processes, Func<string, WorkerHosting> hostingOf) =>
         d.Enabled && ActiveOn(d, processes) < d.MaxActive(hostingOf);
@@ -72,13 +76,13 @@ public static class SchedulingPolicy
                 if (processes.Any(p => p.IsPreparing && string.Equals(p.WorkerId, job.WorkerId, StringComparison.OrdinalIgnoreCase)))
                     continue; // another process of this worker is still preparing (maybe downloading)
                 if (device.StartBackoffUntil.TryGetValue(job.WorkerId, out var until) && until > nowUtc) continue;
-                var mine = processes.Count(p => ReferenceEquals(p.Device, device) &&
+                var mine = processes.Count(p => p.Uses(device) &&
                                                 string.Equals(p.WorkerId, job.WorkerId, StringComparison.OrdinalIgnoreCase));
                 if (mine >= hosting.Lanes) continue; // all of its processes here are busy: wait for one
                 WorkerProcess? evict = null;
                 if (device.MaxTotal is int max && total >= max)
                 {
-                    evict = processes.Where(p => ReferenceEquals(p.Device, device) && p.IsIdle)
+                    evict = processes.Where(p => p.Uses(device) && p.IsIdle)
                         .OrderBy(p => p.IdleSinceUtc).FirstOrDefault();
                     if (evict == null) continue; // full of busy processes
                 }

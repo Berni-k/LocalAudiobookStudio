@@ -156,7 +156,8 @@ public sealed class CliContext
     }
 
     private static string WhereOf(WorkerProcess process) =>
-        process.Device.Kind == DeviceKind.Gpu ? $"GPU {process.Device.GpuIndex}" : process.Device.Kind == DeviceKind.Cpu ? "CPU" : process.Device.Name;
+        process.Device.Kind == DeviceKind.Gpu ? $"GPU {string.Join("+", process.Devices.Select(d => d.GpuIndex))}"
+        : process.Device.Kind == DeviceKind.Cpu ? "CPU" : process.Device.Name;
 
     /// <summary>Progress and messages (stderr), unless --quiet.</summary>
     public void Info(string line)

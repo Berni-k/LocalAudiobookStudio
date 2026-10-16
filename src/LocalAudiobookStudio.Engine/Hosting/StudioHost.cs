@@ -120,7 +120,7 @@ public sealed class StudioHost
         Scheduler.WorkerLog += (process, worker, line) =>
         {
             // Short device names keep log lines readable: "GPU 1", not "GPU 1 (NVIDIA GeForce RTX 3090)".
-            var where = process.Device.Kind == DeviceKind.Gpu ? $"GPU {process.Device.GpuIndex}" : "CPU";
+            var where = process.Device.Kind == DeviceKind.Gpu ? $"GPU {string.Join("+", process.Devices.Select(d => d.GpuIndex))}" : "CPU";
             WorkerLogLine?.Invoke($"[{where} · {worker}{(process.Lane > 0 ? $" #{process.Lane + 1}" : "")}] {line}");
             Log.LogDebug("[{Device} · {Worker}] {Line}", where, worker, line);
         };
@@ -199,9 +199,11 @@ public sealed class StudioHost
     private IWorkerConnection CreateConnection(string workerId, WorkerProcess process)
     {
         var m = Catalog.Get(workerId) ?? throw new InvalidOperationException($"Unknown worker {workerId}");
-        // A GPU pins the process to that GPU; the CPU and external workers (ComfyUI bridge) see no GPU.
+        // A GPU pins the process to that GPU (a multi-GPU process to all of its GPUs); the CPU and external workers
+        // (ComfyUI bridge) see no GPU.
         var device = process.Device;
-        var env = Environments.WorkerEnvironment(m, device.Kind == DeviceKind.Gpu ? device.GpuIndex : -1);
+        var env = Environments.WorkerEnvironment(m, device.Kind == DeviceKind.Gpu ? device.GpuIndex : -1,
+            process.Devices.Skip(1).Select(d => d.GpuIndex).ToList());
         // Machine-specific worker settings (Workers window) and which of the worker's processes this is.
         env["LAS_WORKER_SETTINGS"] = m.WorkerSettingValues(Settings.WorkerSettings.GetValueOrDefault(workerId)).ToJsonString();
         env["LAS_LANE"] = process.Lane.ToString();

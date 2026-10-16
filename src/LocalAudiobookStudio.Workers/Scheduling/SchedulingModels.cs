@@ -161,18 +161,22 @@ public enum WorkerPlacement
 }
 
 /// <summary>
-/// Where and how wide a worker runs, from its worker settings ("device", "parallel", "gpus").
+/// Where and how wide a worker runs, from its worker settings ("device", "parallel", "gpus", "gpuCount").
 /// </summary>
 /// <param name="Device">Gpu or Cpu (Local = either, for tests), or External.</param>
 /// <param name="Parallel">How many processes of the worker may run on one device at once.</param>
 /// <param name="Gpus">GPU ids the worker may use; null or empty = all.</param>
-public sealed record WorkerHosting(WorkerPlacement Device, int Parallel = 1, IReadOnlySet<int>? Gpus = null)
+/// <param name="GpuCount">GPUs each process uses together (multi-GPU workers); 1 otherwise.</param>
+public sealed record WorkerHosting(WorkerPlacement Device, int Parallel = 1, IReadOnlySet<int>? Gpus = null, int GpuCount = 1)
 {
     public static readonly WorkerHosting AnyLocal = new(WorkerPlacement.Local);
     public static readonly WorkerHosting External = new(WorkerPlacement.External);
 
     public int Lanes => Math.Max(1, Parallel);
     public bool AllowsGpu(int gpuIndex) => Gpus is not { Count: > 0 } || Gpus.Contains(gpuIndex);
+
+    /// <summary>How many devices a process of the worker takes on a device of this kind: GPU count on a GPU, else one.</summary>
+    public int DevicesPerProcess(DeviceKind kind) => kind == DeviceKind.Gpu ? Math.Max(1, GpuCount) : 1;
 }
 
 /// <summary>A device as the app configures it (from settings).</summary>
@@ -264,19 +268,31 @@ public enum WorkerState
     Busy,
 }
 
-/// <summary>One running worker process on a device. It belongs to one worker for its whole life.</summary>
+/// <summary>
+/// One running worker process on a device (a multi-GPU worker's: on several GPUs). It belongs to one worker for its
+/// whole life.
+/// </summary>
 public sealed class WorkerProcess
 {
-    internal WorkerProcess(int id, ComputeDevice device, string workerId, int lane)
+    internal WorkerProcess(int id, ComputeDevice device, string workerId, int lane, IReadOnlyList<ComputeDevice>? moreDevices = null)
     {
         Id = id;
         Device = device;
         WorkerId = workerId;
         Lane = lane;
+        Devices = [device, .. moreDevices ?? []];
     }
 
     public int Id { get; }
+
+    /// <summary>The device it was started for (the first of <see cref="Devices"/>): its lane, errors and crashes count here.</summary>
     public ComputeDevice Device { get; }
+
+    /// <summary>Every device it uses, <see cref="Device"/> first. It counts as running on each of them.</summary>
+    public IReadOnlyList<ComputeDevice> Devices { get; }
+
+    public bool Uses(ComputeDevice d) => Devices.Any(x => ReferenceEquals(x, d));
+
     public string WorkerId { get; }
 
     /// <summary>0-based number among this worker's processes on the device (LAS_LANE; the ComfyUI bridge picks its server by it).</summary>
@@ -311,10 +327,12 @@ public sealed record DeviceSnapshot(
     int Index, DeviceKind Kind, int GpuIndex, string Name, bool Enabled, int MaxActive, int? MaxTotal,
     int Active, int Total, IReadOnlyList<DeviceError> Errors, IReadOnlyCollection<string> DisabledWorkers, string? ExternalWorker);
 
+/// <param name="DeviceIndex">The device it was started for.</param>
+/// <param name="DeviceIndexes">Every device it uses (a multi-GPU worker's GPUs), <paramref name="DeviceIndex"/> first.</param>
 public sealed record WorkerSnapshot(
     int Id, int DeviceIndex, string WorkerId, int Lane, WorkerState State, Guid? JobId, Guid? ItemId,
     string? JobLabel, double Progress, string? ProgressMessage, DateTime StartedUtc, DateTime? BusySinceUtc,
-    DateTime IdleSinceUtc, string? StatusMessage);
+    DateTime IdleSinceUtc, string? StatusMessage, IReadOnlyList<int> DeviceIndexes);
 
 public sealed record JobSnapshot(
     Guid Id, Guid ItemId, string WorkerId, string Label, JobPriority Priority, JobState State,

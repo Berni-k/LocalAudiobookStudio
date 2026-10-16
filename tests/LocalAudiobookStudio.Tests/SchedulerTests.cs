@@ -98,6 +98,37 @@ public class SchedulingPolicyTests
     }
 
     [Fact]
+    public void GpuCountIsASettingOfMultiGpuWorkers()
+    {
+        var plain = new WorkerManifest();
+        Assert.DoesNotContain(plain.HostingSettings, s => s.Key == "gpuCount");
+        Assert.Equal(1, plain.Hosting(new JsonObject { ["gpuCount"] = 4 }).GpuCount);    // ignored without "multiGpu"
+
+        var multi = new WorkerManifest { MultiGpu = true, Devices = ["cuda", "cpu"] };
+        var setting = Assert.Single(multi.HostingSettings, s => s.Key == "gpuCount");
+        Assert.Equal("1", setting.Default?.ToJsonString());
+        Assert.Equal(1, multi.Hosting(null).GpuCount);
+        Assert.Equal(3, multi.Hosting(new JsonObject { ["gpuCount"] = 3 }).GpuCount);
+        Assert.Equal(WorkerManifest.MaxGpuCount, multi.Hosting(new JsonObject { ["gpuCount"] = 99 }).GpuCount);
+        Assert.Equal(1, multi.Hosting(new JsonObject { ["gpuCount"] = 3, ["device"] = "cpu" }).GpuCount); // the CPU is one device
+        Assert.Equal(1, new WorkerHosting(WorkerPlacement.Gpu, GpuCount: 3).DevicesPerProcess(DeviceKind.Cpu));
+    }
+
+    [Fact]
+    public void AMultiGpuProcessCountsOnEachOfItsGpus()
+    {
+        var g0 = Gpu(0);
+        var g1 = Gpu(1);
+        var g2 = Gpu(2);
+        var big = new WorkerProcess(++_pid, g0, "big", 0, [g1]) { State = WorkerState.Busy };
+        Assert.Equal(1, SchedulingPolicy.ActiveOn(g1, [big]));
+        Assert.Equal(1, SchedulingPolicy.TotalOn(g1, [big]));
+        Assert.Equal(0, SchedulingPolicy.TotalOn(g2, [big]));
+        Assert.Null(Pick(g1, [Job("a")], [big], [g0, g1, g2]));          // busy on GPU 1 too
+        Assert.NotNull(Pick(g2, [Job("a")], [big], [g0, g1, g2]));
+    }
+
+    [Fact]
     public void HighestPriorityThenReadingOrder()
     {
         var q = new List<GenerationJob> { Job("a", order: 5), Job("a", order: 1), Job("a", JobPriority.High, order: 9) };
@@ -590,6 +621,144 @@ public class GenerationSchedulerTests
         await WaitUntil(() => s.DeviceSnapshots().Single().Errors.Count == 1);
         s.DismissErrors(s.DeviceSnapshots().Single().Index);
         Assert.Empty(s.DeviceSnapshots().Single().Errors);
+    }
+
+    // ---------------------------------------------------------------- multi-GPU workers
+
+    /// <summary>"big" uses two GPUs per process; everything else one.</summary>
+    private static WorkerHosting TwoForBig(string w) => w == "big" ? new WorkerHosting(WorkerPlacement.Gpu, GpuCount: 2) : new WorkerHosting(WorkerPlacement.Gpu);
+
+    /// <summary>A fake worker whose generations wait for their text's gate (open gates finish at once).</summary>
+    private sealed class Gates
+    {
+        private readonly Dictionary<string, TaskCompletionSource> _gates = new();
+        public Task For(string key) { lock (_gates) return Get(key).Task; }
+        public void Open(string key) { lock (_gates) Get(key).TrySetResult(); }
+        private TaskCompletionSource Get(string key) =>
+            _gates.TryGetValue(key, out var g) ? g : _gates[key] = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private static GenerationJob Gated(string worker, string text, string dir, long order) =>
+        new() { ItemId = Guid.NewGuid(), WorkerId = worker, SegmentDir = Path.Combine(dir, text), ReadingOrder = order, Request = new GenerateRequest { Text = text } };
+
+    private static bool IsRunning(GenerationScheduler s, GenerationJob j) => s.JobSnapshots().Any(x => x.Id == j.Id && x.State == JobState.Running);
+
+    [Fact]
+    public async Task AMultiGpuJobRunsOnThatManyGpus()
+    {
+        using var tmp = new TempDir();
+        var started = new List<WorkerProcess>();
+        await using var s = new GenerationScheduler((w, p) => { lock (started) started.Add(p); return new FakeConnection(w); }, TwoForBig);
+        s.ConfigureDevices(Gpus(3));
+        GenerationJob? done = null;
+        s.JobCompleted += j => done = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = tmp.Path });
+        await WaitUntil(() => done != null);
+        var process = Assert.Single(started);
+        Assert.Equal([0, 1], process.Devices.Select(d => d.GpuIndex));
+        Assert.Equal("GPU 0 + GPU 1", done!.DeviceName);
+        // The idle process is listed on both GPUs and takes the next job without a new start.
+        Assert.Equal(2, s.WorkerSnapshots().Single().DeviceIndexes.Count);
+        done = null;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = tmp.Path });
+        await WaitUntil(() => done != null);
+        Assert.Single(started);
+    }
+
+    [Fact]
+    public async Task AMultiGpuJobGetsFirstCallOnGpusAsTheyFree()
+    {
+        using var tmp = new TempDir();
+        var gates = new Gates();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w, (r, _) => gates.For(r.Text ?? "")), TwoForBig);
+        s.ConfigureDevices(Gpus(2));
+        var a1 = Gated("a", "a1", tmp.Path, 0);
+        var a2 = Gated("b", "a2", tmp.Path, 1);
+        s.EnqueueMany([a1, a2]);
+        await WaitUntil(() => IsRunning(s, a1) && IsRunning(s, a2));
+
+        var big = Gated("big", "big", tmp.Path, 2);
+        var later = Gated("a", "later", tmp.Path, 3);   // queued after it: must not take a GPU the big job claimed
+        gates.Open("later");
+        s.EnqueueMany([big, later]);
+
+        gates.Open("a1");                                // GPU 0 frees: it goes to the big job
+        await WaitUntil(() => s.JobSnapshots().Single(j => j.Id == big.Id).ProgressMessage?.StartsWith("Waiting for GPUs") == true);
+        await Task.Delay(300);
+        Assert.False(IsRunning(s, later));
+        Assert.False(IsRunning(s, big));
+
+        gates.Open("a2");                                // GPU 1 frees too: now it runs, on both
+        await WaitUntil(() => IsRunning(s, big));
+        Assert.False(IsRunning(s, later));
+        Assert.Contains(s.WorkerSnapshots(), w => w.WorkerId == "big" && w.DeviceIndexes.Count == 2);
+
+        gates.Open("big");
+        await WaitUntil(() => s.JobSnapshots().All(j => j.Id != later.Id));   // then the rest go on
+    }
+
+    [Fact]
+    public async Task AClaimHoldsAFreeGpuAndTakesTheNextOneThatFrees()
+    {
+        using var tmp = new TempDir();
+        var gates = new Gates();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w, (r, _) => gates.For(r.Text ?? "")), TwoForBig);
+        s.ConfigureDevices(Gpus(3));
+        var a1 = Gated("a", "a1", tmp.Path, 0);
+        var a2 = Gated("b", "a2", tmp.Path, 1);
+        s.EnqueueMany([a1, a2]);
+        await WaitUntil(() => IsRunning(s, a1) && IsRunning(s, a2));
+
+        var big = Gated("big", "big", tmp.Path, 2);
+        var small = Gated("c", "small", tmp.Path, 3);
+        s.EnqueueMany([big, small]);
+        // GPU 2 was free: the big job claimed it and waits for one more. The small job waits too (two GPUs are busy,
+        // one is claimed); when GPU 0 frees, the big job takes it and runs, and GPU 1 then goes to the small job.
+        await Task.Delay(300);
+        Assert.False(IsRunning(s, big));
+        Assert.False(IsRunning(s, small));
+        gates.Open("a1");
+        await WaitUntil(() => IsRunning(s, big));
+        Assert.Equal([0, 2], s.WorkerSnapshots().Single(w => w.WorkerId == "big").DeviceIndexes.Select(i => s.DeviceSnapshots().Single(d => d.Index == i).GpuIndex).Order());
+        gates.Open("a2");
+        await WaitUntil(() => IsRunning(s, small));
+        gates.Open("big");
+        gates.Open("small");
+    }
+
+    [Fact]
+    public async Task CancellingAClaimingJobFreesItsGpus()
+    {
+        using var tmp = new TempDir();
+        var gates = new Gates();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w, (r, _) => gates.For(r.Text ?? "")), TwoForBig);
+        s.ConfigureDevices(Gpus(2));
+        var a1 = Gated("a", "a1", tmp.Path, 0);
+        s.Enqueue(a1);
+        await WaitUntil(() => IsRunning(s, a1));
+        var big = Gated("big", "big", tmp.Path, 1);
+        var small = Gated("b", "small", tmp.Path, 2);
+        gates.Open("small");
+        s.EnqueueMany([big, small]);
+        await Task.Delay(300);                           // GPU 1 is claimed: the small job waits
+        Assert.False(IsRunning(s, small));
+        var completed = 0;
+        s.JobCompleted += j => { if (j.Id == small.Id) Interlocked.Increment(ref completed); };
+        s.Cancel(big.Id);
+        await WaitUntil(() => completed == 1);
+        gates.Open("a1");
+    }
+
+    [Fact]
+    public async Task TooFewGpusForTheGpuCountFailsImmediately()
+    {
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w), _ => new WorkerHosting(WorkerPlacement.Gpu, GpuCount: 3));
+        s.ConfigureDevices(Gpus(2));
+        GenerationJob? failed = null;
+        s.JobFailed += j => failed = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = "." });
+        Assert.NotNull(failed);
+        Assert.Contains("3 GPUs", failed!.LastError);
     }
 
     [Fact]

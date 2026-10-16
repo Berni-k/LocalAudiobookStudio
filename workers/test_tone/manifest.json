@@ -1,7 +1,7 @@
 {
   "id": "test_tone",
   "displayName": "Test tones (debug)",
-  "description": "Renders tones instead of speech. No GPU and only NumPy needed; use it to check the pipeline.",
+  "description": "Renders tones instead of speech. No GPU and only NumPy needed; use it to check the pipeline. Its GPU count setting tests multi-GPU scheduling (it uses no GPU itself).",
   "experimental": true,
   "tags": ["Debug"],
   "priority": -20,
@@ -14,6 +14,7 @@
   "voiceCloning": false,
   "approxVramGb": 0,
   "devices": ["cpu", "cuda"],
+  "multiGpu": true,
   "length": { "mode": "optional", "min": 0.5, "max": 600 },
   "settings": [
     { "key": "msPerChar", "type": "int", "min": 10, "max": 200, "default": 60, "label": "Milliseconds per character" },

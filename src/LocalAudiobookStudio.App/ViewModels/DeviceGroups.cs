@@ -29,7 +29,8 @@ public sealed record DeviceGroup(DeviceSnapshot Device, IReadOnlyList<WorkerSnap
     /// </summary>
     public static List<DeviceGroup> Build(IReadOnlyList<DeviceSnapshot> devices, IReadOnlyList<WorkerSnapshot> workers, bool showIdleCpu)
     {
-        IReadOnlyList<WorkerSnapshot> On(DeviceSnapshot d) => workers.Where(w => w.DeviceIndex == d.Index).OrderBy(w => w.WorkerId).ThenBy(w => w.Lane).ToList();
+        // A multi-GPU process is listed on each of its GPUs.
+        IReadOnlyList<WorkerSnapshot> On(DeviceSnapshot d) => workers.Where(w => w.DeviceIndexes.Contains(d.Index)).OrderBy(w => w.WorkerId).ThenBy(w => w.Lane).ToList();
 
         var groups = devices.Where(d => d.Kind == DeviceKind.Gpu).OrderBy(d => d.GpuIndex)
             .Select(d => new DeviceGroup(d, On(d), [])).ToList();

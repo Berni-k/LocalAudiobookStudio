@@ -164,6 +164,11 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
    - `envGroup` (an environment in `environments.json`; reuse one, or add one if the pins clash), `modelVersion`,
      `models` (the models.json ids it asks for), `maxChars`, `sampleRate`, `voiceCloning`, `approxVramGb`,
      `devices` (`["cuda"]`, `["cuda", "cpu"]`; `cpuRecommended: false` for slow CPU runs).
+   - `multiGpu: true` for a model that can split itself over several GPUs: the worker gets a *GPU count* setting
+     (default 1, up to 32) and each of its processes that many GPUs (`CUDA_VISIBLE_DEVICES` lists them; the worker
+     splits the model over `torch.cuda.device_count()`). The scheduler gives such a job the GPU it was picked on and
+     then each GPU that frees up before any other job, and starts it once it has enough
+     (`GenerationScheduler.MultiGpu.cs`); its process counts as running on each of its GPUs.
    - A worker that listens instead of generating isn't offered as a speaker's voice. Its tags say what it does, and
      each is a request (all answered with a `transcript`; it gets a 16 kHz mono WAV, `req.audio_path`, and the expected
      text, `req.text`):

@@ -82,9 +82,10 @@ public static class ProxyCommand
         while (scheduler.WorkerSnapshots().Any(w => ids.Contains(w.Id)))
             await Task.Delay(200, ctx.Cancel);
 
-        foreach (var p in processes) ctx.Out($"{p.WorkerId} {devices.GetValueOrDefault(p.DeviceIndex) ?? "?"}");
+        string Where(Workers.Scheduling.WorkerSnapshot p) => string.Join(" + ", p.DeviceIndexes.Select(i => devices.GetValueOrDefault(i) ?? "?"));
+        foreach (var p in processes) ctx.Out($"{p.WorkerId} {Where(p)}");
         ctx.Info($"Unloaded {processes.Count} worker process(es).");
-        ctx.WriteJson(new { unloaded = processes.Select(p => new { worker = p.WorkerId, device = devices.GetValueOrDefault(p.DeviceIndex) }) });
+        ctx.WriteJson(new { unloaded = processes.Select(p => new { worker = p.WorkerId, device = Where(p) }) });
         return Program.ExitOk;
     }
 

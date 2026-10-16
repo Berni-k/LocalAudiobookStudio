@@ -678,8 +678,11 @@ public sealed class EnvironmentManager
         }
     }
 
-    /// <summary>Environment for a worker process: base variables, PYTHONPATH to the workers folder, and GPU pinning or CPU (gpuIndex -1).</summary>
-    public Dictionary<string, string> WorkerEnvironment(WorkerManifest w, int? gpuIndex)
+    /// <summary>
+    /// Environment for a worker process: base variables, PYTHONPATH to the workers folder, and GPU pinning or CPU
+    /// (gpuIndex -1). A multi-GPU process also gets <paramref name="moreGpus"/>: CUDA_VISIBLE_DEVICES lists them all.
+    /// </summary>
+    public Dictionary<string, string> WorkerEnvironment(WorkerManifest w, int? gpuIndex, IReadOnlyList<int>? moreGpus = null)
     {
         Dictionary<string, string> env;
         if (w.IsHartsy)
@@ -706,7 +709,7 @@ public sealed class EnvironmentManager
         if (gpuIndex is int g)
         {
             // The CPU (-1) hides every GPU, so even code that ignores LAS_DEVICE stays on the CPU.
-            env["CUDA_VISIBLE_DEVICES"] = g < 0 ? "" : g.ToString();
+            env["CUDA_VISIBLE_DEVICES"] = g < 0 ? "" : string.Join(",", [g, .. moreGpus ?? []]);
             env["LAS_DEVICE"] = g < 0 ? DeviceNames.Cpu : DeviceNames.Cuda;
         }
         return env;

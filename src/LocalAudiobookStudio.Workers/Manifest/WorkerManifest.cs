@@ -222,6 +222,12 @@ public sealed class WorkerManifest
     public bool External { get; set; }
 
     /// <summary>
+    /// The worker can split its model over several GPUs in one process. It then has a "GPU count" worker setting
+    /// (default 1): the scheduler gives each of its processes that many GPUs (CUDA_VISIBLE_DEVICES lists them all).
+    /// </summary>
+    public bool MultiGpu { get; set; }
+
+    /// <summary>
     /// Devices the worker can run on: "cuda" (a GPU) and/or "cpu". Default: GPU only.
     /// The process learns its device from LAS_DEVICE; on the CPU all GPUs are hidden too.
     /// </summary>
@@ -250,12 +256,14 @@ public sealed class WorkerManifest
     // ------------------------------------------------------------------ hosting (common worker settings)
 
     /// <summary>Keys of the worker settings every local worker has: where and how wide it runs.</summary>
-    public const string DeviceKey = "device", ParallelKey = "parallel", GpusKey = "gpus";
+    public const string DeviceKey = "device", ParallelKey = "parallel", GpusKey = "gpus", GpuCountKey = "gpuCount";
+    public const int MaxGpuCount = 32;
     public const string DeviceGpu = "gpu", DeviceCpu = "cpu";
 
     /// <summary>
     /// The hosting settings every worker has, ahead of its own <see cref="WorkerSettings"/>: device
-    /// (GPU / CPU, from "devices"), parallel processes per device, and the GPU ids it may use.
+    /// (GPU / CPU, from "devices"), parallel processes per device, the GPU ids it may use, and for
+    /// <see cref="MultiGpu"/> workers how many GPUs each process uses.
     /// External workers (ComfyUI bridge) only have "parallel": how many requests they send at once.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -297,6 +305,13 @@ public sealed class WorkerManifest
                     Key = GpusKey, Type = SettingTypes.String, Label = "GPU ids", Default = "",
                     Description = "Comma-separated GPU ids this worker may use, for example \"0, 2\". Blank = all GPUs.",
                 });
+            if (RunsOnGpu && MultiGpu)
+                list.Add(new SettingDefinition
+                {
+                    Key = GpuCountKey, Type = SettingTypes.Int, Label = "GPU count", Min = 1, Max = MaxGpuCount, Default = 1,
+                    Description = "How many GPUs one process of this worker uses together. The model is split over them, so each " +
+                                  "needs less memory: raise it when the model doesn't fit on one card. A job waits until it has that many GPUs.",
+                });
             return list;
         }
     }
@@ -326,7 +341,8 @@ public sealed class WorkerManifest
             foreach (var part in ids.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries))
                 if (int.TryParse(part, out var id) && id >= 0) gpus.Add(id);
         }
-        return new Scheduling.WorkerHosting(useCpu ? Scheduling.WorkerPlacement.Cpu : Scheduling.WorkerPlacement.Gpu, parallel, gpus);
+        var gpuCount = !useCpu && MultiGpu && Number(saved, GpuCountKey) is double c ? (int)Math.Clamp(Math.Round(c), 1, MaxGpuCount) : 1;
+        return new Scheduling.WorkerHosting(useCpu ? Scheduling.WorkerPlacement.Cpu : Scheduling.WorkerPlacement.Gpu, parallel, gpus, gpuCount);
     }
 
     /// <summary>A number setting, whether stored as a JSON number (any CLR type) or as text.</summary>

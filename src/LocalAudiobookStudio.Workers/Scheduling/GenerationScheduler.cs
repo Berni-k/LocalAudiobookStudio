@@ -113,7 +113,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             foreach (var old in _devices.Where(d => !keep.Contains(d)))
             {
                 old.Removed = true;
-                if (_processes.Any(p => ReferenceEquals(p.Device, old))) keep.Add(old);
+                if (_processes.Any(p => p.Uses(old))) keep.Add(old);
             }
             _devices.Clear();
             _devices.AddRange(keep);
@@ -135,7 +135,8 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         lock (_lock)
             return _processes.Select(p => new WorkerSnapshot(p.Id, p.Device.Index, p.WorkerId, p.Lane, p.State,
                 p.CurrentJob?.Id, p.CurrentJob?.ItemId, p.CurrentJob?.Label, p.CurrentJob?.Progress ?? 0,
-                p.CurrentJob?.ProgressMessage, p.StartedUtc, p.BusySinceUtc, p.IdleSinceUtc, p.StatusMessage)).ToList();
+                p.CurrentJob?.ProgressMessage, p.StartedUtc, p.BusySinceUtc, p.IdleSinceUtc, p.StatusMessage,
+                p.Devices.Select(d => d.Index).ToList())).ToList();
     }
 
     /// <summary>
@@ -280,6 +281,13 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
     {
         var workerId = job.WorkerId;
         var hosting = _hostingOf(workerId);
+        if (hosting.GpuCount > 1 && hosting.Device == WorkerPlacement.Gpu && _devices.Count > 0)
+        {
+            var gpus = _devices.Count(d => d.Kind == DeviceKind.Gpu && d.Allows(workerId, hosting));
+            if (gpus < hosting.GpuCount)
+                return $"{workerId} is set to use {hosting.GpuCount} GPUs at once, and only {gpus} enabled GPU{(gpus == 1 ? "" : "s")} may run it. " +
+                       "Lower its GPU count in its worker settings.";
+        }
         if (_devices.Count == 0 || _devices.Any(d => d.Allows(workerId, hosting) && job.MayRunOn(d))) return null;
         if (job.OnlyGpu is int gpu && _devices.Any(d => d.Allows(workerId, hosting)))
             return _devices.Any(d => d.Kind == DeviceKind.Gpu && d.GpuIndex == gpu && d.Enabled)
@@ -320,6 +328,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         }
         if (cancelled != null) JobFailed?.Invoke(cancelled);
         RaiseChanged();
+        Signal(); // GPUs a cancelled multi-GPU job had claimed go back to the others
     }
 
     public void CancelForItems(IEnumerable<Guid> itemIds)
@@ -524,16 +533,16 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         lock (_lock)
         {
             // Idle processes that may no longer run where they are (device disabled or removed, the
-            // worker moved to another device or GPU, fewer parallel workers), need a restart, died, or
-            // idled too long stop now.
+            // worker moved to another device or GPU, fewer parallel workers, another GPU count), need a
+            // restart, died, or idled too long stop now.
             foreach (var p in _processes.Where(p => p.IsIdle).ToList())
             {
                 var hosting = _hostingOf(p.WorkerId);
                 var lowerLanes = _processes.Count(o => ReferenceEquals(o.Device, p.Device) && o.Lane < p.Lane &&
                                                        string.Equals(o.WorkerId, p.WorkerId, StringComparison.OrdinalIgnoreCase));
                 var timedOut = Options.WorkerIdleTimeout > TimeSpan.Zero && now - p.IdleSinceUtc > Options.WorkerIdleTimeout;
-                if (p.NeedsRestart || p.Connection is not { IsAlive: true } || !p.Device.Allows(p.WorkerId, hosting) ||
-                    lowerLanes >= hosting.Lanes || timedOut)
+                if (p.NeedsRestart || p.Connection is not { IsAlive: true } || !p.Devices.All(d => d.Allows(p.WorkerId, hosting)) ||
+                    p.Devices.Count != hosting.DevicesPerProcess(p.Device.Kind) || lowerLanes >= hosting.Lanes || timedOut)
                 {
                     _processes.Remove(p);
                     toStop.Add(p);
@@ -544,27 +553,42 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
             {
                 if (d.MaxTotal is not int max) continue;
                 while (SchedulingPolicy.TotalOn(d, _processes) > max &&
-                       _processes.Where(p => ReferenceEquals(p.Device, d) && p.IsIdle).OrderBy(p => p.IdleSinceUtc).FirstOrDefault() is { } idle)
+                       _processes.Where(p => p.Uses(d) && p.IsIdle).OrderBy(p => p.IdleSinceUtc).FirstOrDefault() is { } idle)
                 {
                     _processes.Remove(idle);
                     toStop.Add(idle);
                 }
             }
             // Removed devices disappear once their last worker is gone.
-            _devices.RemoveAll(d => d.Removed && !_processes.Any(p => ReferenceEquals(p.Device, d)));
+            _devices.RemoveAll(d => d.Removed && !_processes.Any(p => p.Uses(d)));
 
             // New processes start side by side; the policy only holds back a second process of a worker
-            // whose first one is still preparing (it may be downloading the model files).
+            // whose first one is still preparing (it may be downloading the model files). Multi-GPU jobs
+            // claim GPUs first: a claimed GPU takes no other job.
+            var cannotClaim = new HashSet<GenerationJob>();
             bool assigned;
             do
             {
                 assigned = false;
+                foreach (var claim in _claims.ToList())
+                    if (AdvanceClaim(claim, now, toStart, toStop)) assigned = changed = true;
+
+                var open = _queue.Where(j => !cannotClaim.Contains(j) && !_claims.Any(c => ReferenceEquals(c.Job, j))).ToList();
                 foreach (var device in _devices)
                 {
-                    var a = SchedulingPolicy.PickNext(device, _queue, _processes, _devices, _hostingOf, now);
+                    if (IsClaimed(device)) continue;
+                    var a = SchedulingPolicy.PickNext(device, open, _processes, _devices, _hostingOf, now);
                     if (a == null) continue;
 
                     var job = a.Job;
+                    open.Remove(job);
+                    assigned = changed = true;
+                    if (_hostingOf(job.WorkerId).DevicesPerProcess(device.Kind) > 1)
+                    {
+                        if (!StartClaim(a, now, toStart, toStop)) cannotClaim.Add(job);
+                        continue;
+                    }
+
                     _queue.Remove(job);
                     if (a.Evict != null)
                     {
@@ -577,17 +601,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                         process = new WorkerProcess(++_processIds, device, job.WorkerId, FreeLane(device, job.WorkerId));
                         _processes.Add(process);
                     }
-                    process.State = a.Reuse != null ? WorkerState.Busy : WorkerState.Starting;
-                    process.CurrentJob = job;
-                    process.BusySinceUtc = now;
-                    job.State = JobState.Running;
-                    job.ProcessId = process.Id;
-                    job.DeviceName = device.Name;
-                    job.StartedUtc = now;
-                    job.Progress = 0;
-                    job.ProgressMessage = a.Reuse == null ? "Starting worker…" : null;
-                    toStart.Add((process, job, a.Reuse == null));
-                    assigned = changed = true;
+                    Begin(process, job, a.Reuse != null, now, toStart);
                 }
             } while (assigned);
             changed |= toStop.Count > 0;
@@ -596,6 +610,22 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         foreach (var p in toStop) _ = StopProcessAsync(p);
         foreach (var (process, job, needsStart) in toStart) _ = Task.Run(() => RunJobAsync(process, job, needsStart));
         if (changed) RaiseChanged();
+    }
+
+    /// <summary>Hands the job to the process (reused, or new and not started yet). Call under the lock.</summary>
+    private void Begin(WorkerProcess process, GenerationJob job, bool reused, DateTime now,
+        List<(WorkerProcess process, GenerationJob job, bool needsStart)> toStart)
+    {
+        process.State = reused ? WorkerState.Busy : WorkerState.Starting;
+        process.CurrentJob = job;
+        process.BusySinceUtc = now;
+        job.State = JobState.Running;
+        job.ProcessId = process.Id;
+        job.DeviceName = string.Join(" + ", process.Devices.Select(d => d.Name));
+        job.StartedUtc = now;
+        job.Progress = 0;
+        job.ProgressMessage = reused ? null : "Starting worker…";
+        toStart.Add((process, job, !reused));
     }
 
     /// <summary>The lowest lane number not used by another process of this worker on the device. Call under the lock.</summary>
