@@ -244,7 +244,7 @@ public class SchedulingPolicyTests
         var g0 = Gpu(0);
         var g1 = Gpu(1);
         var job = Job("a");
-        job.OnlyGpu = 1;
+        job.OnlyGpus = new HashSet<int> { 1 };
         Assert.Null(Pick(g0, [job], devices: [g0, g1]));
         Assert.Same(job, Pick(g1, [job], devices: [g0, g1])!.Job);
         Assert.True(job.MayRunOn(Cpu()));                                  // --gpu always left the CPU on
@@ -516,7 +516,7 @@ public class GenerationSchedulerTests
         s.ConfigureDevices(Gpus(2));
         GenerationJob? failed = null;
         s.JobFailed += j => failed = j;
-        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = ".", OnlyGpu = 3 });
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "a", SegmentDir = ".", OnlyGpus = new HashSet<int> { 3 } });
         Assert.NotNull(failed);
         Assert.Contains("GPU 3", failed!.LastError);
     }
@@ -747,6 +747,33 @@ public class GenerationSchedulerTests
         s.Cancel(big.Id);
         await WaitUntil(() => completed == 1);
         gates.Open("a1");
+    }
+
+    [Fact]
+    public async Task AMultiGpuJobPinnedToGpusTakesThemOnly()
+    {
+        using var tmp = new TempDir();
+        await using var s = new GenerationScheduler((w, _) => new FakeConnection(w), TwoForBig);
+        s.ConfigureDevices(Gpus(4));
+        GenerationJob? done = null;
+        s.JobCompleted += j => done = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = tmp.Path, OnlyGpus = new HashSet<int> { 1, 3 } });
+        await WaitUntil(() => done != null);
+        Assert.Equal("GPU 1 + GPU 3", done!.DeviceName);
+
+        GenerationJob? failed = null;
+        s.JobFailed += j => failed = j;
+        s.Enqueue(new GenerationJob { ItemId = Guid.NewGuid(), WorkerId = "big", SegmentDir = tmp.Path, OnlyGpus = new HashSet<int> { 2 } });
+        Assert.Contains("only 1 enabled GPU may run it (of GPU 2)", failed!.LastError);
+    }
+
+    [Fact]
+    public void GpuOptionTakesAList()
+    {
+        Assert.Equal([0, 1], LocalAudiobookStudio.Cli.GlobalOptions.Parse(["--gpu", "0,1", "tts"]).Gpus!.Order());
+        Assert.Equal([1, 2], LocalAudiobookStudio.Cli.GlobalOptions.Parse(["--gpu", "2", "--gpu", "1"]).Gpus!.Order());
+        Assert.Null(LocalAudiobookStudio.Cli.GlobalOptions.Parse(["tts"]).Gpus);
+        Assert.Throws<LocalAudiobookStudio.Cli.UsageException>(() => LocalAudiobookStudio.Cli.GlobalOptions.Parse(["--gpu", "0,x"]));
     }
 
     [Fact]

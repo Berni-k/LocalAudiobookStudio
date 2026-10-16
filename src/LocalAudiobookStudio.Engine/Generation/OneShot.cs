@@ -49,9 +49,12 @@ public static partial class OneShot
     /// A setting value typed from text ("key=value" on the command line): numbers, booleans and text by the
     /// manifest's setting type; for unknown keys, whatever the text looks like.
     /// </summary>
-    public static JsonNode? ParseSettingValue(WorkerManifest manifest, string key, string text)
+    public static JsonNode? ParseSettingValue(WorkerManifest manifest, string key, string text) =>
+        ParseSettingValue(manifest.Settings.FirstOrDefault(d => d.Key.Equals(key, StringComparison.OrdinalIgnoreCase)), key, text);
+
+    /// <summary>A setting's value from text, by its definition (null: guessed from the text).</summary>
+    public static JsonNode? ParseSettingValue(SettingDefinition? def, string key, string text)
     {
-        var def = manifest.Settings.FirstOrDefault(d => d.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
         switch (def?.Type)
         {
             case SettingTypes.Float:

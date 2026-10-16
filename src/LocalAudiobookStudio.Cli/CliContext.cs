@@ -42,8 +42,11 @@ public sealed class CliContext
     public CliIo Io { get; }
     public StudioHost? Host { get; private set; }
 
-    /// <summary>--gpu: run on this GPU only, for this run (several las processes can then each use their own GPU).</summary>
-    public int? OnlyGpu { get; init; }
+    /// <summary>
+    /// --gpu: run on these GPUs only, for this run (several las processes can then each use their own). A list, so a
+    /// worker that uses several GPUs at once has them.
+    /// </summary>
+    public IReadOnlySet<int>? OnlyGpus { get; init; }
 
     /// <summary>The folder relative paths are taken from: the client's, in the las proxy.</summary>
     public string Cwd { get; init; } = Directory.GetCurrentDirectory();
@@ -86,7 +89,7 @@ public sealed class CliContext
         lock (_jobIds)
             foreach (var job in jobs)
             {
-                job.OnlyGpu = OnlyGpu;
+                job.OnlyGpus = OnlyGpus;
                 _jobIds.Add(job.Id);
             }
         scheduler.EnqueueMany(jobs);
@@ -103,8 +106,7 @@ public sealed class CliContext
         {
             var shared = await SharedHost();
             // The devices are shared, so --gpu pins this run's jobs (Enqueue) instead of disabling the other GPUs.
-            if (OnlyGpu is { } gpu && !shared.Settings.Devices.Any(d => d.Gpu == gpu))
-                throw new UsageException($"--gpu {gpu}: no such GPU. See 'las devices'.");
+            CheckGpusExist(shared);
             if (Verbose)
             {
                 _workerLog = (process, worker, line) =>
@@ -117,17 +119,22 @@ public sealed class CliContext
         }
         Host = await StartStudioHostAsync("cli", Verbose ? new ConsoleLoggerProvider() : null);
         if (Verbose) Host.WorkerLogLine += line => Console.Error.WriteLine(line);
-        if (OnlyGpu is { } only)
+        if (OnlyGpus is { Count: > 0 } only)
         {
             // In memory only: the CLI never saves the app's settings.
-            if (!Host.Settings.Devices.Any(d => d.Gpu == only))
-                throw new UsageException($"--gpu {only}: no such GPU. See 'las devices'.");
-            // Project steps queue their jobs in the engine; with the other GPUs off they stay on this one too.
+            CheckGpusExist(Host);
+            // Project steps queue their jobs in the engine; with the other GPUs off they stay on these too.
             foreach (var d in Host.Settings.Devices.Where(d => d.Gpu >= 0))
-                d.Enabled = d.Gpu == only;
+                d.Enabled = only.Contains(d.Gpu);
             Host.ApplyDeviceSettings();
         }
         return Host;
+    }
+
+    private void CheckGpusExist(StudioHost host)
+    {
+        if (OnlyGpus?.FirstOrDefault(g => !host.Settings.Devices.Any(d => d.Gpu == g), -1) is >= 0 and var missing)
+            throw new UsageException($"--gpu {missing}: no such GPU. See 'las devices'.");
     }
 
     private Action<WorkerProcess, string, string>? _workerLog;

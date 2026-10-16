@@ -5,14 +5,15 @@ using Microsoft.Extensions.Logging;
 namespace LocalAudiobookStudio.Cli;
 
 /// <summary>The global options before (or among) a command's own: --json, -v, -q, --gpu, --proxy, --help.</summary>
-public sealed record GlobalOptions(bool Verbose, bool Quiet, bool Json, bool Help, bool Proxy, int? Gpu, List<string> Rest)
+/// <param name="Gpus">--gpu: the GPUs this run may use (a list, for workers that use several at once); null = any.</param>
+public sealed record GlobalOptions(bool Verbose, bool Quiet, bool Json, bool Help, bool Proxy, IReadOnlySet<int>? Gpus, List<string> Rest)
 {
     public string? Command => Rest.Count > 0 ? Rest[0].ToLowerInvariant() : null;
 
     public static GlobalOptions Parse(IReadOnlyList<string> args)
     {
         bool verbose = false, quiet = false, json = false, help = false, proxy = false;
-        int? gpu = null;
+        HashSet<int>? gpus = null;
         var rest = new List<string>();
         for (int i = 0; i < args.Count; i++)
         {
@@ -25,14 +26,17 @@ public sealed record GlobalOptions(bool Verbose, bool Quiet, bool Json, bool Hel
                 case "--proxy": proxy = true; break;
                 case "-h" or "--help" or "-?" or "/?": help = true; break;
                 case "--gpu":
-                    if (i + 1 >= args.Count || !int.TryParse(args[++i], out var g) || g < 0)
-                        throw new UsageException("--gpu takes a GPU number (see 'las devices').");
-                    gpu = g;
+                    // "1" or "0,1": repeated --gpu options add up.
+                    var parts = i + 1 < args.Count ? args[++i].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) : [];
+                    if (parts.Length == 0 || parts.Any(p => !int.TryParse(p, out var n) || n < 0))
+                        throw new UsageException("--gpu takes a GPU number or a list such as 0,1 (see 'las devices').");
+                    gpus ??= [];
+                    gpus.UnionWith(parts.Select(int.Parse));
                     break;
                 default: rest.Add(a); break;
             }
         }
-        return new GlobalOptions(verbose, quiet, json, help, proxy, gpu, rest);
+        return new GlobalOptions(verbose, quiet, json, help, proxy, gpus, rest);
     }
 }
 

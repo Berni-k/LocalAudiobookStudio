@@ -283,16 +283,20 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         var hosting = _hostingOf(workerId);
         if (hosting.GpuCount > 1 && hosting.Device == WorkerPlacement.Gpu && _devices.Count > 0)
         {
-            var gpus = _devices.Count(d => d.Kind == DeviceKind.Gpu && d.Allows(workerId, hosting));
+            var gpus = _devices.Count(d => d.Kind == DeviceKind.Gpu && d.Allows(workerId, hosting) && job.MayRunOn(d));
             if (gpus < hosting.GpuCount)
-                return $"{workerId} is set to use {hosting.GpuCount} GPUs at once, and only {gpus} enabled GPU{(gpus == 1 ? "" : "s")} may run it. " +
-                       "Lower its GPU count in its worker settings.";
+                return $"{workerId} is set to use {hosting.GpuCount} GPUs at once, and only {gpus} enabled GPU{(gpus == 1 ? "" : "s")} may run it" +
+                       (job.OnlyGpus is { Count: > 0 } only ? $" (of GPU {string.Join(", ", only.Order())})" : "") +
+                       ". Lower its GPU count in its worker settings.";
         }
         if (_devices.Count == 0 || _devices.Any(d => d.Allows(workerId, hosting) && job.MayRunOn(d))) return null;
-        if (job.OnlyGpu is int gpu && _devices.Any(d => d.Allows(workerId, hosting)))
-            return _devices.Any(d => d.Kind == DeviceKind.Gpu && d.GpuIndex == gpu && d.Enabled)
-                ? $"{workerId} may not run on GPU {gpu} (see its worker settings)."
-                : $"GPU {gpu} isn't an enabled device.";
+        if (job.OnlyGpus is { Count: > 0 } pinned && _devices.Any(d => d.Allows(workerId, hosting)))
+        {
+            var list = string.Join(", ", pinned.Order());
+            return _devices.Any(d => d.Kind == DeviceKind.Gpu && pinned.Contains(d.GpuIndex) && d.Enabled)
+                ? $"{workerId} may not run on GPU {list} (see its worker settings)."
+                : $"GPU {list} {(pinned.Count == 1 ? "isn't an enabled device" : "aren't enabled devices")}.";
+        }
         if (hosting.Device.HasFlag(WorkerPlacement.External)) return $"{workerId} has no device to run on.";
         if (hosting.Device == WorkerPlacement.Gpu)
             return hosting.Gpus is { Count: > 0 } ids
@@ -691,7 +695,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 if (job.Then?.Invoke(job) is { } next)
                 {
                     next.ContinuesFrom = job;
-                    next.OnlyGpu ??= job.OnlyGpu;
+                    next.OnlyGpus ??= job.OnlyGpus;
                     job.State = JobState.Completed;
                     job.FinishedUtc = DateTime.UtcNow;
                     EnqueueMany([next]);

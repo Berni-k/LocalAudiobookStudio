@@ -1,0 +1,27 @@
+# torch and torchaudio come from the shared environment (workers/environments.json). Upstream (fish-speech v3)
+# asks for torch 2.8 and transformers 5.19; it was tested on the environment's torch 2.11 and transformers 5.18.
+# fish-speech's own dependencies (pyproject.toml at the pinned commit, see worker.py) that inference needs; its
+# server and web UI ones (kui, uvicorn, pyaudio, modelscope, silero-vad) are left out. The package itself isn't
+# installed: it only works from a source checkout, which the worker downloads.
+numpy
+transformers
+tokenizers
+hydra-core>=1.3.2
+natsort>=8.4.0
+einops>=0.7.0
+librosa>=0.10.1
+loguru>=0.6.0
+pyrootutils>=1.0.4
+resampy>=0.4.3
+einx[torch]==0.2.2
+pydub
+opencc-python-reimplemented==0.1.7
+ormsgpack
+tiktoken>=0.8.0
+pydantic
+cachetools
+descript-audio-codec
+safetensors
+soundfile
+click
+tqdm

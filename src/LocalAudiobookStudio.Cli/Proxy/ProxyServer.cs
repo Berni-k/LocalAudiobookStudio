@@ -253,7 +253,7 @@ public sealed class ProxyServer
 
         var ctx = new CliContext(g.Verbose, g.Quiet, g.Json, cts.Token, io)
         {
-            OnlyGpu = g.Gpu,
+            OnlyGpus = g.Gpus,
             Cwd = request.Cwd,
             SharedHost = () => _host,
             // Requests are served in the order they came: each one's jobs after the earlier ones'.

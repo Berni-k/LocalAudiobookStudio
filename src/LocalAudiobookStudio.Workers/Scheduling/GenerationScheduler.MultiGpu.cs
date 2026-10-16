@@ -66,7 +66,7 @@ public sealed partial class GenerationScheduler
 
         var changed = false;
         while (claim.Held.Count < claim.Count &&
-               _devices.Where(d => d.Kind == DeviceKind.Gpu && !IsClaimed(d) && d.Allows(workerId, hosting) &&
+               _devices.Where(d => d.Kind == DeviceKind.Gpu && !IsClaimed(d) && d.Allows(workerId, hosting) && job.MayRunOn(d) &&
                                    SchedulingPolicy.HasRoom(d, _processes, _hostingOf))
                    .OrderBy(d => d.GpuIndex).FirstOrDefault() is { } free)
         {

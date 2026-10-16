@@ -26,6 +26,7 @@ public static class TtsCommand
         new("--output", "-o"),
         new("--worker", "-w"),
         new("--runtime"),
+        new("--gpu-count"),
         new("--voice"),
         new("--set", Repeatable: true),
         new("--seed"),
@@ -187,6 +188,7 @@ public static class TtsCommand
         var manifest = host.Catalog.Get(workerId)
                        ?? throw new UsageException($"tts: unknown worker '{workerId}'. Workers: {string.Join(", ", host.Catalog.All.Select(m => m.Id))}.");
         if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "tts", ctx.Shared);
+        if (a.Get("--gpu-count") is { } gpuCount) WorkerSetupCommands.UseGpuCount(host, manifest, gpuCount, "tts", ctx.Shared);
         if (manifest.Broken is { } broken) ctx.Info($"Warning: {manifest.DisplayName} is known to be broken: {broken}");
         if (host.WhyWorkerCannotRun(manifest.Id) is { } why) throw new SetupException(why);
         baseSettings ??= manifest.DefaultSettings();
@@ -210,6 +212,12 @@ public static class TtsCommand
         }
         foreach (var (key, value) in a.GetPairs("--set"))
         {
+            // A per-machine worker setting (Workers window) applies to this run, in memory like --runtime.
+            if (manifest.WorkerSettings.Any(d => d.Key.Equals(key, StringComparison.OrdinalIgnoreCase)))
+            {
+                WorkerSetupCommands.UseWorkerSetting(host, manifest, key, value, "tts", ctx.Shared);
+                continue;
+            }
             try { overrides[key] = OneShot.ParseSettingValue(manifest, key, value); }
             catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
             {

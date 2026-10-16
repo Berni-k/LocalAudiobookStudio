@@ -1,0 +1,35 @@
+{
+  "id": "drama3",
+  "displayName": "Fish Audio Drama 3",
+  "description": "Very expressive multilingual TTS (80+ languages) for drama and long-form reading; tops the open-weights leaderboards. Type free-form [tags] in a segment's text to steer the delivery: [sighs], [laughs], [whispering], [slow, dangerously quiet]. Clones from a reference clip plus its transcript. A 35B model split over several GPUs with GPU count: about 43 GB (two 24 GB GPUs), or 29 GB with 4-bit experts (two 16 GB, three 12 GB). Free under US$500k annual revenue (Fish Audio Community License).",
+  "inlineTags": "\\[[^\\[\\]\\n]*\\]",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone"],
+  "priority": 85,
+  "modelVersion": "drama-3",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1000,
+  "sampleRate": 44100,
+  "voiceCloning": true,
+  "approxVramGb": 42,
+  "devices": ["cuda"],
+  "multiGpu": true,
+  "models": ["drama-3"],
+  "workerSettings": [
+    { "key": "expertPrecision", "type": "enum", "options": ["fp8", "int4"], "optionLabels": ["FP8 (best)", "4-bit (less memory)"],
+      "default": "fp8", "label": "Expert precision",
+      "description": "4-bit re-quantizes the model's experts while loading: about 29 GB instead of 43, so it fits on smaller GPUs (two 16 GB with the codec on the CPU, three 12 GB). Some loss of quality; loading takes a little longer." },
+    { "key": "codecOnCpu", "type": "bool", "default": false, "label": "Codec on the CPU",
+      "description": "Encode reference clips and decode audio on the CPU: about 2 GB more room on the GPUs, a few seconds slower per segment. Without it the codec still falls back to the CPU when a GPU runs out of memory." }
+  ],
+  "settings": [
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "", "perVoice": true,
+      "description": "The exact words spoken in the reference clip. Required for cloning. Without a reference clip the model invents a different voice for every segment." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 1.5, "step": 0.05, "default": 0.7, "label": "Temperature" },
+    { "key": "topP", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.7, "label": "Top-p" },
+    { "key": "topK", "type": "int", "min": 1, "max": 200, "default": 30, "label": "Top-k" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

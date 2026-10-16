@@ -56,7 +56,7 @@ internal static class Program
             cts.Cancel();
         };
 
-        var ctx = new CliContext(g.Verbose, g.Quiet, g.Json, cts.Token) { OnlyGpu = g.Gpu };
+        var ctx = new CliContext(g.Verbose, g.Quiet, g.Json, cts.Token) { OnlyGpus = g.Gpus };
         try
         {
             return await CommandRunner.RunAsync(ctx, g.Rest);

@@ -44,7 +44,8 @@ internal static class Help
           --json          Print the result as JSON on stdout
           -v, --verbose   Show details and worker logs on stderr
           -q, --quiet     Only errors on stderr
-          --gpu <n>       Run on GPU n only (see 'devices'); other GPUs stay idle for this run
+          --gpu <n,…>     Run on these GPUs only, e.g. 1 or 0,1 (see 'devices'); other GPUs stay idle for this
+                          run. A worker that uses several GPUs at once (--gpu-count) takes them from the list
           --proxy         Run in the las proxy, which keeps workers loaded between calls (tts, transcribe,
                           compare); LAS_PROXY=1 does it for every such command. See 'las help proxy'
           -h, --help      Help ('las help tts', 'las help transcribe', 'las help compare', 'las help project',
@@ -69,8 +70,10 @@ internal static class Help
               --skip-existing    Skip inputs whose WAV already exists
           -w, --worker <id>      Worker (default: kokoro); see 'las workers'
               --runtime <name>   Runtime of the worker (python, onnx, onnx-cuda, hartsy); see 'las workers <id>'
+              --gpu-count <n>    GPUs one process uses together (workers that split a model over several GPUs)
               --voice <v>        A voice of the worker, or a reference clip to clone (workers that clone)
-              --set key=value    A worker setting (repeatable); see 'las workers <id>'
+              --set key=value    A worker setting (repeatable); see 'las workers <id>'. Its per-machine settings
+                                 (the Workers window's) apply to this run only
               --seed <n>         Seed for repeatable results
               --length <sec>     Length, for workers that take one (otherwise named in the text, or 5 s)
               --gap <ms>         Silence between paragraphs (default 400)
@@ -165,8 +168,8 @@ internal static class Help
         and runs the others here as usual (for a whole script).
 
         Calls from several scripts share one queue and the GPUs, as in the app, and are served in the order
-        they came; one that has to wait shows how many jobs are ahead of it (not with --json or -q). --gpu <n>
-        keeps a call's jobs on GPU n; without it they go to whichever GPU is free. Other calls share the
+        they came; one that has to wait shows how many jobs are ahead of it (not with --json or -q). --gpu <n,…>
+        keeps a call's jobs on those GPUs; without it they go to whichever GPU is free. Other calls share the
         workers, so --runtime and --device only switch a worker that isn't loaded ('proxy unload' it first);
         the switch then stays for later calls until the next one.
 

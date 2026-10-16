@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using LocalAudiobookStudio.Engine;
 using LocalAudiobookStudio.Engine.Hosting;
 using LocalAudiobookStudio.Workers.Environments;
 using LocalAudiobookStudio.Workers.Manifest;
@@ -93,6 +94,36 @@ public static class WorkerSetupCommands
         if (shared) EnsureNotInUse(host, manifest, $"--device {device}", $"runs on the {current.ToUpperInvariant()}", context);
         if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
         values[WorkerManifest.DeviceKey] = device;
+    }
+
+    /// <summary>How many GPUs a multi-GPU worker's process uses for this run (--gpu-count), in memory like <see cref="UseRuntime"/>.</summary>
+    public static void UseGpuCount(StudioHost host, WorkerManifest manifest, string value, string context, bool shared = false)
+    {
+        if (!int.TryParse(value, out var count) || count < 1 || count > WorkerManifest.MaxGpuCount)
+            throw new UsageException($"{context}: --gpu-count is a number from 1 to {WorkerManifest.MaxGpuCount}.");
+        if (!manifest.MultiGpu)
+            throw new UsageException($"{context}: {manifest.DisplayName} runs on one GPU at a time; --gpu-count is for workers that split over several.");
+        if (host.HostingOf(manifest.Id).GpuCount == count) return;
+        if (shared) EnsureNotInUse(host, manifest, $"--gpu-count {count}", $"uses {host.HostingOf(manifest.Id).GpuCount} GPU(s)", context);
+        if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
+        values[WorkerManifest.GpuCountKey] = count;
+    }
+
+    /// <summary>One of the worker's own per-machine settings (Workers window) for this run, in memory like <see cref="UseRuntime"/>.</summary>
+    public static void UseWorkerSetting(StudioHost host, WorkerManifest manifest, string key, string text, string context, bool shared = false)
+    {
+        var def = manifest.WorkerSettings.First(d => d.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        JsonNode? value;
+        try { value = OneShot.ParseSettingValue(def, def.Key, text); }
+        catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
+        {
+            throw new UsageException($"{context}: --set {key}: {ex.Message}");
+        }
+        if (!host.Settings.WorkerSettings.TryGetValue(manifest.Id, out var values)) host.Settings.WorkerSettings[manifest.Id] = values = new JsonObject();
+        var current = values[def.Key] ?? def.Default;
+        if (JsonNode.DeepEquals(current, value)) return;
+        if (shared) EnsureNotInUse(host, manifest, $"--set {def.Key}", $"has {def.Key}={current?.ToJsonString() ?? "(default)"}", context);
+        values[def.Key] = value;
     }
 
     /// <summary>In the las proxy a worker's runtime or device only changes while none of its processes or jobs are there.</summary>
