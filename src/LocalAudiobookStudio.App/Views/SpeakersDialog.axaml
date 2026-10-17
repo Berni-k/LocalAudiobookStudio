@@ -41,7 +41,18 @@
                   <Ellipse Width="12" Height="12" Fill="{Binding ColorBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1">
                     <TextBlock Text="{Binding Name}" />
-                    <TextBlock Text="{Binding WorkerName}" Classes="caption" />
+                    <!-- Icons for what is switched on, at the caption's size, in front of the worker's name. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <PathIcon Data="{StaticResource IconMic}" Width="11" Height="11" Foreground="{DynamicResource SemiColorText2}"
+                                IsVisible="{Binding IsRecorded}" ToolTip.Tip="Recorded, not generated" />
+                      <PathIcon Data="{StaticResource IconContext}" Width="11" Height="11" Foreground="{DynamicResource SemiColorText2}"
+                                IsVisible="{Binding HasContext}" ToolTip.Tip="Context" />
+                      <PathIcon Data="{StaticResource IconComment}" Width="11" Height="11" Foreground="{DynamicResource SemiColorText2}"
+                                IsVisible="{Binding HasTranscription}" ToolTip.Tip="Transcription" />
+                      <PathIcon Data="{StaticResource IconShieldCheck}" Width="11" Height="11" Foreground="{DynamicResource SemiColorText2}"
+                                IsVisible="{Binding HasVerification}" ToolTip.Tip="Speaker verification" />
+                      <TextBlock Text="{Binding WorkerName}" Classes="caption" />
+                    </StackPanel>
                   </StackPanel>
                   <TextBlock Grid.Column="2" Text="{Binding ShortcutText}" Classes="caption" VerticalAlignment="Center" ToolTip.Tip="Shortcut key" />
                 </Grid>
@@ -51,7 +62,8 @@
         </Border>
       </DockPanel>
 
-      <!-- Editor in three groups: the speaker itself, its transcription, its generation (with everything model-specific), and a preview.
+      <!-- Editor in groups: the speaker itself, its generation (with everything model-specific), context, transcription, alignment,
+           speaker verification and a preview.
            Each group is a form: labels on the left share one width per group (SharedSizeGroup "label"). -->
       <ScrollViewer Grid.Column="2" IsVisible="{Binding HasSelection}">
         <StackPanel Spacing="12" Margin="0,0,12,0">
@@ -115,25 +127,138 @@
             </StackPanel>
           </Border>
 
-          <!-- ===== Transcription: with None selected it is only the dropdown. -->
+          <!-- ===== Generation -->
           <Border Classes="group">
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
-              <TextBlock Text="Transcription" Classes="groupTitle" Margin="0,0,0,4" />
+              <CheckBox IsChecked="{Binding UseGeneration}" Margin="0,0,0,4"
+                        ToolTip.Tip="Generate this speaker's segments with a model. Unchecked, you record them yourself.">
+                <TextBlock Text="Generation" Classes="groupTitle" />
+              </CheckBox>
+              <StackPanel Classes="form" IsVisible="{Binding UseGeneration}">
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <TextBlock Text="Worker" Classes="formLabel" />
                 <StackPanel Grid.Column="1" Spacing="2">
-                  <ComboBox ItemsSource="{Binding Transcribers}" SelectedItem="{Binding Transcriber}" HorizontalAlignment="Stretch"
-                            Classes.missing="{Binding IsTranscriberMissing}" PlaceholderText="Choose a worker" />
-                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTranscriberMissing}">
+                  <ComboBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Worker}" HorizontalAlignment="Stretch"
+                            Classes.missing="{Binding IsWorkerMissing}" PlaceholderText="Install a worker in Workers" />
+                  <!-- The project uses a worker this machine doesn't have. -->
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsWorkerMissing}">
                     <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding MissingTranscriberText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    <TextBlock Text="{Binding MissingWorkerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    <Button Classes="link" Content="clear" Command="{Binding ClearMissingWorkerCommand}" VerticalAlignment="Center"
+                            ToolTip.Tip="Clear it so you can pick one of your installed workers" />
                   </StackPanel>
-                  <TextBlock Text="{Binding TranscriberInfo}" Classes="caption" TextWrapping="Wrap"
-                             IsVisible="{Binding HasTranscriber}" />
+                  <TextBlock Text="{Binding WorkerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding !IsWorkerMissing}" />
                 </StackPanel>
               </Grid>
-              <ContentControl Content="{Binding TranscriberSettings}" />
+              <Grid IsVisible="{Binding SupportsCloning}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Reference clip" Classes="formLabel" />
+                <StackPanel Grid.Column="1" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip" />
+                    <!-- The menu (file, project assets, none) is built in code-behind when clicked. -->
+                    <Button Grid.Column="1" Content="Choose ▾" Click="OnChooseVoice" Margin="4,0,0,0" />
+                    <Button Grid.Column="2" Classes="icon" Command="{Binding PlayVoiceFileCommand}" ToolTip.Tip="Play reference clip" Margin="4,0,0,0">
+                      <PathIcon Data="{StaticResource IconPlay}" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Text="Voice cloning: 5–30 s of clean speech, from a file or the project's assets." Classes="caption" />
+                </StackPanel>
+              </Grid>
+              <!-- Model settings: rows from the settings form, aligned to the same label column. -->
+              <ContentControl Content="{Binding Settings}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Context: lines around a segment, and neighbouring segments, generated with it in one go. Two boxes,
+               each switched on by the checkbox in its header; the settings show once it is on. The worker's limits are
+               warnings at the bottom. Not part of what makes a take stale. A recorded speaker has it too (its lines can be
+               context for others), without the numbers: its own segments aren't generated. -->
+          <Border Classes="group" IsVisible="{Binding ShowContext}">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <CheckBox IsChecked="{Binding ContextInclude}" Margin="0,0,0,4" ToolTip.Tip="{Binding IncludeTip}">
+                <TextBlock Text="Context" Classes="groupTitle" />
+              </CheckBox>
+              <StackPanel Classes="form" IsVisible="{Binding ShowContextSettings}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Segments before" Classes="formLabel" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding ContextBefore}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
+                                 Width="130" HorizontalAlignment="Left" />
+                </Grid>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Segments after" Classes="formLabel" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding ContextAfter}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
+                                 Width="130" HorizontalAlignment="Left" />
+                </Grid>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Max characters" Classes="formLabel" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding ContextMaxChars}" Minimum="0" Maximum="5000" Increment="100" FormatString="0"
+                                 Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of context on each side" />
+                </Grid>
+              </StackPanel>
+
+              <!-- Disabled for workers that render one voice at a time, and for recorded speakers. -->
+              <Border Classes="card" Padding="10,6,10,10" IsVisible="{Binding ShowBatching}">
+                <StackPanel Classes="form">
+                  <CheckBox IsChecked="{Binding ContextBatch}" Content="Batching" FontWeight="SemiBold" IsEnabled="{Binding CanBatch}"
+                            ToolTip.Tip="{Binding BatchTip}" ToolTip.ShowOnDisabled="True" />
+                  <StackPanel Classes="form" IsVisible="{Binding ShowBatchSettings}">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Max segments" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxSegments}" Minimum="2" Maximum="100" Increment="1" FormatString="0"
+                                     Watermark="Any" Width="130" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                      <TextBlock Text="Max characters" Classes="formLabel" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxChars}" Minimum="100" Maximum="20000" Increment="100" FormatString="0"
+                                     Watermark="Any" Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of the batch's segments together" />
+                    </Grid>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitWarning}">
+                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ContextSplitWarning}" Classes="caption warning" TextWrapping="Wrap" MaxWidth="460" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitError}">
+                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ContextSplitError}" Classes="caption error" TextWrapping="Wrap" MaxWidth="460" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- ===== Transcription: hears the words of a take. Switched on by the checkbox in its header; unchecking clears the worker. -->
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <CheckBox IsChecked="{Binding UseTranscriber}" Margin="0,0,0,4"
+                        ToolTip.Tip="Transcribe each take to check it against the text and to cut batches and context apart">
+                <TextBlock Text="Transcription" Classes="groupTitle" />
+              </CheckBox>
+              <StackPanel Classes="form" IsVisible="{Binding UseTranscriber}">
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                  <TextBlock Text="Worker" Classes="formLabel" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <ComboBox ItemsSource="{Binding Transcribers}" SelectedItem="{Binding Transcriber}" HorizontalAlignment="Stretch"
+                              Classes.missing="{Binding IsTranscriberMissing}" PlaceholderText="Install a transcription worker in Workers" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTranscriberMissing}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding MissingTranscriberText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding TranscriberInfo}" Classes="caption" TextWrapping="Wrap"
+                               IsVisible="{Binding HasTranscriber}" />
+                  </StackPanel>
+                </Grid>
+                <ContentControl Content="{Binding TranscriberSettings}" />
+              </StackPanel>
             </StackPanel>
           </Border>
 
@@ -171,114 +296,6 @@
                   </StackPanel>
                 </Grid>
                 <ContentControl Content="{Binding AlignerSettings}" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
-
-          <!-- ===== Generation -->
-          <Border Classes="group">
-            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
-              <TextBlock Text="Generation" Classes="groupTitle" Margin="0,0,0,4" />
-              <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                <TextBlock Text="Worker" Classes="formLabel" />
-                <StackPanel Grid.Column="1" Spacing="2">
-                  <ComboBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Worker}" HorizontalAlignment="Stretch"
-                            Classes.missing="{Binding IsWorkerMissing}" PlaceholderText="Choose a worker" />
-                  <!-- The project uses a worker this machine doesn't have. -->
-                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsWorkerMissing}">
-                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding MissingWorkerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
-                    <Button Classes="link" Content="clear" Command="{Binding ClearMissingWorkerCommand}" VerticalAlignment="Center"
-                            ToolTip.Tip="Clear it so you can pick one of your installed workers" />
-                  </StackPanel>
-                  <TextBlock Text="{Binding WorkerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding !IsWorkerMissing}" />
-                </StackPanel>
-              </Grid>
-              <Grid IsVisible="{Binding SupportsCloning}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                <TextBlock Text="Reference clip" Classes="formLabel" />
-                <StackPanel Grid.Column="1" Spacing="2">
-                  <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip" />
-                    <!-- The menu (file, project assets, none) is built in code-behind when clicked. -->
-                    <Button Grid.Column="1" Content="Choose ▾" Click="OnChooseVoice" Margin="4,0,0,0" />
-                    <Button Grid.Column="2" Classes="icon" Command="{Binding PlayVoiceFileCommand}" ToolTip.Tip="Play reference clip" Margin="4,0,0,0">
-                      <PathIcon Data="{StaticResource IconPlay}" />
-                    </Button>
-                  </Grid>
-                  <TextBlock Text="Voice cloning: 5–30 s of clean speech, from a file or the project's assets." Classes="caption" />
-                </StackPanel>
-              </Grid>
-              <!-- Model settings: rows from the settings form, aligned to the same label column. -->
-              <ContentControl Content="{Binding Settings}" />
-            </StackPanel>
-          </Border>
-
-          <!-- ===== Context: lines around a segment, and neighbouring segments, generated with it in one go. Two boxes,
-               each switched on by the checkbox in its header; the settings show once it is on. The worker's limits are
-               warnings at the bottom. Not part of what makes a take stale. A recorded speaker has it too (its lines can be
-               context for others), without the numbers: its own segments aren't generated. -->
-          <Border Classes="group" IsVisible="{Binding ShowContext}">
-            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
-              <TextBlock Text="Context" Classes="groupTitle" Margin="0,0,0,4" />
-
-              <Border Classes="card" Padding="10,6,10,10">
-                <StackPanel Classes="form">
-                  <CheckBox IsChecked="{Binding ContextInclude}" Content="Include context" FontWeight="SemiBold"
-                            ToolTip.Tip="{Binding IncludeTip}" />
-                  <StackPanel Classes="form" IsVisible="{Binding ShowContextSettings}">
-                    <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                      <TextBlock Text="Segments before" Classes="formLabel" />
-                      <NumericUpDown Grid.Column="1" Value="{Binding ContextBefore}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
-                                     Width="130" HorizontalAlignment="Left" />
-                    </Grid>
-                    <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                      <TextBlock Text="Segments after" Classes="formLabel" />
-                      <NumericUpDown Grid.Column="1" Value="{Binding ContextAfter}" Minimum="0" Maximum="20" Increment="1" FormatString="0"
-                                     Width="130" HorizontalAlignment="Left" />
-                    </Grid>
-                    <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                      <TextBlock Text="Max characters" Classes="formLabel" />
-                      <NumericUpDown Grid.Column="1" Value="{Binding ContextMaxChars}" Minimum="0" Maximum="5000" Increment="100" FormatString="0"
-                                     Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of context on each side" />
-                    </Grid>
-                  </StackPanel>
-                </StackPanel>
-              </Border>
-
-              <!-- Disabled for workers that render one voice at a time, and for recorded speakers. -->
-              <Border Classes="card" Padding="10,6,10,10">
-                <StackPanel Classes="form">
-                  <CheckBox IsChecked="{Binding ContextBatch}" Content="Batching" FontWeight="SemiBold" IsEnabled="{Binding CanBatch}"
-                            ToolTip.Tip="{Binding BatchTip}" ToolTip.ShowOnDisabled="True" />
-                  <StackPanel Classes="form" IsVisible="{Binding ShowBatchSettings}">
-                    <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                      <TextBlock Text="Max segments" Classes="formLabel" />
-                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxSegments}" Minimum="2" Maximum="100" Increment="1" FormatString="0"
-                                     Watermark="Any" Width="130" HorizontalAlignment="Left" />
-                    </Grid>
-                    <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                      <TextBlock Text="Max characters" Classes="formLabel" />
-                      <NumericUpDown Grid.Column="1" Value="{Binding BatchMaxChars}" Minimum="100" Maximum="20000" Increment="100" FormatString="0"
-                                     Watermark="Any" Width="130" HorizontalAlignment="Left" ToolTip.Tip="Of the batch's segments together" />
-                    </Grid>
-                  </StackPanel>
-                </StackPanel>
-              </Border>
-
-              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitWarning}">
-                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" VerticalAlignment="Top" Margin="0,2,0,0" />
-                <TextBlock Text="{Binding ContextSplitWarning}" Classes="caption warning" TextWrapping="Wrap" MaxWidth="460" />
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasContextSplitError}">
-                <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Top" Margin="0,2,0,0" />
-                <TextBlock Text="{Binding ContextSplitError}" Classes="caption error" TextWrapping="Wrap" MaxWidth="460" />
               </StackPanel>
             </StackPanel>
           </Border>

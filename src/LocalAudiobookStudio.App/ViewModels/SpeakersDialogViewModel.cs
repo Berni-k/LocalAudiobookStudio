@@ -57,18 +57,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     public ObservableCollection<SpeakerViewModel> Speakers => _session.Speakers;
     /// <summary>
-    /// "None": the speaker has no model and its segments are recorded with the microphone (the speaker's
-    /// worker id is empty). Not a real worker; it only stands for that choice in the dropdown.
+    /// The Generation checkbox. Unchecked, the speaker has no model and its segments are recorded with the
+    /// microphone (the speaker's worker id is empty).
     /// </summary>
-    public static readonly WorkerManifest NoWorker = new()
-    {
-        Id = "",
-        DisplayName = "None",
-        Description = "No generation; record the segments yourself.",
-    };
+    [ObservableProperty] private bool _useGeneration = true;
 
     /// <summary>
-    /// The dropdown: None, then the installed workers. When the selected speaker uses
+    /// The dropdown: the installed workers. When the selected speaker uses
     /// a worker that isn't installed here (e.g. a project from another machine), that one is added too, so it
     /// shows (in red, with a warning) until it is cleared or replaced.
     /// </summary>
@@ -76,7 +71,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     private void RebuildWorkers(Speaker? sp)
     {
-        var list = new List<WorkerManifest> { NoWorker };
+        var list = new List<WorkerManifest>();
         list.AddRange(AppHost.Catalog.Generators.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
         if (sp != null && !string.IsNullOrEmpty(sp.Worker) && list.All(w => w.Id != sp.Worker))
             list.Add(AppHost.Catalog.Get(sp.Worker) ?? new WorkerManifest { Id = sp.Worker, DisplayName = sp.Worker + " (unknown worker)" });
@@ -96,20 +91,12 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             }
     }
 
-    /// <summary>"None": the speaker has no transcription worker. Only stands for that choice in the dropdown.</summary>
-    public static readonly WorkerManifest NoTranscriber = new()
-    {
-        Id = "",
-        DisplayName = "None",
-        Description = "No transcription.",
-    };
-
-    /// <summary>The transcription dropdown: None, then the installed transcription workers (plus the speaker's own if it isn't installed).</summary>
+    /// <summary>The transcription dropdown: the installed transcription workers (plus the speaker's own if it isn't installed).</summary>
     public ObservableCollection<WorkerManifest> Transcribers { get; } = new();
 
     private void RebuildTranscribers(Speaker? sp)
     {
-        var list = new List<WorkerManifest> { NoTranscriber };
+        var list = new List<WorkerManifest>();
         list.AddRange(AppHost.Catalog.Transcribers.Where(w => AppHost.Environments.IsWorkerReady(w.Id)));
         if (sp != null && !string.IsNullOrEmpty(sp.Transcriber) && list.All(w => w.Id != sp.Transcriber))
             list.Add(AppHost.Catalog.Get(sp.Transcriber) ?? new WorkerManifest { Id = sp.Transcriber, DisplayName = sp.Transcriber + " (unknown worker)" });
@@ -246,10 +233,12 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     /// <summary>Without an aligner, next to its checkbox: the transcription worker times the words (green).</summary>
     public string? AlignerNote => !UseAligner && TranscriberAligns ? $"{Transcriber!.DisplayName} times the words." : null;
 
-    /// <summary>Without an aligner, next to its checkbox: nothing times the words (yellow).</summary>
-    public string? AlignerWarning => UseAligner || TranscriberAligns ? null
-        : HasTranscriber ? $"No aligner: {Transcriber!.DisplayName} doesn't time words."
-        : "No aligner: no transcription worker times the words.";
+    /// <summary>
+    /// Without an aligner, next to its checkbox: the transcription worker doesn't time the words (yellow). Nothing
+    /// to say without a transcription worker: nothing is transcribed then, so nothing needs timing.
+    /// </summary>
+    public string? AlignerWarning => UseAligner || !HasTranscriber || TranscriberAligns ? null
+        : $"No aligner: {Transcriber!.DisplayName} doesn't time words.";
 
     public bool HasAlignerNote => AlignerNote != null;
     public bool HasAlignerWarning => AlignerWarning != null;
@@ -263,7 +252,8 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         nameof(AlignerNote), nameof(AlignerWarning), nameof(HasAlignerNote), nameof(HasAlignerWarning),
     ];
 
-    public bool HasTranscriber => Transcriber != null && !ReferenceEquals(Transcriber, NoTranscriber);
+    /// <summary>The speaker has a transcription worker. Its checkbox is the same thing: unchecking clears the worker.</summary>
+    public bool HasTranscriber => Transcriber != null;
     public bool IsTranscriberMissing => HasTranscriber && !AppHost.Environments.IsWorkerReady(Transcriber!.Id);
     public string MissingTranscriberText => Transcriber == null ? "" : $"{Transcriber.DisplayName} is not installed. Install it in Workers, or pick another.";
     public string TranscriberInfo => Transcriber == null ? "" : Transcriber.Description ?? "";
@@ -285,6 +275,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     [ObservableProperty] private string? _voiceFile;
     [ObservableProperty] private string _aliases = "";
     [ObservableProperty] private SettingsEditorViewModel? _settings;
+    [ObservableProperty] private bool _useTranscriber;
     [ObservableProperty] private WorkerManifest? _transcriber;
     [ObservableProperty] private SettingsEditorViewModel? _transcriberSettings;
     [ObservableProperty] private bool _useAligner;
@@ -370,7 +361,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     /// </summary>
     private async Task TranscribePreviewAsync(Speaker sp, string audioPath, string text)
     {
-        if (Transcriber is not { } worker || ReferenceEquals(worker, NoTranscriber)) return;
+        if (Transcriber is not { } worker) return;
         var reason = AppHost.WhyWorkerCannotRun(worker.Id);
         if (reason != null) { TranscriptStatus = reason; return; }
 
@@ -541,7 +532,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     public string SpeakerId => Selected?.Id ?? "";
     public bool IsDefault => Selected != null && string.Equals(_session.Project.Defaults.Speaker, Selected.Id, StringComparison.OrdinalIgnoreCase);
     public bool SupportsCloning => Worker?.VoiceCloning == true;
-    public bool IsRecorded => ReferenceEquals(Worker, NoWorker);
+    public bool IsRecorded => !UseGeneration;
     /// <summary>Preview needs a model; recorded speakers have none.</summary>
     public bool CanPreview => Worker != null && !IsRecorded;
 
@@ -575,7 +566,10 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     /// <summary>Batching needs a worker that renders several voices in one go; for others the box is disabled.</summary>
     public bool CanBatch => Worker?.CanBatch == true;
 
-    public bool ShowBatchSettings => ContextBatch && CanBatch;
+    /// <summary>Batching is part of context: without the Context checkbox it is hidden (and ignored).</summary>
+    public bool ShowBatching => ContextInclude;
+
+    public bool ShowBatchSettings => ContextInclude && ContextBatch && CanBatch;
 
     public string BatchTip =>
         CanBatch ? "Combine the generation of similar neighbouring segments that also have batching enabled"
@@ -583,7 +577,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         : $"{Worker?.DisplayName ?? "This worker"} renders one voice at a time, so it can't batch";
 
     /// <summary>Recorded speakers have the group too: their lines can be context for others.</summary>
-    public bool ShowContext => Worker != null;
+    public bool ShowContext => Selected != null;
 
     /// <summary>A recorded speaker's segments get no context of their own; only whether its lines may be context.</summary>
     public bool ShowContextSettings => ContextInclude && !IsRecorded;
@@ -609,13 +603,13 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     /// <summary>Context or batching is on, and the worker doesn't say where the segments are (a worker that doesn't fuse never does).</summary>
     private bool NeedsTranscription =>
-        (ContextInclude || ContextBatch && CanBatch) && !IsRecorded && Worker != null && Worker.Fusion?.Spans != true;
+        ContextInclude && !IsRecorded && Worker != null && Worker.Fusion?.Spans != true;
 
     public bool HasContextSplitWarning => ContextSplitWarning != null;
     public bool HasContextSplitError => ContextSplitError != null;
 
     private static readonly string[] ContextWarnings =
-        [nameof(CanBatch), nameof(ShowBatchSettings), nameof(BatchTip), nameof(ShowContext), nameof(ShowContextSettings), nameof(IncludeTip),
+        [nameof(CanBatch), nameof(ShowBatching), nameof(ShowBatchSettings), nameof(BatchTip), nameof(ShowContext), nameof(ShowContextSettings), nameof(IncludeTip),
          nameof(ContextSplitWarning), nameof(HasContextSplitWarning), nameof(ContextSplitError), nameof(HasContextSplitError)];
 
     public int SegmentCount => Selected == null ? 0 : _session.Project.AllItems().Count(i => i.Kind == ItemKind.Tts && string.Equals(i.Speaker, Selected.Id, StringComparison.OrdinalIgnoreCase));
@@ -640,15 +634,15 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
             DisplayName = sp?.DisplayName ?? "";
             Color = sp?.Color ?? "";
             RebuildWorkers(sp);
-            Worker = sp == null ? null
-                : string.IsNullOrEmpty(sp.Worker) ? NoWorker
+            UseGeneration = sp == null || !string.IsNullOrEmpty(sp.Worker);
+            Worker = sp == null || string.IsNullOrEmpty(sp.Worker) ? null
                 : Workers.FirstOrDefault(w => w.Id == sp.Worker);
             VoiceFile = sp?.Voice; // only a voice-cloning reference clip; built-in voices are a setting
             Aliases = sp == null ? "" : string.Join(", ", sp.MarkerAliases);
             Settings = BuildSettings();
             RebuildTranscribers(sp);
-            Transcriber = sp == null ? null
-                : string.IsNullOrEmpty(sp.Transcriber) ? NoTranscriber
+            UseTranscriber = !string.IsNullOrEmpty(sp?.Transcriber);
+            Transcriber = sp == null || string.IsNullOrEmpty(sp.Transcriber) ? null
                 : Transcribers.FirstOrDefault(w => w.Id == sp.Transcriber);
             TranscriberSettings = BuildTranscriberSettings();
             RebuildSimScorers(sp);
@@ -763,6 +757,27 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         Commit();
     }
 
+    partial void OnUseGenerationChanged(bool value)
+    {
+        foreach (var n in ContextWarnings.Concat(new[] { nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText), nameof(WorkerInfo) }))
+            OnPropertyChanged(n);
+        if (_loading || Selected == null) return;
+        var sp = Selected.Model;
+        if (value)
+        {
+            // Turned on without a choice yet: the first installed worker.
+            if (Worker == null && Workers.FirstOrDefault() is { } first) Worker = first;
+            return;
+        }
+        if (string.IsNullOrEmpty(sp.Worker)) return;
+        sp.Worker = "";
+        sp.Settings = new();
+        sp.Voice = null;
+        sp.Context.Batch = false; // recorded segments aren't generated, so they can't be batched
+        Commit();
+        Dispatcher.UIThread.Post(Load);
+    }
+
     partial void OnWorkerChanged(WorkerManifest? value)
     {
         OnPropertyChanged(nameof(SupportsCloning));
@@ -828,6 +843,23 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         sp.AlignerSettings = value.DefaultSettings();
         Commit();
         Dispatcher.UIThread.Post(Load); // as for the worker: rebuild the list after the dropdown has finished
+    }
+
+    partial void OnUseTranscriberChanged(bool value)
+    {
+        if (_loading || Selected == null) return;
+        var sp = Selected.Model;
+        if (value)
+        {
+            // Turned on without a choice yet: the first installed transcription worker.
+            if (Transcriber == null && Transcribers.FirstOrDefault() is { } first) Transcriber = first;
+            return;
+        }
+        if (string.IsNullOrEmpty(sp.Transcriber)) return;
+        sp.Transcriber = "";
+        sp.TranscriberSettings = new();
+        Commit();
+        Dispatcher.UIThread.Post(Load);
     }
 
     partial void OnTranscriberChanged(WorkerManifest? value)
@@ -959,7 +991,8 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         var name = await Dialogs.Prompt("New speaker", "Name:");
         if (string.IsNullOrWhiteSpace(name)) return;
         // The shown worker if it is usable here, else the first installed worker, else None (record).
-        var worker = Worker != null && (IsRecorded || !IsWorkerMissing) ? Worker.Id
+        var worker = IsRecorded ? ""
+            : Worker != null && !IsWorkerMissing ? Worker.Id
             : AppHost.Catalog.Generators.FirstOrDefault(w => AppHost.Environments.IsWorkerReady(w.Id))?.Id ?? "";
         var sp = _session.AddSpeaker(name.Trim(), worker, _session.Speakers.Count);
         Selected = _session.SpeakerVm(sp.Id);

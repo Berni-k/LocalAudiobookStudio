@@ -101,7 +101,7 @@ public sealed class SpeakerContext
     public bool Include { get; set; }
 
     /// <summary>Lines before the segment the model also gets, for a delivery that follows on from them.</summary>
-    public int Before { get; set; } = 2;
+    public int Before { get; set; }
 
     /// <summary>Lines after the segment the model also gets.</summary>
     public int After { get; set; }
@@ -124,8 +124,12 @@ public sealed class SpeakerContext
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasContext => Include && (Before > 0 || After > 0);
 
+    /// <summary>Batching counts only with context on: the checkbox of the Context group switches both.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool Any => Batch || HasContext;
+    public bool Batches => Include && Batch;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Any => Batches || HasContext;
 
     public SpeakerContext Clone() => (SpeakerContext)MemberwiseClone();
 }

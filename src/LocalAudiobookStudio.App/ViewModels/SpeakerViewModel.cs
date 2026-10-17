@@ -24,6 +24,11 @@ public sealed partial class SpeakerViewModel : ObservableObject
     /// <summary>No worker: this speaker's segments are recorded with the microphone instead of generated.</summary>
     public bool IsRecorded => string.IsNullOrEmpty(Model.Worker);
 
+    // Which features are on, as icons in front of the worker's name in the speaker list.
+    public bool HasContext => Model.Context.Include;
+    public bool HasTranscription => !string.IsNullOrEmpty(Model.Transcriber);
+    public bool HasVerification => Model.SimEnabled;
+
     public string ShortcutText => Position is >= 1 and <= 9 ? Position.ToString() : "";
 
     /// <summary>Call after the model changed (name, color, worker).</summary>
@@ -32,6 +37,10 @@ public sealed partial class SpeakerViewModel : ObservableObject
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(ColorBrush));
         OnPropertyChanged(nameof(WorkerName));
+        OnPropertyChanged(nameof(IsRecorded));
+        OnPropertyChanged(nameof(HasContext));
+        OnPropertyChanged(nameof(HasTranscription));
+        OnPropertyChanged(nameof(HasVerification));
     }
 
     partial void OnPositionChanged(int value) => OnPropertyChanged(nameof(ShortcutText));

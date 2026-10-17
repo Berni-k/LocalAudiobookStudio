@@ -157,13 +157,13 @@ public sealed partial class ProjectEngine
                 // Background items are passed over (they come up on their own later); anything else ends the run.
                 var fusion = first.Manifest.Fusion;
                 var maxChars = fusion?.MaxChars ?? first.Manifest.MaxChars;
-                for (int k = n + 1; first.Manifest.CanBatch && first.Speaker.Context.Batch && k < ordered.Count; k++)
+                for (int k = n + 1; first.Manifest.CanBatch && first.Speaker.Context.Batches && k < ordered.Count; k++)
                 {
                     var next = ordered[k];
                     if (next.IsBackground) continue;
                     var (nci, nii) = positions[next.Id];
                     if (!Adjacent(group[^1], nci, nii) || PlanFusion(next, nci, nii) is not { } plan) break;
-                    if (!plan.Speaker.Context.Batch || !first.CanJoin(plan)) break;
+                    if (!plan.Speaker.Context.Batches || !first.CanJoin(plan)) break;
                     var batch = group.Append(plan).ToList();
                     var chars = batch.Sum(p => p.Item.Text!.Length);
                     if (batch.Select(p => p.Speaker.Id).Distinct().Count() > fusion!.Speakers || chars > maxChars) break;
