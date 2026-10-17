@@ -72,6 +72,7 @@ internal sealed class FusionConnection(string workerId) : IWorkerConnection
     public Task<TranscriptResult> TranscribeAsync(TranscribeRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
     {
         lock (Listens) Listens.Add(request);
+        if (request.Mode == ListenMode.TranscribeDiarize) return Task.FromResult(Diarize(request));
         var words = new List<TranscriptWord>();
         var at = 0;
         foreach (var part in (request.Text ?? "").Split('\n'))
@@ -88,6 +89,28 @@ internal sealed class FusionConnection(string workerId) : IWorkerConnection
         // Like Parakeet, a word runs on to the next one's start: the pause after a part is heard as part of its last word.
         for (int i = 0; i + 1 < words.Count; i++) words[i] = words[i] with { EndMs = words[i + 1].StartMs };
         return Task.FromResult(new TranscriptResult(request.Text ?? "", words, "en"));
+    }
+
+    /// <summary>
+    /// What a worker that tells voices apart hears: one block per part, each timed as a whole (a part and its pause) and said
+    /// by its own voice. "lump" hears the whole as one block, which lines up with nothing. Like the real connection, the
+    /// blocks are the transcript's words.
+    /// </summary>
+    private TranscriptResult Diarize(TranscribeRequest request)
+    {
+        var blocks = new List<TranscriptSegment>();
+        var at = 0;
+        var voice = 0;
+        foreach (var part in (request.Text ?? "").Split('\n'))
+        {
+            var ms = Length(part);
+            blocks.Add(new TranscriptSegment(part, at, at + ms, $"S{++voice:00}"));
+            at += ms + GapMs;
+        }
+        if (WorkerId == "lump")
+            blocks = [new TranscriptSegment(string.Join(' ', blocks.Select(b => b.Text)), 0, at - GapMs, "S01")];
+        return new TranscriptResult(request.Text ?? "",
+            blocks.Select((b, i) => new TranscriptWord(b.Text, b.StartMs, b.EndMs, null, b.Speaker, i)).ToList(), "en", blocks);
     }
 
     public Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct) =>
@@ -136,6 +159,9 @@ public sealed class FusionTests : IAsyncDisposable
         // Hears and times a given text, so it also times what it hears (like Qwen3-ASR).
         Worker("allround", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Alignment Forced"] """);
         Worker("hearer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription"] """);
+        // Hear who says what in timed blocks, not word by word. "lump" hears everything as one block.
+        Worker("diarizer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Multi-speaker"] """);
+        Worker("lump", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Multi-speaker"] """);
         lock (FusionConnection.Requests) FusionConnection.Requests.Clear();
         lock (FusionConnection.Listens) FusionConnection.Listens.Clear();
         _scheduler = new GenerationScheduler((w, _) => new FusionConnection(w), _ => WorkerHosting.AnyLocal);
@@ -460,8 +486,97 @@ public sealed class FusionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task BlocksByVoiceThatLineUpWithThePartsCutTheTakes()
+    {
+        // No spans and no aligner: the transcriber's blocks (one per part) say where the parts are.
+        using var p = await Open("duet", transcriber: "diarizer");
+        var lines = Lines(p);
+
+        var r = await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+
+        Assert.Equal(6, r.Completed);
+        lock (FusionConnection.Listens)
+        {
+            Assert.NotEmpty(FusionConnection.Listens);
+            Assert.All(FusionConnection.Listens, l => Assert.Equal(ListenMode.TranscribeDiarize, l.Mode));
+        }
+        foreach (var i in lines.Take(3).Append(lines[4]))
+        {
+            var take = p.Engine.Takes.Selected(i)!;
+            Assert.Equal(TakeFusion.Transcript, take.Fusion!.Split);
+            // Cut in the pauses either side of its block (3/4 of each is kept): its whole line and nothing of the next one.
+            Assert.InRange(take.DurationMs, i.Text!.Length * 20, i.Text.Length * 20 + FusionConnection.GapMs * 3 / 2 + 20);
+            // The take keeps its block as its transcript, and it matches the text.
+            var transcript = Core.Transcripts.StoredTranscript.TryLoad(p.Project.Paths.TakeTranscript(i.Id, take.Take))!;
+            var word = Assert.Single(transcript.Words);
+            Assert.Equal(i.Text, word.Text);
+            // ... still tied to the block it is (its only one, renumbered for this take) and the voice that said it.
+            Assert.Equal(0, word.Block);
+            var block = Assert.Single(transcript.Blocks!);
+            Assert.Equal(i.Text, block.Text);
+            Assert.Equal(word.Speaker, block.Speaker);
+            Assert.NotNull(block.Speaker);
+            Assert.Equal(0, take.TranscriptErrors);
+        }
+    }
+
+    [Fact]
+    public async Task BlocksThatDontLineUpFallBackToTheAligner()
+    {
+        // One block for everything holds words of every part: the aligner times what was heard, as it does for a hearer.
+        using var p = await Open("duet", transcriber: "lump");
+        foreach (var sp in p.Project.Speakers.Values) { sp.UseAligner = true; sp.Aligner = "aligner"; }
+        var lines = Lines(p);
+
+        var r = await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+
+        Assert.Equal(6, r.Completed);
+        List<TranscribeRequest> listens;
+        lock (FusionConnection.Listens) listens = FusionConnection.Listens.ToList();
+        var heard = listens.Where(l => l.Mode == ListenMode.TranscribeDiarize).ToList();
+        var timed = listens.Where(l => l.Mode == ListenMode.Align).ToList();
+        Assert.NotEmpty(heard);
+        Assert.Equal(heard.Count, timed.Count);
+        var take = p.Engine.Takes.Selected(lines[0])!;
+        Assert.Equal(TakeFusion.Transcript, take.Fusion!.Split);
+
+        // The timed words keep the voice and the block they came from (here the one block that held everything), and the
+        // take keeps its share of the block: the words that stayed.
+        var stored = Core.Transcripts.StoredTranscript.TryLoad(p.Project.Paths.TakeTranscript(lines[0].Id, take.Take))!;
+        Assert.True(stored.Words.Count > 1);
+        Assert.All(stored.Words, w => Assert.Equal((0, "S01"), (w.Block, w.Speaker)));
+        var block = Assert.Single(stored.Blocks!);
+        Assert.Equal("S01", block.Speaker);
+        Assert.Equal(string.Join(' ', stored.Words.Select(w => w.Text)), block.Text);
+        Assert.InRange(block.StartMs, 0, stored.Words[0].StartMs);
+    }
+
+    [Fact]
+    public async Task BlocksThatDontLineUpWithoutAnAlignerLeaveTheLinesToBeGeneratedAlone()
+    {
+        _host.Settings.KeepFusedGenerations = true;
+        using var p = await Open("duet", transcriber: "lump");
+        var lines = Lines(p);
+
+        var r = await p.GenerateAsync(GenerateScope.Missing, null, null, CancellationToken.None);
+
+        Assert.Equal(6, r.Completed);
+        // Nothing was cut: every line was generated on its own after.
+        Assert.All(lines, i => Assert.NotEqual(TakeFusion.Transcript, p.Engine.Takes.Selected(i)!.Fusion?.Split));
+        lock (FusionConnection.Requests)
+            Assert.Contains(FusionConnection.Requests, q => q.Parts == null && q.Text == lines[0].Text);
+        var fused = Directory.EnumerateDirectories(p.Project.Paths.FusedDir).First();
+        var record = Core.Serialization.CoreJson.Deserialize<FusionRecord>(File.ReadAllText(Path.Combine(fused, FusionRecord.RecordFile)));
+        Assert.All(record.Parts.Where(x => x.ItemId != null), x => Assert.Contains("line up", x.Note));
+    }
+
+    [Fact]
     public void TagsSayWhatAWorkerIsAskedFor()
     {
+        // Hearing who says what is a mode of its own: timed blocks by voice, without word times.
+        Assert.Equal(ListenMode.TranscribeDiarize, _host.Catalog.Get("diarizer")!.ListenMode);
+        Assert.True(_host.Catalog.Get("diarizer")!.CanDiarize);
+        Assert.False(_host.Catalog.Get("hearer")!.CanDiarize);
         Assert.Equal(ListenMode.TranscribeAlign, _host.Catalog.Get("listen")!.ListenMode);
         Assert.Equal(ListenMode.Align, _host.Catalog.Get("aligner")!.ListenMode);
         Assert.Equal(ListenMode.Transcribe, _host.Catalog.Get("hearer")!.ListenMode);

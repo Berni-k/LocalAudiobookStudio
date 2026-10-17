@@ -17,9 +17,19 @@ generating implements what its tags say, in place of ``generate`` (``req.audio_p
   times of ``req.text``'s words as written (it needs the text, and doesn't check that they were said). With
   Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript.
 
-A worker tagged Multi-speaker tells voices apart: each word it returns may have a ``"speaker"``, any label it likes
-("S0", "S1"), the same for one voice within the transcript. ``req.speakers`` (names, in the order they first speak)
-and ``req.speaker_count`` say who and how many, when the app knows; a hint that any worker may ignore.
+A worker tagged Multi-speaker tells voices apart, with any label it likes ("S0", "S1"), the same for one voice within
+the transcript. ``req.speakers`` (names, in the order they first speak) and ``req.speaker_count`` say who and how many,
+when the app knows; a hint that any worker may ignore. How the voices are reported depends on the other tags:
+
+- with Transcription and Alignment, each word returned by ``transcribe_align`` may have a ``"speaker"``;
+- with Transcription alone: ``transcribe_diarize(req, report)`` returns ``{"text", "segments", "language"}``, the text
+  as timed blocks, ``"segments": [{"text", "startMs", "endMs", "speaker"}]`` in order, each said by one voice (blocks
+  may overlap in time when voices talk at once). Words are not needed: a block is as fine a timing as the model has.
+  A worker that also times words may add a ``"block"`` to each word (the index of its segment). The app uses the
+  blocks as they are (they are compared with the expected text word by word, sharing the block's
+  time), and cuts fused generations at their edges when they line up with the parts. When an aligner times the words
+  afterwards, each aligned word gets the speaker and block it came from. A ``transcribe`` request goes to
+  ``transcribe_diarize`` when there is no ``transcribe`` (its blocks are joined into the text).
 
 A worker whose manifest declares ``fusion`` also implements ``generate_parts(req, report)``: ``req.parts`` is a
 list of :class:`Part` (segments to generate, and lines of context around them), ``req.settings`` the settings they
@@ -439,7 +449,7 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 _handle_generate(worker, msg, current)
             elif mtype == "compareVoices":
                 _handle_compare_voices(worker, msg, current)
-            elif mtype in ("transcribe", "align", "transcribeAlign"):
+            elif mtype in ("transcribe", "align", "transcribeAlign", "transcribeDiarize"):
                 _handle_listen(worker, mtype, msg, current)
             elif mtype == "listVoices":
                 voices = worker.list_voices() if hasattr(worker, "list_voices") else []
@@ -587,11 +597,15 @@ def _handle_compare_voices(worker: Any, msg: dict, current: dict) -> None:
 
 
 def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
-    """``transcribe`` (the words heard), ``align`` (the times of a known text's words) or ``transcribeAlign`` (both),
-    each answered with a ``transcript``."""
+    """``transcribe`` (the words heard), ``align`` (the times of a known text's words), ``transcribeAlign`` (both) or
+    ``transcribeDiarize`` (the text as timed blocks by voice), each answered with a ``transcript``."""
     if mtype == "transcribe":
-        method = getattr(worker, "transcribe", None) or getattr(worker, "transcribe_align", None)
+        method = (getattr(worker, "transcribe", None) or getattr(worker, "transcribe_align", None)
+                  or getattr(worker, "transcribe_diarize", None))
         missing = "doesn't transcribe audio (tag Transcription)"
+    elif mtype == "transcribeDiarize":
+        method = getattr(worker, "transcribe_diarize", None) or getattr(worker, "transcribe_align", None)
+        missing = "doesn't tell voices apart (tags Transcription and Multi-speaker)"
     elif mtype == "align":
         method = getattr(worker, "align", None)
         missing = "doesn't align a known text (tag Alignment Forced)"
@@ -618,7 +632,17 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
     if req.cancelled:
         raise Cancelled()
     if mtype == "transcribe":
-        result = dict(result, words=[])  # text only, as asked
+        result = dict(result, words=[], segments=[])  # text only, as asked
+    segments = [
+        {
+            "text": str(s["text"]),
+            "startMs": int(s["startMs"]),
+            "endMs": int(s["endMs"]),
+            **({"speaker": str(s["speaker"])} if s.get("speaker") is not None else {}),
+        }
+        for s in result.get("segments") or []
+        if str(s.get("text") or "").strip()
+    ]
     words = [
         {
             "text": str(w["text"]),
@@ -626,13 +650,15 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
             "endMs": int(w["endMs"]),
             **({"confidence": float(w["confidence"])} if w.get("confidence") is not None else {}),
             **({"speaker": str(w["speaker"])} if w.get("speaker") is not None else {}),
+            **({"block": int(w["block"])} if w.get("block") is not None else {}),
         }
         for w in result.get("words") or []
     ]
     send({
         "type": "transcript",
         "id": req.id,
-        "text": result.get("text") or " ".join(w["text"] for w in words),
+        "text": result.get("text") or " ".join(s["text"].strip() for s in segments) or " ".join(w["text"] for w in words),
         "words": words,
+        "segments": segments,
         "language": result.get("language"),
     })

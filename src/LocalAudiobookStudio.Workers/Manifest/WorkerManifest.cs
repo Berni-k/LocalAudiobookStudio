@@ -98,13 +98,23 @@ public sealed class WorkerManifest
 
     /// <summary>
     /// The most this worker can be asked for in one request: the words heard with their times when it is tagged
-    /// Transcription and Alignment (<c>transcribeAlign</c>), the words heard with Transcription alone, the times of a given
-    /// text when it only aligns (Alignment Forced).
+    /// Transcription and Alignment (<c>transcribeAlign</c>), the text as timed blocks by voice with Transcription and
+    /// Multi-speaker (<c>transcribeDiarize</c>), the words heard with Transcription alone, the times of a given text when it
+    /// only aligns (Alignment Forced).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public ListenMode ListenMode => CanTranscribe && CanAlign ? ListenMode.TranscribeAlign
+        : CanDiarize ? ListenMode.TranscribeDiarize
         : CanTranscribe ? ListenMode.Transcribe
         : ListenMode.Align;
+
+    /// <summary>
+    /// Hears the words and tells voices apart without timing each word (<c>transcribeDiarize</c>): tagged Transcription and
+    /// Multi-speaker. It answers with timed blocks of text, each said by one voice. A worker that also times words is asked
+    /// for those instead (<c>transcribeAlign</c>, with a speaker on each word).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool CanDiarize => CanTranscribe && TellsSpeakers;
 
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
@@ -613,8 +623,9 @@ public static class WorkerTags
     public const string ForcedAlignment = "Alignment Forced";
 
     /// <summary>
-    /// Tells voices apart: each word it returns says who said it (a label of its own, "S0", "S1"). With Transcription or
-    /// Alignment.
+    /// Tells voices apart (a label of its own, "S0", "S1"). With Transcription alone it answers <c>transcribeDiarize</c>:
+    /// timed blocks of text, each said by one voice, no word times. With Transcription and Alignment each timed word
+    /// says who said it (<c>transcribeAlign</c>).
     /// </summary>
     public const string MultiSpeaker = "Multi-speaker";
 

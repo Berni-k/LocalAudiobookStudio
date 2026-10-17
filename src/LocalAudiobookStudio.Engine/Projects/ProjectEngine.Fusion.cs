@@ -86,6 +86,9 @@ public sealed class FusedJobTag(ProjectEngine engine)
 
     /// <summary>What the transcription heard in the whole, when it was used to cut it.</summary>
     public List<HeardWord>? Transcript { get; set; }
+
+    /// <summary>The blocks of speech by one voice that <see cref="Transcript"/>'s words came from, when the transcriber tells voices apart.</summary>
+    public List<HeardBlock>? TranscriptBlocks { get; set; }
 }
 
 /// <summary>Identifies the job that transcribes a fused generation to cut it into takes.</summary>
@@ -209,10 +212,11 @@ public sealed partial class ProjectEngine
         var settings = MergeSettings(speaker.Settings, item.SettingsOverride, manifest);
         if (manifest.UnsupportedChoice(settings) != null) return null;
 
-        // Cutting by transcription needs word times: an aligner, or a transcription worker that times words. One that only
-        // transcribes can't say where the parts are.
+        // Cutting by transcription needs word times: an aligner, or a transcription worker that times words. Or one that tells
+        // voices apart: its timed blocks may line up with the parts (when they don't, an aligner times the words instead,
+        // or the parts are generated one by one). One that only transcribes can't say where the parts are.
         var listeners = ListenersFor(speaker);
-        if (!listeners.TimesWords && fusion?.Spans != true) return null;
+        if (!listeners.CanCut && fusion?.Spans != true) return null;
 
         var (shared, perVoice) = SplitSettings(settings, manifest);
         var key = (JsonObject)shared.DeepClone();
@@ -317,7 +321,7 @@ public sealed partial class ProjectEngine
             Parts = parts,
             RecordId = Host.Settings.KeepFusedGenerations ? DateTime.Now.ToString("yyyyMMdd-HHmmss-") + Guid.NewGuid().ToString("N")[..6] : null,
             Listeners = first.Listeners,
-            KeepsTranscripts = first.Listeners is { Hearer: { } hearer, TimesWords: true } && group.All(p => p.Speaker.Transcriber == hearer.Id),
+            KeepsTranscripts = first.Listeners is { Hearer: { } hearer, CanCut: true } && group.All(p => p.Speaker.Transcriber == hearer.Id),
             ContextAudio = contextAudio,
             FusedPath = Path.Combine(Paths.CacheDir, "fused", Guid.NewGuid().ToString("N") + ".wav"),
         };
@@ -401,7 +405,7 @@ public sealed partial class ProjectEngine
                 tag.Taken.Add(new FusedTake(m.ItemId, info.Take, m.InputHash, false));
             }
         }
-        else if (tag.Listeners.TimesWords)
+        else if (tag.Listeners.CanCut)
         {
             tag.TranscriptWav = Path.ChangeExtension(tag.FusedPath, ".16k.wav");
             Transcription.PrepareAudio(tag.FusedPath, tag.TranscriptWav);
@@ -444,22 +448,35 @@ public sealed partial class ProjectEngine
         var generation = tag.Generation!; // what the takes record: the generating worker, not this transcription
         var transcript = job.Transcript!;
 
-        // Each part's place in the joined text, then its heard span from the words that line up with it. The worker's
-        // inline tags are blanked out in place: they aren't said, and the parts keep their places.
-        var joined = SpokenText(generation.WorkerId, string.Join("\n", tag.PartTexts));
-        var ranges = new List<(int Start, int End)>();
-        var at = 0;
-        foreach (var t in tag.PartTexts) { ranges.Add((at, at + t.Length)); at += t.Length + 1; }
+        // Each part's place in the joined text, then its heard span from the words that line up with it.
         var heard = Transcription.Heard(transcript);
         tag.Transcript = heard;
-        var check = TranscriptCheck.Compare(joined, heard);
-        var words = ranges.Select(r => check.Words.Where(w => w.TextStart >= r.Start && w.TextStart < r.End).ToList()).ToList();
+        tag.TranscriptBlocks = Transcription.Blocks(transcript);
+        var (ranges, words) = PartWords(tag, generation.WorkerId, heard);
         HeardSpan? Heard(int part)
         {
             var ok = words[part].Where(w => w.Kind is WordMatch.Match or WordMatch.Close or WordMatch.Substituted).ToList();
             return ok.Count == 0 ? null : new HeardSpan(ok[0].StartMs, ok[^1].EndMs, ok[^1].StartMs, ok[0].EndMs);
         }
-        var spans = Enumerable.Range(0, ranges.Count).Select(Heard).ToList();
+        List<HeardSpan?> spans;
+        if (transcript.TimedByBlocks)
+        {
+            // Timed blocks by voice, not words: the parts are cut at the blocks' edges, when each part is whole blocks.
+            // (When they aren't and the speaker has an aligner, it has timed the words instead and this isn't reached.)
+            if (BlockSpans(tag, generation.WorkerId, transcript) is not { } blockSpans)
+            {
+                Host.Log.LogInformation("Not cutting the fused generation: the transcriber's blocks don't line up with the parts");
+                foreach (var m in tag.Members)
+                {
+                    tag.Notes[m.ItemId] = "Not cut out: the transcription's blocks of text don't line up with the segments, and no aligner is set to time the words.";
+                    tag.Uncut.Add(m.ItemId);
+                }
+                return Task.CompletedTask;
+            }
+            spans = blockSpans;
+        }
+        else
+            spans = Enumerable.Range(0, ranges.Count).Select(Heard).ToList();
 
         var audio = AudioDecoder.Decode(tag.FusedPath);
         var durationMs = (int)audio.DurationMs;
@@ -512,10 +529,13 @@ public sealed partial class ProjectEngine
             // Its share of the transcript, timed from the start of its own file, saved as its transcription.
             // A word belongs where its middle is: Parakeet runs a word's end on into the pause after it, and can start the
             // next line's first word early, in that pause, before the cut. Its times are kept within the take.
-            var mine = heard.Where(w => (w.StartMs + w.EndMs) / 2 >= start && (w.StartMs + w.EndMs) / 2 < end)
-                .Select(w => w with { StartMs = Math.Max(w.StartMs, start) - start, EndMs = Math.Min(w.EndMs, end) - start }).ToList();
-            new StoredTranscript { Worker = tag.Listeners.Names, Language = transcript.Language, Words = mine }
-                .Save(Paths.TakeTranscript(m.ItemId, info.Take));
+            // The blocks its words came from go with them (renumbered), so a timed word can still be traced to its voice.
+            var mineStored = new StoredTranscript
+            {
+                Worker = tag.Listeners.Names, Language = transcript.Language, Words = heard, Blocks = tag.TranscriptBlocks,
+            }.Slice(start, end);
+            var mine = mineStored.Words;
+            mineStored.Save(Paths.TakeTranscript(m.ItemId, info.Take));
             var own2 = TranscriptCheck.Compare(SpokenText(generation.WorkerId, m.Text), mine);
             info.TranscriptErrors = own2.Errors;
             info.TranscriptWordCount = own2.ExpectedCount;
@@ -524,6 +544,57 @@ public sealed partial class ProjectEngine
             lock (tag.Taken) tag.Taken.Add(new FusedTake(m.ItemId, info.Take, m.InputHash, true));
         }
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Each part's place in the joined text and the comparison words that belong to it. The generating worker's inline
+    /// tags are blanked out in place: they aren't said, and the parts keep their places.
+    /// </summary>
+    private (List<(int Start, int End)> Ranges, List<List<WordComparison>> Words) PartWords(FusedJobTag tag, string generatorId, List<HeardWord> heard)
+    {
+        var joined = SpokenText(generatorId, string.Join("\n", tag.PartTexts));
+        var ranges = new List<(int Start, int End)>();
+        var at = 0;
+        foreach (var t in tag.PartTexts) { ranges.Add((at, at + t.Length)); at += t.Length + 1; }
+        var check = TranscriptCheck.Compare(joined, heard);
+        return (ranges, ranges.Select(r => check.Words.Where(w => w.TextStart >= r.Start && w.TextStart < r.End).ToList()).ToList());
+    }
+
+    /// <summary>
+    /// Where each part is, from a transcript of timed blocks by voice (<see cref="ListenMode.TranscribeDiarize"/>), or null
+    /// when the blocks don't line up with the parts and can't be cut by: a block that holds words of two parts (the
+    /// same voice speaking on from one part to the next, say), a segment none of whose words were heard, or parts that
+    /// come out of order or overlap. Nothing short of whole blocks is used, because a block says nothing about where
+    /// inside it a word is. The spans are the blocks', so a cut next to one is looked for in the gap to its neighbour.
+    /// </summary>
+    private List<HeardSpan?>? BlockSpans(FusedJobTag tag, string generatorId, TranscriptResult transcript)
+    {
+        if (!transcript.TimedByBlocks) return null;
+        var heard = Transcription.Heard(transcript);
+        var (ranges, words) = PartWords(tag, generatorId, heard);
+        var owner = new Dictionary<int, int>(); // heard block -> the part its words belong to
+        var spans = new List<HeardSpan?>();
+        for (var part = 0; part < ranges.Count; part++)
+        {
+            int? start = null, end = null;
+            foreach (var w in words[part].Where(w => w.Kind is WordMatch.Match or WordMatch.Close or WordMatch.Substituted))
+                foreach (var unit in new[] { w.Unit, w.LastUnit }.Where(u => u >= 0).Distinct())
+                {
+                    if (owner.TryGetValue(unit, out var other) && other != part) return null;
+                    owner[unit] = part;
+                    start = Math.Min(start ?? heard[unit].StartMs, heard[unit].StartMs);
+                    end = Math.Max(end ?? heard[unit].EndMs, heard[unit].EndMs);
+                }
+            spans.Add(start is { } s && end is { } e ? new HeardSpan(s, e, e, s) : null);
+        }
+        if (tag.Members.Any(m => spans[m.Part] == null)) return null;
+        HeardSpan? last = null;
+        foreach (var span in spans.OfType<HeardSpan>())
+        {
+            if (last != null && last.End > span.Start) return null; // out of order, or talking over each other
+            last = span;
+        }
+        return spans;
     }
 
     /// <summary>The segments a job is for: its own, or for the transcription that cuts a fused generation, that one's.</summary>
@@ -635,6 +706,7 @@ public sealed partial class ProjectEngine
             Split = tag.Transcript != null ? TakeFusion.Transcript : TakeFusion.Worker,
             Transcriber = tag.Transcript != null ? tag.Listeners.Names : null,
             Transcript = tag.Transcript,
+            TranscriptBlocks = tag.TranscriptBlocks is { Count: > 0 } ? tag.TranscriptBlocks : null,
             Error = split is { State: JobState.Failed } ? $"The transcription failed: {split.LastError}" : null,
         };
         for (var i = 0; i < tag.Parts.Count; i++)
@@ -673,8 +745,9 @@ public sealed partial class ProjectEngine
     /// </remarks>
     private GenerationJob SplitJob(GenerationJob fused, FusedJobTag tag) =>
         Transcription.Listen(tag.Listeners, tag.TranscriptWav!, SpokenText(fused.WorkerId, string.Join("\n", tag.PartTexts)), $"{fused.Label}: finding the segments",
-            fused.Priority, new SplitJobTag(tag), fused.ReadingOrder, Voices(tag), afterRun: CutByTranscript)
-        ?? throw new InvalidOperationException("a fused generation without spans has nobody to listen to it"); // TimesWords was checked when it was planned
+            fused.Priority, new SplitJobTag(tag), fused.ReadingOrder, Voices(tag), afterRun: CutByTranscript,
+            segmentsSuffice: heard => BlockSpans(tag, fused.WorkerId, heard) != null)
+        ?? throw new InvalidOperationException("a fused generation without spans has nobody to listen to it"); // CanCut was checked when it was planned
 
     /// <summary>The voices of a fused generation by name, in the order they first speak (a hint for the transcription).</summary>
     private List<string> Voices(FusedJobTag tag) =>

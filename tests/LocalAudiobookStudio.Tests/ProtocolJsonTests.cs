@@ -78,6 +78,20 @@ public class ProtocolJsonTests
     }
 
     [Fact]
+    public void TranscriptsCanCarryTimedBlocksByVoice()
+    {
+        var request = WorkersJson.Serialize(new WorkerMessage { Type = MessageTypes.TranscribeDiarize, Id = "t2", AudioPath = @"C:\x\a.wav" });
+        Assert.Contains("\"type\":\"transcribeDiarize\"", request);
+
+        var reply = WorkersJson.Deserialize<WorkerMessage>(
+            "{\"type\": \"transcript\", \"id\": \"t2\", \"text\": \"hi there fine\", \"words\": [], \"segments\": [" +
+            "{\"text\": \"hi there\", \"startMs\": 0, \"endMs\": 900, \"speaker\": \"S01\"}, {\"text\": \"fine\", \"startMs\": 1200, \"endMs\": 1500}]}");
+        Assert.Equal(2, reply.Segments!.Count);
+        Assert.Equal(new TranscriptSegment("hi there", 0, 900, "S01"), reply.Segments[0]);
+        Assert.Null(reply.Segments[1].Speaker);
+    }
+
+    [Fact]
     public void VoiceComparisonListsItsFilesWithRoles()
     {
         var request = WorkersJson.Serialize(new WorkerMessage

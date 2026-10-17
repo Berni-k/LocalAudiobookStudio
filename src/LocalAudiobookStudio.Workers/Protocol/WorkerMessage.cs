@@ -56,6 +56,14 @@ public static class MessageTypes
     public const string TranscribeAlign = "transcribeAlign";
 
     /// <summary>
+    /// What is said and by whom (workers tagged Transcription and Multi-speaker): a <see cref="Transcript"/> whose
+    /// <see cref="WorkerMessage.Segments"/> are timed blocks of text, each with the voice that said it. The times are
+    /// the block's, not each word's. The worker may add timed words as well. <see cref="WorkerMessage.Text"/> is never
+    /// a prompt.
+    /// </summary>
+    public const string TranscribeDiarize = "transcribeDiarize";
+
+    /// <summary>
     /// How alike voices are (workers tagged Speaker Verification): two or more audio files (<see cref="WorkerMessage.Files"/>),
     /// each a reference or a candidate. Answered with <see cref="VoiceScores"/>.
     /// </summary>
@@ -125,6 +133,12 @@ public sealed class WorkerMessage
     public int? SpeakerCount { get; set; }
     public string? Language { get; set; }
     public List<TranscriptWord>? Words { get; set; }
+
+    /// <summary>
+    /// transcript (worker → app), answering transcribeDiarize: the text as timed blocks, in order, each said by one
+    /// voice. They may overlap in time when voices talk at once.
+    /// </summary>
+    public List<TranscriptSegment>? Segments { get; set; }
 
     /// <summary>compareVoices (app → worker): the audio files to compare, in this order (the matrix follows it).</summary>
     public List<VoiceFile>? Files { get; set; }
@@ -280,6 +294,9 @@ public enum ListenMode
 
     /// <summary>The words heard with their times (Transcription and Alignment): <see cref="MessageTypes.TranscribeAlign"/>.</summary>
     TranscribeAlign,
+
+    /// <summary>The text as timed blocks, each with the voice that said it (Transcription and Multi-speaker): <see cref="MessageTypes.TranscribeDiarize"/>.</summary>
+    TranscribeDiarize,
 }
 
 /// <summary>One audio file of a voice comparison: a 16 kHz mono WAV made like a transcription's (<c>Transcription.PrepareAudio</c>).</summary>
@@ -323,10 +340,35 @@ public sealed record VoiceScores(IReadOnlyList<double> Scores, IReadOnlyList<IRe
 /// Who said it, from a worker tagged Multi-speaker: any label the model likes ("S0", "S1"), the same for one voice
 /// within a transcript; null from other workers.
 /// </param>
-public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null);
+/// <param name="Block">
+/// Which of the transcript's <see cref="TranscriptResult.Segments"/> it belongs to (their place in the list), when the
+/// worker says; the connection sets it for the blocks it turns into words, and the app after an aligner timed the words
+/// of a block it was given.
+/// </param>
+public sealed record TranscriptWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null, int? Block = null);
 
-/// <summary>The text a worker heard in an audio file, word by word.</summary>
-public sealed record TranscriptResult(string Text, IReadOnlyList<TranscriptWord> Words, string? Language);
+/// <summary>
+/// A block of text a worker that tells voices apart heard, said by one voice: a sentence or a turn, timed as a whole.
+/// </summary>
+/// <param name="Speaker">The voice's label in this transcript ("S01"), the same for one voice throughout it.</param>
+public sealed record TranscriptSegment(string Text, int StartMs, int EndMs, string? Speaker = null);
+
+/// <summary>
+/// The text a worker heard in an audio file, word by word. <paramref name="Segments"/> are set when the worker answered
+/// with timed blocks (<see cref="ListenMode.TranscribeDiarize"/>); <paramref name="Words"/> are then those blocks
+/// (each a "word" holding several), unless the worker gave words too. A block's words share its time, in proportion to
+/// their length, when the transcript is compared with a text.
+/// </summary>
+public sealed record TranscriptResult(string Text, IReadOnlyList<TranscriptWord> Words, string? Language,
+    IReadOnlyList<TranscriptSegment>? Segments = null)
+{
+    /// <summary>
+    /// Only blocks are timed: each "word" is one of <see cref="Segments"/>. False for words an aligner timed, even though
+    /// they still point into the blocks they came from.
+    /// </summary>
+    public bool TimedByBlocks => Segments is { Count: > 0 } blocks && Words.Count == blocks.Count
+        && Words.Select((w, i) => w.Block == i).All(same => same);
+}
 
 /// <param name="Spans">For a request with parts: where each part is, as the worker reported (see <see cref="WorkerMessage.Spans"/>).</param>
 public sealed record GenerateResult(string Path, int DurationMs, long? Seed, int SampleRate, IReadOnlyList<PartSpan?>? Spans = null);

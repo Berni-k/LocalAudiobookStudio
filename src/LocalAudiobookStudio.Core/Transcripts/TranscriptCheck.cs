@@ -4,9 +4,24 @@ using System.Text.RegularExpressions;
 
 namespace LocalAudiobookStudio.Core.Transcripts;
 
-/// <summary>A word a transcription worker heard, with where it is in the audio.</summary>
+/// <summary>
+/// A word a transcription worker heard, with where it is in the audio. When the worker times only blocks of text, the
+/// "word" is the whole block (several words) timed as one.
+/// </summary>
 /// <param name="Speaker">Who said it, when the transcription worker tells voices apart (Multi-speaker): its own label ("S0").</param>
-public sealed record HeardWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null);
+/// <param name="Block">
+/// The block of text it came from, as an index into the transcript's <see cref="HeardBlock"/>s, when a worker that tells
+/// voices apart heard it. It stays with the word when an aligner times it afterwards, so an exactly timed word can
+/// still be traced to the voice and the stretch of speech it belongs to.
+/// </param>
+public sealed record HeardWord(string Text, int StartMs, int EndMs, double? Confidence = null, string? Speaker = null, int? Block = null);
+
+/// <summary>
+/// A stretch of speech by one voice (a sentence, a turn) as a worker that tells voices apart heard it, timed as a whole.
+/// Words refer to it by its place in the transcript's list (<see cref="HeardWord.Block"/>).
+/// </summary>
+/// <param name="Speaker">The voice's label in this transcript ("S01"): the same label for one voice throughout it.</param>
+public sealed record HeardBlock(string Text, int StartMs, int EndMs, string? Speaker = null);
 
 public enum WordMatch
 {
@@ -30,8 +45,14 @@ public enum WordMatch
 /// One word of the comparison. <see cref="TextStart"/> and <see cref="TextLength"/> locate an expected word in the
 /// original text (for highlighting it); extra words have none. Missing words get the time of the gap they belong in.
 /// </summary>
+/// <param name="Unit">
+/// Which heard item (<see cref="HeardWord"/>, by its place in the list compared) the word was heard in, -1 for a missing
+/// word. <paramref name="LastUnit"/> is the last one when two heard words made up the written one. A block of text
+/// timed as a whole is one item, so this says which words came from the same block.
+/// </param>
 public sealed record WordComparison(
-    WordMatch Kind, string? Expected, string? Heard, int StartMs, int EndMs, int TextStart, int TextLength, double? Confidence)
+    WordMatch Kind, string? Expected, string? Heard, int StartMs, int EndMs, int TextStart, int TextLength, double? Confidence,
+    int Unit = -1, int LastUnit = -1)
 {
     public bool IsError => Kind is WordMatch.Substituted or WordMatch.Missing or WordMatch.Extra;
 }
@@ -83,12 +104,14 @@ public sealed partial class TranscriptCheck
             var hw = op.Heard >= 0 ? said[op.Heard] : null;
             string? heardText = hw?.Text;
             int startMs = hw?.StartMs ?? 0, endMs = hw?.EndMs ?? 0;
+            var lastUnit = hw?.Unit ?? -1;
             if (hw != null && op.HeardCount == 2)
             {
                 // Two heard words for one written word: their text and their span together.
                 var second = said[op.Heard + 1];
                 heardText = hw.Text + " " + second.Text;
                 endMs = second.EndMs;
+                lastUnit = second.Unit;
             }
             else if (hw != null && op.Part is { } part)
             {
@@ -99,7 +122,7 @@ public sealed partial class TranscriptCheck
                 (startMs, endMs) = part == 0 ? (hw.StartMs, split) : (split, hw.EndMs);
             }
             words.Add(new WordComparison(op.Kind, e >= 0 ? ew.Text : null, heardText,
-                startMs, endMs, e >= 0 ? ew.Start : -1, e >= 0 ? ew.Length : 0, hw?.Confidence));
+                startMs, endMs, e >= 0 ? ew.Start : -1, e >= 0 ? ew.Length : 0, hw?.Confidence, hw?.Unit ?? -1, lastUnit));
         }
         FillMissingTimes(words);
         return new TranscriptCheck(words, expected.Count);
@@ -110,7 +133,7 @@ public sealed partial class TranscriptCheck
     /// <summary>A word of the text. <see cref="PauseBefore"/>: punctuation separates it from the word before.</summary>
     private readonly record struct TextWord(string Text, string Key, int Start, int Length, bool PauseBefore);
 
-    private sealed record SaidWord(string Text, string Key, int StartMs, int EndMs, double? Confidence, bool PauseBefore);
+    private sealed record SaidWord(string Text, string Key, int StartMs, int EndMs, double? Confidence, bool PauseBefore, int Unit);
 
     /// <summary>The words of a text with their place in it.</summary>
     private static IEnumerable<TextWord> Tokenize(string text)
@@ -133,14 +156,16 @@ public sealed partial class TranscriptCheck
 
     /// <summary>
     /// Heard words split like the text ("forty-two" is two words); the parts share the word's time in proportion to
-    /// their length. Words that are only punctuation are dropped.
+    /// their length. Words that are only punctuation are dropped. A heard "word" may be a whole block of text timed as
+    /// one (a sentence, a speaker's turn): its words share the block's time the same way.
     /// </summary>
     private static List<SaidWord> SplitHeard(IReadOnlyList<HeardWord> heard)
     {
         var list = new List<SaidWord>();
         var trailing = "";  // what followed the last part of the previous heard word ("21," leaves ",")
-        foreach (var w in heard)
+        for (var unit = 0; unit < heard.Count; unit++)
         {
+            var w = heard[unit];
             var parts = WordPattern().Matches(w.Text).ToList();
             var total = parts.Sum(p => p.Length);
             var at = 0;
@@ -151,7 +176,7 @@ public sealed partial class TranscriptCheck
                 var startMs = w.StartMs + (int)Math.Round((w.EndMs - w.StartMs) * (double)at / total);
                 at += p.Length;
                 var endMs = w.StartMs + (int)Math.Round((w.EndMs - w.StartMs) * (double)at / total);
-                list.Add(new SaidWord(p.Value, Key(p.Value), startMs, endMs, w.Confidence, pause));
+                list.Add(new SaidWord(p.Value, Key(p.Value), startMs, endMs, w.Confidence, pause, unit));
                 end = p.Index + p.Length;
             }
             trailing = parts.Count > 0 ? w.Text[end..] : trailing + w.Text;
@@ -180,7 +205,7 @@ public sealed partial class TranscriptCheck
         {
             var run = words.GetRange(start, count);
             words[start] = new SaidWord(string.Join(' ', run.Select(w => w.Text)), digits, run[0].StartMs, run[^1].EndMs,
-                run.Min(w => w.Confidence), run[0].PauseBefore);
+                run.Min(w => w.Confidence), run[0].PauseBefore, run[0].Unit);
             words.RemoveRange(start + 1, count - 1);
         }
         return words;

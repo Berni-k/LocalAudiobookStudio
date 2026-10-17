@@ -18,6 +18,15 @@ public sealed record Listeners(WorkerManifest? Hearer, JsonObject HearerSettings
     /// <summary>The words come with times: there is an aligner, or the hearer times them itself.</summary>
     public bool TimesWords => Aligner != null || Hearer?.CanAlign == true;
 
+    /// <summary>The hearer tells voices apart and answers with timed blocks of text (<see cref="ListenMode.TranscribeDiarize"/>).</summary>
+    public bool CanSegment => Hearer?.CanDiarize == true;
+
+    /// <summary>
+    /// Something can say where each of several lines of one recording is: word times, or blocks by voice that may line up
+    /// with the lines (and, when they don't, the aligner that times the words instead).
+    /// </summary>
+    public bool CanCut => TimesWords || CanSegment;
+
     /// <summary>The same workers and settings (speakers listened to the same way can share a fused generation).</summary>
     public string Key => $"{Hearer?.Id}|{Hearer?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(HearerSettings)}|" +
                          $"{Aligner?.Id}|{Aligner?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(AlignerSettings)}";
@@ -90,16 +99,34 @@ public static class Transcription
     /// Null when there is nobody to listen. <paramref name="tag"/> and <paramref name="afterRun"/> go with whichever job
     /// finishes; a transcript's language comes from the hearer.
     /// </summary>
+    /// <param name="segmentsSuffice">
+    /// For a hearer that tells voices apart, with an aligner: the hearer is asked for timed blocks by voice (always, so the
+    /// voices are known), and when this says they are all that is needed (they line up with what the caller is looking for),
+    /// the aligner is not run and the blocks are the result. Otherwise the aligner times the words the hearer heard, as
+    /// usual, and each timed word is given the voice and block it came from (<see cref="WithBlocksOf"/>).
+    /// </param>
     public static GenerationJob? Listen(Listeners listeners, string wavPath, string? expectedText, string label, JobPriority priority,
-        object? tag, long readingOrder, IReadOnlyList<string>? speakers, Func<GenerationJob, Task>? afterRun = null, int? speakerCount = null)
+        object? tag, long readingOrder, IReadOnlyList<string>? speakers, Func<GenerationJob, Task>? afterRun = null, int? speakerCount = null,
+        Func<TranscriptResult, bool>? segmentsSuffice = null)
     {
         if (listeners is { Hearer: { } hearer, Aligner: { } aligner })
+        {
+            var blocks = hearer.CanDiarize;
             return Job(hearer, wavPath, expectedText, listeners.HearerSettings, label, priority, tag, readingOrder,
-                ListenMode.Transcribe, speakers, speakerCount, afterRun,
-                then: heard => heard.Transcript?.Text is { Length: > 0 } text && text.Any(char.IsLetterOrDigit)
-                    ? Job(aligner, wavPath, text, listeners.AlignerSettings, $"{label} (timing)", priority, tag, readingOrder,
-                        ListenMode.Align, speakers, speakerCount, afterRun)
-                    : null); // nothing heard: nothing to time
+                blocks ? ListenMode.TranscribeDiarize : ListenMode.Transcribe, speakers, speakerCount, afterRun,
+                then: heard => blocks && segmentsSuffice != null && heard.Transcript is { } blocksHeard && segmentsSuffice(blocksHeard)
+                    ? null // the blocks are enough: the hearer's job finishes
+                    : heard.Transcript?.Text is { Length: > 0 } text && text.Any(char.IsLetterOrDigit)
+                        ? Job(aligner, wavPath, text, listeners.AlignerSettings, $"{label} (timing)", priority, tag, readingOrder,
+                            ListenMode.Align, speakers, speakerCount, async timed =>
+                            {
+                                // The aligner knows the words, not who said them: they get the voice and block they came from.
+                                if (timed.Transcript != null && timed.ContinuesFrom?.Transcript is { } hearerHeard)
+                                    timed.AmendTranscript(WithBlocksOf(timed.Transcript, hearerHeard));
+                                if (afterRun != null) await afterRun(timed).ConfigureAwait(false);
+                            })
+                        : null); // nothing heard: nothing to time
+        }
         if (listeners.Hearer is { } alone)
             return Job(alone, wavPath, expectedText, listeners.HearerSettings, label, priority, tag, readingOrder,
                 speakers: speakers, speakerCount: speakerCount, afterRun: afterRun);
@@ -112,7 +139,49 @@ public static class Transcription
     public static TranscriptCheck Check(string expectedText, TranscriptResult transcript) =>
         TranscriptCheck.Compare(expectedText, Heard(transcript));
 
-    /// <summary>A transcript's words as stored and compared (with who said each, when the worker says).</summary>
+    /// <summary>A transcript's words as stored and compared (with who said each and the block it came from, when the worker says).</summary>
     public static List<HeardWord> Heard(TranscriptResult transcript) =>
-        transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence, w.Speaker)).ToList();
+        transcript.Words.Select(w => new HeardWord(w.Text, w.StartMs, w.EndMs, w.Confidence, w.Speaker, w.Block)).ToList();
+
+    /// <summary>The blocks of speech by one voice a transcript's words point into, or null when it has none.</summary>
+    public static List<HeardBlock>? Blocks(TranscriptResult transcript) =>
+        transcript.Segments is { Count: > 0 } segments
+            ? segments.Select(s => new HeardBlock(s.Text, s.StartMs, s.EndMs, s.Speaker)).ToList()
+            : null;
+
+    /// <summary>
+    /// <paramref name="timed"/>, the words an aligner timed, with each word given the voice and block it was in when
+    /// <paramref name="heard"/> (what a worker that tells voices apart heard, which the aligner was given the text of)
+    /// said it, and the blocks themselves. The two have the same words in the same order, spelled alike up to what the
+    /// aligner normalises; words are matched by their letters and digits, looking a little ahead when one is dropped or
+    /// split, and a word that matches nothing takes the block of the one before it. Nothing changes when
+    /// <paramref name="heard"/> has no blocks.
+    /// </summary>
+    public static TranscriptResult WithBlocksOf(TranscriptResult timed, TranscriptResult heard)
+    {
+        if (heard.Segments is not { Count: > 0 } blocks || timed.Words.Count == 0) return timed;
+        static string Key(string token) => new(token.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        var said = new List<(string Key, int Block)>();
+        for (var b = 0; b < blocks.Count; b++)
+            foreach (var token in blocks[b].Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+                if (Key(token) is { Length: > 0 } key) said.Add((key, b));
+        if (said.Count == 0) return timed;
+
+        const int Lookahead = 3;
+        var at = 0;
+        var current = said[0].Block;
+        var words = new List<TranscriptWord>(timed.Words.Count);
+        foreach (var w in timed.Words)
+        {
+            var key = Key(w.Text);
+            if (key.Length > 0)
+            {
+                for (var k = at; k < Math.Min(said.Count, at + Lookahead + 1); k++)
+                    if (said[k].Key == key) { current = said[k].Block; at = k + 1; break; }
+                // (No match: the word keeps the block of the one before it, and the next one is looked for from the same place.)
+            }
+            words.Add(w with { Block = current, Speaker = w.Speaker ?? blocks[current].Speaker });
+        }
+        return timed with { Words = words, Segments = blocks };
+    }
 }

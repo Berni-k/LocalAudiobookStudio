@@ -128,6 +128,9 @@ public sealed class FusionRecord
     public string? Transcriber { get; set; }
     public List<Transcripts.HeardWord>? Transcript { get; set; }
 
+    /// <summary>The blocks of speech by one voice the transcript's words came from, when the transcriber tells voices apart.</summary>
+    public List<Transcripts.HeardBlock>? TranscriptBlocks { get; set; }
+
     /// <summary>Why cutting it went wrong as a whole (the transcription failed), if it did.</summary>
     public string? Error { get; set; }
 

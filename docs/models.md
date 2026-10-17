@@ -56,9 +56,11 @@ Stable Audio Open Small is broken for now: on HartsyInference its audio comes ou
 | Parakeet TDT 0.6B v3 | 25 European | ✅ ⏱️ | – | Loose (ends run on into pauses) | 21× (CPU) | 2 GB | CC-BY-4.0 | [Model](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) · [ONNX](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) · [Code](https://github.com/istupakov/onnx-asr) |
 | Granite Speech 4.1 2B Plus | English, French, German, Spanish, Portuguese | ✅ ⏱️ | – | Close (about 0.05 s late) | 7× (with times: 1.1×) | 5 GB | Apache 2.0 | [Model](https://huggingface.co/ibm-granite/granite-speech-4.1-2b-plus) |
 | Qwen3-ASR 0.6B + Forced Aligner | 30 (times: 11) | ✅ ⏱️ | ✅ 11 languages | Very accurate | 6.7× | 4 GB | Apache 2.0 | [ASR](https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf) · [Aligner](https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B-hf) · [Code](https://github.com/QwenLM/Qwen3-ASR) |
+| MOSS-Transcribe-Diarize 0.9B | 50+ | ✅ 🗣️ | – | Blocks (a sentence or a turn; see 🗣️) | 6× | 4 GB | Apache 2.0 | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-Transcribe-Diarize) · [Code](https://github.com/OpenMOSS/MOSS-Transcribe-Diarize) |
 | MMS forced aligner | Letters a–z (accents are dropped) | – | ✅ | Very accurate | 170× (CPU: 11×) | 1 GB | CC-BY-NC 4.0 ⚠️ | [Model](https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner) · [ONNX](https://huggingface.co/tatsu020/mms-300m-fa-onnx) · [Code](https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html) |
 
 - **Transcribe**: hears the words; ⏱️ means it also says when each word is.
+- 🗣️ **Tells voices apart**: labels who said each block of text (S01, S02 …; the labels are anonymous and only mean "the same voice as before"), and times the blocks, not the words. `las transcribe --words` shows them. When a speaker with such a transcriber has its segments generated together, the app cuts them out at the blocks' edges if each segment is whole blocks; otherwise it uses the speaker's aligner (*Speakers → Alignment*) to time the words, and without one the segments are generated one by one.
 - **Align**: times a text you already have, without changing its words. A speaker can pair a transcription worker
   with an aligner (*Speakers → Alignment*): the first hears the words, the aligner times them.
 - Use Whisper to judge *where* words are and Parakeet to check *what* was said (fast and strict about words).
@@ -107,6 +109,7 @@ GPU: ✅ yes, 🐢 slowly (several times slower than real time), ❌ no.
 | Parakeet TDT 0.6B v3 | | ✅ | ✅ | | ⭐ | | ✅ |
 | Granite Speech 4.1 2B Plus | ⭐ | | | | | | 🐢 |
 | Qwen3-ASR 0.6B + Forced Aligner | ⭐ | | | | | | 🐢 |
+| MOSS-Transcribe-Diarize | ⭐ | | | | | | 🐢 |
 | MMS forced aligner | | ✅ | ✅ | | ⭐ | | ✅ |
 | | | | | | | | |
 | Speaker SIM Score | | | | | ⭐ | | ✅ |

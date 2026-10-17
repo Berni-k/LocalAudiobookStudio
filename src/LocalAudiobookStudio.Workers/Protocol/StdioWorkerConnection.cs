@@ -181,6 +181,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             {
                 ListenMode.Transcribe => MessageTypes.Transcribe,
                 ListenMode.Align => MessageTypes.Align,
+                ListenMode.TranscribeDiarize => MessageTypes.TranscribeDiarize,
                 _ => MessageTypes.TranscribeAlign,
             },
             AudioPath = request.AudioPath,
@@ -190,12 +191,20 @@ public sealed class StdioWorkerConnection : IWorkerConnection
             SpeakerCount = request.SpeakerCount,
         };
         var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
+        // Blocks with nothing in them (a worker's empty segment) say nothing.
+        var segments = request.Mode == ListenMode.TranscribeDiarize
+            ? reply.Segments?.Where(s => !string.IsNullOrWhiteSpace(s.Text) && s.EndMs >= s.StartMs).ToList()
+            : null;
         var text = reply.Text ?? "";
+        if (text.Length == 0 && segments is { Count: > 0 }) text = string.Join(' ', segments.Select(s => s.Text.Trim()));
+        // The blocks are the timed words when the worker gave no words of its own: a block is a "word" holding several.
         // Text only: its words without times (all at 0), so it can still be compared with the text it should be.
-        var words = request.Mode == ListenMode.Transcribe || reply.Words == null
-            ? text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new TranscriptWord(w, 0, 0)).ToList()
-            : reply.Words;
-        return new TranscriptResult(text, words, reply.Language);
+        IReadOnlyList<TranscriptWord> words =
+            request.Mode == ListenMode.Transcribe ? TextWords(text)
+            : reply.Words is { Count: > 0 } ? reply.Words
+            : segments is { Count: > 0 } ? segments.Select((s, i) => new TranscriptWord(s.Text.Trim(), s.StartMs, s.EndMs, null, s.Speaker, i)).ToList()
+            : TextWords(text);
+        return new TranscriptResult(text, words, reply.Language, segments is { Count: > 0 } ? segments : null);
     }
 
     public async Task<VoiceScores> CompareVoicesAsync(VoiceCompareRequest request, IProgress<WorkerProgress>? progress, CancellationToken ct)
@@ -217,6 +226,9 @@ public sealed class StdioWorkerConnection : IWorkerConnection
         var reply = await RequestAsync(new WorkerMessage { Type = MessageTypes.ListVoices }, null, ct, false).ConfigureAwait(false);
         return reply.Voices ?? new List<VoiceEntry>();
     }
+
+    private static List<TranscriptWord> TextWords(string text) =>
+        text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(w => new TranscriptWord(w, 0, 0)).ToList();
 
     private async Task<WorkerMessage> RequestAsync(WorkerMessage msg, IProgress<WorkerProgress>? progress, CancellationToken ct,
         bool sendCancelOnAbort, Action? prepared = null)

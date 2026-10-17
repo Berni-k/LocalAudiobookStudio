@@ -360,6 +360,7 @@ public sealed partial class ProjectEngine(StudioHost host, Project project)
             Worker = job.ContinuesFrom is { } heard ? $"{heard.WorkerId} + {job.WorkerId}" : job.WorkerId,
             Language = transcript.Language,
             Words = Transcription.Heard(transcript),
+            Blocks = Transcription.Blocks(transcript),
         }.Save(Paths.TakeTranscript(tag.ItemId, tag.Take));
 
         // The verdict goes into the take's own file: it is read anyway, and it is what the take is judged by from now on.

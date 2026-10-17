@@ -98,6 +98,8 @@ internal static class Help
         What a worker does depends on its tags, and is what it is asked for unless --mode says otherwise:
           transcribe-align  Transcription with Alignment (Whisper, Parakeet) or Alignment Forced (Qwen3-ASR):
                             the words heard, with their times
+          transcribe-diarize  Transcription with Multi-speaker (MOSS-Transcribe-Diarize): the text as timed
+                            blocks, each with the voice that said it. --words prints the blocks
           transcribe        Transcription: the words heard, without times
           align             Alignment Forced (MMS, Qwen3-ASR): the times of a given text's words. It needs
                             -t or -f, always prints the word timings, and reports no differences. The default
@@ -106,11 +108,12 @@ internal static class Help
           -t, --text <text>        The text the audio should contain (one audio file)
           -f, --text-file <path>   The same from a file; for several audio files, a folder of <audio name>.txt
               --words              Print every word with its start and end time
-              --mode <mode>        transcribe, align or transcribe-align (default: the most the worker does)
+              --mode <mode>        transcribe, align, transcribe-align or transcribe-diarize (default: the most the
+                                   worker does)
               --aligner <id>       The worker hears the words, then this aligner (tagged Alignment) times what
                                    was heard: the app's speaker setting Alignment
               --speakers <a,b>     Who may be speaking, in order; --speaker-count <n> how many voices. Hints
-                                   for workers tagged Multi-speaker, which say who said each word ([S0] …)
+                                   for workers tagged Multi-speaker, which say who said each word or block ([S0] …)
           -w, --worker <id>        Worker (default: the first installed transcription worker)
               --runtime <name>     Runtime of the worker (internal, internal-gpu, python, onnx, onnx-cuda);
                                    see 'las workers <id>'

@@ -120,6 +120,9 @@ public sealed class GenerationJob
     public GenerateResult? Result { get; internal set; }
     public TranscriptResult? Transcript { get; internal set; }
 
+    /// <summary>Replaces the transcript from <see cref="AfterRun"/>, before the job is reported done: a step that adds to what the worker said.</summary>
+    public void AmendTranscript(TranscriptResult transcript) => Transcript = transcript;
+
     /// <summary>The result of a <see cref="CompareVoices"/> job.</summary>
     public VoiceScores? VoiceScores { get; internal set; }
     /// <summary>The device it ran on, e.g. "GPU 0 (NVIDIA GeForce RTX 3090)" or "CPU".</summary>

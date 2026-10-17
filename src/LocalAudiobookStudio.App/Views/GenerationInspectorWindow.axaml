@@ -15,6 +15,7 @@
       <StackPanel Spacing="2">
         <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
         <TextBlock Text="{Binding SettingsText}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasSettings}" />
+        <TextBlock Text="{Binding VoiceNote}" Classes="caption error" TextWrapping="Wrap" IsVisible="{Binding HasVoiceNote}" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
         <Button Classes="icon" Command="{Binding PlayFromStartCommand}" ToolTip.Tip="Play from the start" IsVisible="{Binding !IsPlaying}">
@@ -33,21 +34,30 @@
          marked at the top, context at the bottom. Behind it, where the transcription heard each word; along the bottom a
          bar per word (hover: the word, click: play it). The overlays follow the waveform's zoom (ViewStartMs/ViewEndMs). -->
     <Border DockPanel.Dock="Top" Height="160" Background="{DynamicResource WaveformBackgroundBrush}" CornerRadius="4" ClipToBounds="True">
-      <Panel>
-        <ctl:WordShadingView Words="{Binding Words}" DurationMs="{Binding DurationMs}"
-                             ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
-        <ctl:WaveformView x:Name="Wave" Peaks="{Binding Peaks}" Host="{Binding}" PlayheadMs="{Binding PlayheadMs}" Zoomable="True"
-                          Fill="{DynamicResource WaveformBrush}"
-                          ToolTip.Tip="Click to play from there, drag to scrub. Wheel zooms, Shift+wheel moves along." />
-        <ctl:FusionMarkersView Markers="{Binding Markers}" DurationMs="{Binding DurationMs}"
+      <!-- Room under it all for the voices, when there are some to show: the waveform and the word indicators then make do
+           with a little less height (row 0), and the band of who spoke (row 1) lines up with them in time. -->
+      <Grid RowDefinitions="*,Auto">
+        <Panel>
+          <ctl:WordShadingView Words="{Binding Words}" DurationMs="{Binding DurationMs}"
                                ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
-        <ctl:WordLabelsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}"
+          <ctl:WaveformView x:Name="Wave" Peaks="{Binding Peaks}" Host="{Binding}" PlayheadMs="{Binding PlayheadMs}" Zoomable="True"
+                            Fill="{DynamicResource WaveformBrush}"
+                            ToolTip.Tip="Click to play from there, drag to scrub. Wheel zooms, Shift+wheel moves along." />
+          <ctl:FusionMarkersView Markers="{Binding Markers}" DurationMs="{Binding DurationMs}"
+                                 ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}" />
+          <ctl:WordLabelsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}"
+                              ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
+                              Height="14" Margin="0,0,0,10" VerticalAlignment="Bottom" />
+          <ctl:WordBarsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}" PlayWordCommand="{Binding PlayWordCommand}"
                             ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
-                            Height="14" Margin="0,0,0,10" VerticalAlignment="Bottom" />
-        <ctl:WordBarsView Words="{Binding Words}" WrongWords="{Binding WrongWords}" DurationMs="{Binding DurationMs}" PlayWordCommand="{Binding PlayWordCommand}"
-                          ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
-                          Height="10" VerticalAlignment="Bottom" />
-      </Panel>
+                            Height="10" VerticalAlignment="Bottom" />
+        </Panel>
+        <!-- Who spoke: the stretches of speech the transcription heard by one voice, a colour per voice. Only from a worker
+             that tells voices apart; without one this row is hidden and the waveform has the whole height. -->
+        <ctl:VoiceBlocksView Grid.Row="1" Blocks="{Binding Blocks}" DurationMs="{Binding DurationMs}"
+                             ViewStartMs="{Binding #Wave.ViewStartMs}" ViewEndMs="{Binding #Wave.ViewEndMs}"
+                             Height="16" Margin="0,3,0,0" IsVisible="{Binding HasBlocks}" />
+      </Grid>
     </Border>
 
     <!-- What the transcription heard, against the text: highlighted as it plays, differences marked. -->
@@ -85,6 +95,7 @@
                   <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" />
                   <TextBlock Text="{Binding Details}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasDetails}" />
                   <TextBlock Text="{Binding Timing}" Classes="caption" IsVisible="{Binding HasTiming}" />
+                  <TextBlock Text="{Binding HeardAs}" Classes="caption" IsVisible="{Binding HasHeardAs}" />
                   <TextBlock Text="{Binding Note}" Classes="caption error" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
                 </StackPanel>
                 <Button Grid.Column="2" Classes="icon" Command="{Binding PlayCommand}" IsVisible="{Binding CanPlay}" VerticalAlignment="Top"

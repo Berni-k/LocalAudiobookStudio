@@ -125,7 +125,10 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
   any take that has a transcript (its audio against the segment's text) and, with the *Keep fused generations* setting
   on (`AppSettings.KeepFusedGenerations`), a fused generation kept in the project's `fused/<id>/` (`audio.wav` and
   `record.json`: `FusionRecord` with the parts, spans, cuts, notes and transcript); its takes link it
-  (`TakeFusion.Record`) and open it with the parts shown.
+  (`TakeFusion.Record`) and open it with the parts shown. When the transcriber tells voices apart, the blocks it heard
+  are drawn as a coloured band under the segments' labels (`VoiceBlocksView`, one colour per voice), the summary lists
+  the voices, each part says which voice it was heard as, and a note appears when those don't match the project's
+  speakers (one speaker heard as two voices, or one voice for two speakers).
 - Settings can come from a file: a setting with `"addsSettings": "<reader>"` (usually `"type": "asset"`) picks a file,
   and the reader in `SettingSources.cs` turns it into more settings shown below it. The ComfyUI bridge's workflow
   (`comfyWorkflow`) is the first; add a reader there for other kinds of file.
@@ -180,12 +183,27 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
        `align(req, report)` returns the words of `req.text` with their times. Alone (`mms_fa`, copy it), or with
        `Transcription` (`qwen3_asr`): that is the full set, as its forced aligner times its own transcript too, so it
        also implements `transcribe_align` and needs no `Alignment` tag.
+     - `Transcription` and `Multi-speaker` (no `Alignment`): hears who says what, without timing each word:
+       `transcribeDiarize` → `transcribe_diarize(req, report)` returns the text and `segments`, timed blocks of text
+       `{text, startMs, endMs, speaker}` (a sentence or a turn; any label for the voice, the same for one voice
+       throughout; blocks may overlap when voices talk at once). It also answers `transcribe`. `moss_transcribe`, copy
+       it. The connection turns the blocks into the transcript's words (each a "word" holding several), so everything
+       downstream works unchanged: `TranscriptCheck` splits a block into words that share its time by length, and
+       `WordComparison.Unit` says which block a word came from. A worker that times words too is tagged `Alignment`
+       as well and answers `transcribeAlign` with a `speaker` on each word.
      The app asks for the most a worker's tags allow in one request (`WorkerManifest.ListenMode`); cutting fused
-     generations needs word times. A speaker can also use an aligner (Speakers window, Alignment; only workers tagged
+     generations needs word times or blocks by voice. A speaker can also use an aligner (Speakers window, Alignment; only workers tagged
      `Alignment Forced`, `AlignsText`): its transcription worker hears the words, then the aligner times the text it
      heard (`Listeners`, `Transcription.Listen`: a job whose `Then` queues the aligner's job, which finishes in its
-     place). `las transcribe -w parakeet --aligner mms_fa` does the same. A worker that tells voices apart is also tagged `Multi-speaker`: each word it returns may
-     have a `speaker`, any label it likes (`S0`, `S1`). Requests may carry `speakers` (names, in the order they first
+     place). `las transcribe -w parakeet --aligner mms_fa` does the same. When the hearer tells voices apart and a
+     fused generation has to be cut, it is asked for blocks first: if each part is whole blocks (no block holds words
+     of two parts, every segment was heard, in order: `ProjectEngine.BlockSpans`), the parts are cut at the blocks'
+     edges and the aligner is skipped; otherwise the aligner times the words as usual, and with none the segments are
+     generated on their own. A hearer that tells voices apart is always asked for blocks first, so when an aligner
+     times the words afterwards each word is given the voice and block it came from (`Transcription.WithBlocksOf`,
+     matched by letters and digits). A take's `StoredTranscript` keeps both: `Words` (`HeardWord.Speaker`, `.Block`)
+     and `Blocks` (`HeardBlock`: text, span, voice), renumbered per take when a fused generation is cut
+     (`StoredTranscript.Slice`). Requests may carry `speakers` (names, in the order they first
      speak) and `speakerCount` (`req.speakers`, `req.speaker_count`): hints any worker may ignore. A language is an ordinary `language` enum setting (`Auto` plus codes, read from
      `req.settings`), as in `whisper`; a model that detects the language itself has none.
      - `Speaker Verification`: judges how alike voices are (speaker embeddings). Also a listener (never a speaker's voice;

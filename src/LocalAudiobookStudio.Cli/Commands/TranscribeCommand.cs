@@ -161,12 +161,14 @@ public static class TranscribeCommand
             "transcribe" => ListenMode.Transcribe,
             "align" => ListenMode.Align,
             "transcribe-align" or "transcribealign" => ListenMode.TranscribeAlign,
-            _ => throw new UsageException($"transcribe: --mode is transcribe, align or transcribe-align, not '{requested}'."),
+            "transcribe-diarize" or "transcribediarize" or "diarize" => ListenMode.TranscribeDiarize,
+            _ => throw new UsageException($"transcribe: --mode is transcribe, align, transcribe-align or transcribe-diarize, not '{requested}'."),
         };
         var can = mode switch
         {
             ListenMode.Transcribe => manifest.CanTranscribe,
             ListenMode.Align => manifest.AlignsText,
+            ListenMode.TranscribeDiarize => manifest.CanTranscribe && manifest.TellsSpeakers,
             _ => manifest.CanTranscribe && manifest.CanAlign,
         };
         if (!can)
@@ -292,7 +294,8 @@ public static class TranscribeCommand
                 error = u.Error,
                 text = u.Transcript?.Text,
                 language = u.Transcript?.Language,
-                words = u.Transcript?.Words.Select(w => new { text = w.Text, startMs = w.StartMs, endMs = w.EndMs, confidence = Round(w.Confidence), speaker = w.Speaker }),
+                words = u.Transcript?.Words.Select(w => new { text = w.Text, startMs = w.StartMs, endMs = w.EndMs, confidence = Round(w.Confidence), speaker = w.Speaker, block = w.Block }),
+                segments = u.Transcript?.Segments?.Select(s => new { text = s.Text, startMs = s.StartMs, endMs = s.EndMs, speaker = s.Speaker }),
                 check = u.Check is not { } c ? null : new
                 {
                     expectedWords = c.ExpectedCount,

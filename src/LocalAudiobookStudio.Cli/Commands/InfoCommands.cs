@@ -81,10 +81,11 @@ public static class InfoCommands
             ctx.Out(m.ListenMode switch
             {
                 ListenMode.TranscribeAlign => $"  hears words and their times: transcribe-align, or transcribe (las transcribe -w {m.Id})",
+                ListenMode.TranscribeDiarize => $"  hears who says what, in timed blocks of text (not word by word): transcribe-diarize, or transcribe (las transcribe -w {m.Id} --words)",
                 ListenMode.Align => $"  times the words of a given text: align (las transcribe -w {m.Id} -t \"…\")",
                 _ => $"  hears words, without times: transcribe (las transcribe -w {m.Id})",
             } + (m.AlignsText && m.CanTranscribe ? $"; also times a given text: align (--mode align, or --aligner {m.Id})" : "")
-              + (m.TellsSpeakers ? "; says who said each word" : ""));
+              + (m.TellsSpeakers ? (m.CanAlign ? "; says who said each word" : "; says who said each block") : ""));
         else
             ctx.Out($"  max {m.MaxChars} characters per request, {m.SampleRate} Hz, length: {m.LengthMode}{(m.VoiceCloning ? ", clones voices from a clip" : "")}");
         if (m.Settings.Count > 0) ctx.Out("  settings (--set key=value):");

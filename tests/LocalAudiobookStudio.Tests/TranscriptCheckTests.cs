@@ -18,6 +18,101 @@ public class TranscriptCheckTests
     }
 
     [Fact]
+    public void ABlockOfTextTimedAsAWholeSharesItsTimeAmongItsWords()
+    {
+        // Two blocks, each a sentence timed as a whole: their words are compared like any, spread over the block by length.
+        var blocks = new List<HeardWord> { new("Hello there you", 1000, 2400, null, "S01"), new("Fine thanks", 3000, 3700, null, "S02") };
+        var c = TranscriptCheck.Compare("Hello there you. Fine thanks", blocks);
+        Assert.Equal(0, c.Errors);
+        Assert.Equal(5, c.ExpectedCount);
+        Assert.Equal(new[] { 0, 0, 0, 1, 1 }, c.Words.Select(w => w.Unit));
+        Assert.Equal(1000, c.Words[0].StartMs);
+        Assert.Equal(2400, c.Words[2].EndMs);
+        Assert.All(c.Words.Take(3), w => Assert.InRange(w.EndMs - w.StartMs, 300, 700)); // "hello" and "there" are 5 letters, "you" 3
+        Assert.True(c.Words[1].StartMs >= c.Words[0].EndMs - 1);
+        Assert.Equal(3000, c.Words[3].StartMs);
+    }
+
+    [Fact]
+    public void ASliceOfATranscriptKeepsTheBlocksItsWordsCameFrom()
+    {
+        var t = new StoredTranscript
+        {
+            Worker = "x",
+            Blocks = [new("one two three four", 0, 4000, "S01"), new("five six", 5000, 6000, "S02")],
+            Words =
+            [
+                new("one", 0, 900, null, "S01", 0), new("two", 1000, 1900, null, "S01", 0), new("three", 2000, 2900, null, "S01", 0),
+                new("four", 3000, 3900, null, "S01", 0), new("five", 5000, 5400, null, "S02", 1), new("six", 5500, 6000, null, "S02", 1),
+            ],
+        };
+
+        // A slice that ends mid-block takes the text and span of the words that stayed, timed from its own start.
+        var first = t.Slice(1500, 3500);
+        Assert.Equal(["three", "four"], first.Words.Select(w => w.Text));
+        var cut = Assert.Single(first.Blocks!);
+        Assert.Equal(("three four", "S01", 500, 2000), (cut.Text, cut.Speaker, cut.StartMs, cut.EndMs));
+        Assert.All(first.Words, w => Assert.Equal(0, w.Block));
+        Assert.Equal(500, first.Words[0].StartMs);
+
+        // A slice with a block's every word keeps it whole, and blocks are renumbered from 0.
+        var second = t.Slice(4500, 6500);
+        var whole = Assert.Single(second.Blocks!);
+        Assert.Equal(("five six", "S02"), (whole.Text, whole.Speaker));
+        Assert.All(second.Words, w => Assert.Equal(0, w.Block));
+
+        // Both survive being saved and loaded.
+        var path = Path.Combine(Path.GetTempPath(), "slice-" + Guid.NewGuid().ToString("N") + ".transcript");
+        try
+        {
+            t.Save(path);
+            var back = StoredTranscript.TryLoad(path)!;
+            Assert.Equal(t.Blocks, back.Blocks);
+            Assert.Equal(t.Words, back.Words);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void SpeakersAndBlocksAreOptional()
+    {
+        // A worker that doesn't tell voices apart: nothing about voices or blocks is stored, and a file without them loads.
+        var plain = new StoredTranscript { Worker = "parakeet", Words = [new("hello", 0, 300, 0.9), new("there", 300, 700)] };
+        var path = Path.Combine(Path.GetTempPath(), "optional-" + Guid.NewGuid().ToString("N") + ".transcript");
+        try
+        {
+            plain.Save(path);
+            var json = File.ReadAllText(path);
+            Assert.DoesNotContain("blocks", json);
+            Assert.DoesNotContain("speaker", json);
+            Assert.DoesNotContain("block\"", json);
+            var back = StoredTranscript.TryLoad(path)!;
+            Assert.Null(back.Blocks);
+            Assert.All(back.Words, w => Assert.Equal((null, null), (w.Speaker, w.Block)));
+
+            // Slicing it works the same, and has no blocks to renumber.
+            var part = back.Slice(250, 800);
+            Assert.Equal(["there"], part.Words.Select(w => w.Text));
+            Assert.Null(part.Blocks);
+
+            // A word whose block isn't in the list (blocks lost or never saved) is kept as it is, without one.
+            var orphan = new StoredTranscript { Words = [new("odd", 0, 100, null, "S01", 3)] }.Slice(0, 200);
+            Assert.Null(orphan.Blocks);
+            Assert.Equal(("S01", null), (orphan.Words[0].Speaker, orphan.Words[0].Block));
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void AMissingWordInsideABlockStillCountsAndKeepsTheBlocksOtherWordsApart()
+    {
+        var c = TranscriptCheck.Compare("one two three four", [new("one three", 0, 1000), new("four", 1500, 2000)]);
+        Assert.Equal(1, c.Missing);
+        Assert.Equal(-1, Assert.Single(c.Words, w => w.Kind == WordMatch.Missing).Unit);
+        Assert.Equal(1, c.Words.Last().Unit);
+    }
+
+    [Fact]
     public void FindsMissingExtraAndDifferentWords()
     {
         var c = TranscriptCheck.Compare("the quick brown fox jumps", Heard("the", "brown", "box", "jumps", "jumps"));

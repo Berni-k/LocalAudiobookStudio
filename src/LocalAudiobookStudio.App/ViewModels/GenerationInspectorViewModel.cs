@@ -34,7 +34,10 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
         Title = $"Generation inspector – {r.Id}";
 
         string Name(string speaker) => session.Project.FindSpeaker(speaker)?.DisplayName is { Length: > 0 } n ? n : speaker;
-        Parts = Record.Parts.Select((p, i) => new FusionPartRow(this, i + 1, p, Name(p.Speaker), p.ItemId != null && p.ItemId == itemId)).ToList();
+        Blocks = r.TranscriptBlocks is { Count: > 0 } heardBlocks ? heardBlocks : null;
+        Parts = Record.Parts.Select((p, i) => new FusionPartRow(this, i + 1, p, Name(p.Speaker), p.ItemId != null && p.ItemId == itemId,
+            VoicesIn(r.Transcript, p))).ToList();
+        VoiceNote = VoiceConsistency(Parts);
         Markers = Parts.Where(p => p.Range != null)
             .Select(p => new FusionMarker(p.Range!.Value.Start, p.Range.Value.End, $"{p.Number} {p.SpeakerName}", p.IsSegment, p.IsCurrent))
             .ToList();
@@ -46,6 +49,7 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
             r.Device,
             r.GenerationMs > 0 ? $"{r.GenerationMs / 1000.0:0.0} s" : null,
             r.Split == TakeFusion.Transcript ? $"cut by transcription ({r.Transcriber})" : "cut where the worker said",
+            VoicesText(Blocks),
             r.CreatedUtc.ToLocalTime().ToString("g"),
         }.Where(s => !string.IsNullOrEmpty(s)));
         SettingsText = r.Settings.Count == 0 ? "" : "Shared settings: " + r.Settings.ToJsonString();
@@ -80,7 +84,8 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
 
         if (StoredTranscript.TryLoad(session.Paths.TakeTranscript(item.Id, take.Take)) is { } stored)
         {
-            Summary += $" · heard by {stored.Worker}";
+            Blocks = stored.Blocks is { Count: > 0 } storedBlocks ? storedBlocks : null;
+            Summary += $" · heard by {stored.Worker}" + (VoicesText(Blocks) is { } voices ? " · " + voices : "");
             TranscriptSource = item.Model.Text ?? "";
             Compare(session.Engine.SpokenText(item.Model, take.Take), stored.Words);
         }
@@ -102,6 +107,51 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
         var errors = TranscriptCheck.Words.Where(c => c.IsError && c.Heard != null).ToList();
         WrongWords = words.Where(w => errors.Any(c => c.StartMs < w.EndMs && c.EndMs > w.StartMs || c.StartMs == w.StartMs)).ToHashSet();
     }
+
+    /// <summary>
+    /// The stretches of speech by one voice the transcription heard (drawn over the waveform), when the worker tells voices
+    /// apart; null from any other. The heard words point into them.
+    /// </summary>
+    public IReadOnlyList<HeardBlock>? Blocks { get; }
+    public bool HasBlocks => Blocks != null;
+
+    /// <summary>"voices heard: S01, S02", or null without blocks.</summary>
+    private static string? VoicesText(IReadOnlyList<HeardBlock>? blocks) =>
+        blocks?.Select(b => b.Speaker).Where(s => s != null).Distinct().ToList() is { Count: > 0 } voices
+            ? "voices heard: " + string.Join(", ", voices) : null;
+
+    /// <summary>
+    /// The voices the transcription gave the words inside a part's cut (or, uncut, where the worker said it is), the one
+    /// with most words first. Empty when the transcript has no voices or the part has no place in the file.
+    /// </summary>
+    private static IReadOnlyList<string> VoicesIn(IReadOnlyList<HeardWord>? words, FusionRecordPart part)
+    {
+        var (from, to) = part is { CutStartMs: { } cs, CutEndMs: { } ce } ? (cs, ce)
+            : part is { SpanStartMs: { } ss, SpanEndMs: { } se } ? (ss, se) : (0, 0);
+        if (words == null || to <= from) return [];
+        return words.Where(w => w.Speaker != null && (w.StartMs + w.EndMs) / 2 >= from && (w.StartMs + w.EndMs) / 2 < to)
+            .GroupBy(w => w.Speaker!).OrderByDescending(g => g.Count()).Select(g => g.Key).ToList();
+    }
+
+    /// <summary>
+    /// Whether the transcription's voices agree with the project's speakers: one speaker's parts should be one voice and
+    /// two speakers' parts two voices. The labels are the worker's own, so this only says whether they are consistent.
+    /// Null when they are, or when no voices were heard.
+    /// </summary>
+    private static string? VoiceConsistency(IReadOnlyList<FusionPartRow> parts)
+    {
+        var heard = parts.Where(p => p.IsSegment && p.Voices.Count > 0).Select(p => (p.SpeakerName, Voice: p.Voices[0])).ToList();
+        var notes = new List<string>();
+        foreach (var g in heard.GroupBy(h => h.SpeakerName).Where(g => g.Select(h => h.Voice).Distinct().Count() > 1))
+            notes.Add($"{g.Key} was heard as {string.Join(" and ", g.Select(h => h.Voice).Distinct())}.");
+        foreach (var g in heard.GroupBy(h => h.Voice).Where(g => g.Select(h => h.SpeakerName).Distinct().Count() > 1))
+            notes.Add($"{g.Key} was heard for {string.Join(" and ", g.Select(h => h.SpeakerName).Distinct())}.");
+        return notes.Count == 0 ? null : "The voices heard don't match the speakers: " + string.Join(" ", notes);
+    }
+
+    /// <summary>Set when the voices the transcription heard don't line up with the project's speakers (see <see cref="VoiceConsistency"/>).</summary>
+    public string? VoiceNote { get; }
+    public bool HasVoiceNote => VoiceNote != null;
 
     /// <summary>The kept fused generation; null when this shows a single take.</summary>
     public FusionRecord? Record { get; }
@@ -221,8 +271,15 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
 }
 
 /// <summary>One part of a kept fused generation, as the worker was sent it, and what became of it.</summary>
-public sealed partial class FusionPartRow(GenerationInspectorViewModel owner, int number, FusionRecordPart part, string speakerName, bool isCurrent)
+public sealed partial class FusionPartRow(GenerationInspectorViewModel owner, int number, FusionRecordPart part, string speakerName, bool isCurrent,
+    IReadOnlyList<string> voices)
 {
+    /// <summary>The voices the transcription heard in this part, the main one first (empty when it doesn't tell voices apart).</summary>
+    public IReadOnlyList<string> Voices { get; } = voices;
+    public string? HeardAs => Voices.Count == 0 ? null
+        : Voices.Count == 1 ? "heard as " + Voices[0] : "heard as " + Voices[0] + ", and also " + string.Join(", ", Voices.Skip(1));
+    public bool HasHeardAs => HeardAs != null;
+
     public int Number { get; } = number;
     public FusionRecordPart Part { get; } = part;
     public string SpeakerName { get; } = speakerName;
