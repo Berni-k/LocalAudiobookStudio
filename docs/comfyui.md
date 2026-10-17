@@ -10,9 +10,11 @@ small Python environment.
 1. **Start ComfyUI.** On another machine, start it with `--listen` so this one can reach it.
 2. **Install the bridge.** In *Workers → Manage workers*, install **ComfyUI bridge**. In its settings:
    - **Servers**: the ComfyUI addresses, `host:port`, one per line. ComfyUI's default is `127.0.0.1:8188`.
+     Left empty, the bridge uses [Comfy Cloud](#comfy-cloud).
    - **Parallel workers**: how many segments are sent at once. Each one uses the next server in the list
      (the first the first server, the second the second, and so on round the list).
    - **Timeout (s)**: how long one segment may take, including time waiting in ComfyUI's queue.
+   - **Comfy Cloud API key**: only for [Comfy Cloud](#comfy-cloud).
 3. **Export your workflow.** In ComfyUI, wire it up as described [below](#wiring-a-workflow), then save it
    with **Workflow → Export (API)**. The normal *Save* format doesn't work (see [why](#why-the-api-format)).
 4. **Add it to the project.** Drop the file on the *Assets* panel or click **+**. It is checked and stored as
@@ -22,6 +24,23 @@ small Python environment.
 
 Then generate as usual. Each segment queues one run of the workflow on a ComfyUI server, and its audio comes
 back as a take.
+
+## Comfy Cloud
+
+Instead of your own ComfyUI you can use [Comfy Cloud](https://www.comfy.org/cloud), Comfy's hosted ComfyUI. It
+needs a paid plan, and runs use your Comfy credits.
+
+1. Create an API key at [platform.comfy.org](https://platform.comfy.org) under *Profile → API Keys*. It is shown
+   once.
+2. In the bridge's settings, leave **Servers** empty (or list `cloud.comfy.org`) and paste the key into
+   **Comfy Cloud API key**. The key is kept in this machine's settings in plain text.
+3. Use workflows as usual. Cloud has ComfyUI's own nodes plus a set of popular custom nodes (no Kokoro, VibeVoice
+   or F5 at the time of writing, but ACE-Step, Stable Audio, Qwen3-TTS, ChatterBox and Whisper). A workflow that
+   uses a node or model Cloud doesn't have is refused.
+
+Cloud keeps results in your account until the run is deleted from its history, which the bridge does after
+downloading. Its API is marked experimental by Comfy and may change. Servers can be mixed: a list can hold both
+your own machines and `cloud.comfy.org`.
 
 ## Wiring a workflow
 

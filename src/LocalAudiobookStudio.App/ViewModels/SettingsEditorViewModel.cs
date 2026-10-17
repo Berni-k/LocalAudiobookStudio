@@ -109,7 +109,7 @@ public sealed partial class SettingFieldViewModel : ObservableObject
     /// <summary>Dropdown entries (value + display label). A stored value the manifest no longer lists is kept as an extra entry.</summary>
     public ObservableCollection<EnumOption> Options { get; } = new();
 
-    public string Placeholder => IsMixed ? "mixed" : AllowInherit ? "inherit" : Definition.Default?.ToString() ?? (IsSeed ? "random" : "");
+    public string Placeholder => IsMixed ? "mixed" : AllowInherit ? "inherit" : Definition.Placeholder ?? Definition.Default?.ToString() ?? (IsSeed ? "random" : "");
 
     [ObservableProperty] private decimal? _numberValue;
     [ObservableProperty] private bool? _boolValue;

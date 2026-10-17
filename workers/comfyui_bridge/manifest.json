@@ -15,8 +15,11 @@
   "external": true,
   "length": { "mode": "optional", "min": 0.5, "max": 600 },
   "workerSettings": [
-    { "key": "servers", "type": "string", "multiline": true, "default": "127.0.0.1:8188", "label": "Servers",
-      "description": "ComfyUI addresses (host:port), one per line. With Parallel workers above 1, the workers take turns over the servers (worker 1 the first server, worker 2 the second, and so on)." },
+    { "key": "servers", "type": "string", "multiline": true, "default": "", "label": "Servers",
+      "placeholder": "cloud.comfy.org (or enter local ComfyUI instance IP, e.g. 127.0.0.1:8188)",
+      "description": "ComfyUI addresses (host:port), one per line, such as 127.0.0.1:8188. Left empty, Comfy Cloud (cloud.comfy.org) is used, which needs the API key below. With Parallel workers above 1, the workers take turns over the servers (worker 1 the first server, worker 2 the second, and so on)." },
+    { "key": "apiKey", "type": "string", "default": "", "label": "Comfy Cloud API key",
+      "description": "Only for Comfy Cloud (cloud.comfy.org, needs a paid plan). Create a key at platform.comfy.org under Profile > API Keys. It is saved in this machine's settings, in plain text." },
     { "key": "timeoutSec", "type": "int", "min": 10, "max": 7200, "default": 600, "label": "Timeout (s)",
       "description": "How long to wait for one generation on a server, including time in ComfyUI's queue." }
   ],

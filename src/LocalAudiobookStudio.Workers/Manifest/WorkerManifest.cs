@@ -666,6 +666,9 @@ public sealed class SettingDefinition
     public double? Max { get; set; }
     public double? Step { get; set; }
     public JsonNode? Default { get; set; }
+
+    /// <summary>Greyed hint in an empty text box, for a setting whose default is empty but whose empty state means something.</summary>
+    public string? Placeholder { get; set; }
     public List<string> Options { get; set; } = new();
 
     /// <summary>For string settings: a multi-line text box (for example one server address per line).</summary>

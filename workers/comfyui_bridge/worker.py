@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from common.protocol import Cancelled, lane, log, run_worker, worker_settings, write_wav  # noqa: E402
 
 MODEL_VERSION = "1"
+CLOUD = "https://cloud.comfy.org"  # used when no server is configured
 TAG = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 MISSING = object()  # a tag without a value: a constant node keeps its own
 SAVE_NODES = {"SaveAudio", "SaveAudioMP3", "SaveAudioOpus", "SaveAudioAdvanced"}
@@ -48,9 +49,22 @@ def server_list(settings: dict) -> list:
         if not s:
             continue
         if "://" not in s:
-            s = "http://" + s
+            s = ("https://" if is_cloud(s) else "http://") + s
         servers.append(s)
-    return servers
+    return servers or [CLOUD]
+
+
+def is_cloud(server: str) -> bool:
+    """Comfy Cloud (cloud.comfy.org) speaks ComfyUI's API under /api and wants an API key."""
+    host = urllib.parse.urlparse(server if "://" in server else "//" + server).hostname or ""
+    return host == "comfy.org" or host.endswith(".comfy.org")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Lets us read a redirect's Location instead of following it (see ComfyBridge._download)."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
 
 
 def target_input(inputs: dict):
@@ -65,7 +79,7 @@ def target_input(inputs: dict):
 
 
 class ComfyError(RuntimeError):
-    pass
+    code = None  # the HTTP status, when the server answered
 
 
 class ComfyBridge:
@@ -73,9 +87,12 @@ class ComfyBridge:
 
     def __init__(self):
         self.server = None
+        self.cloud = False          # Comfy Cloud: paths under /api, API key, outputs kept and fetched via a redirect
+        self.api = ""               # path prefix: "/api" on Comfy Cloud
+        self.api_key = ""
         self.client_id = uuid.uuid4().hex
         self.timeout = 600
-        self.uploaded = set()       # reference clips already on this lane's server
+        self.uploaded = {}          # reference clips already on this lane's server -> the name Load Audio takes
         self.workflows = {}         # path -> (mtime, workflow)
         self.ws_failed = False      # logged once, not for every generation
 
@@ -93,14 +110,37 @@ class ComfyBridge:
         if body is not None:
             data = body if isinstance(body, bytes) else json.dumps(body).encode("utf-8")
             headers["Content-Type"] = content_type
-        req = urllib.request.Request(self.server + path, data=data, headers=headers)
+        if self.cloud:
+            headers["X-API-Key"] = self.api_key
+        req = urllib.request.Request(self.server + self.api + path, data=data, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
-            raise ComfyError(self._http_error(e)) from e
+            error = ComfyError(self._http_error(e))
+            error.code = e.code
+            raise error from e
         except (urllib.error.URLError, OSError) as e:
             raise ComfyError(f"ComfyUI at {self.server} did not answer: {e}") from e
+
+    def _download(self, query):
+        """The bytes of a result file. Comfy Cloud answers /view with a redirect to a signed storage URL, which
+        must be fetched without the API key, so the redirect is read here instead of followed."""
+        if not self.cloud:
+            return self._request("/view?" + query, timeout=120)
+        req = urllib.request.Request(f"{self.server}{self.api}/view?{query}", headers={"X-API-Key": self.api_key})
+        try:
+            with urllib.request.build_opener(_NoRedirect).open(req, timeout=60) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            location = e.headers.get("Location")
+            if e.code not in (301, 302, 303, 307, 308) or not location:
+                raise ComfyError(self._http_error(e)) from e
+        try:
+            with urllib.request.urlopen(location, timeout=120) as r:
+                return r.read()
+        except (urllib.error.URLError, OSError) as e:
+            raise ComfyError(f"Could not download the result from Comfy Cloud: {e}") from e
 
     def _json(self, path, body=None, timeout=30):
         raw = self._request(path, body, timeout)
@@ -112,30 +152,47 @@ class ComfyBridge:
             info = json.loads(e.read().decode("utf-8"))
         except Exception:  # noqa: BLE001
             return f"ComfyUI answered {e.code} {e.reason}"
+        if not isinstance(info, dict):
+            return f"ComfyUI answered {e.code} {e.reason}"
         parts = []
         err = info.get("error")
         if isinstance(err, dict):
             parts.append(err.get("message") or "")
             if err.get("details"):
                 parts.append(str(err["details"]))
+        elif err:
+            parts.append(str(err))
+        if info.get("message"):  # Comfy Cloud's plain errors
+            parts.append(str(info["message"]))
         for node_id, node in (info.get("node_errors") or {}).items():
             for ne in node.get("errors", []):
                 parts.append(f"node {node_id} ({node.get('class_type', '?')}): {ne.get('message', '')} {ne.get('details', '')}".strip())
-        return "ComfyUI refused the workflow: " + "; ".join(p for p in parts if p)
+        hint = {401: "check the API key", 402: "Comfy Cloud is out of credits",
+                429: "the Comfy Cloud plan has no API access or is inactive"}.get(e.code) if self.cloud else None
+        text = "; ".join(p for p in parts if p) or f"{e.code} {e.reason}"
+        return f"ComfyUI refused the request ({hint}): {text}" if hint else f"ComfyUI refused the workflow: {text}"
 
     # ------------------------------------------------------------------ worker
 
     def load(self, report):
         settings = worker_settings()
         servers = server_list(settings)
-        if not servers:
-            raise RuntimeError("No ComfyUI server configured. Add one in Workers > ComfyUI bridge > Servers.")
         self.server = servers[lane() % len(servers)]
+        self.cloud = is_cloud(self.server)
+        self.api = "/api" if self.cloud else ""
+        self.api_key = str(settings.get("apiKey") or "").strip()
         self.timeout = int(settings.get("timeoutSec") or 600)
+        if self.cloud and not self.api_key:
+            raise RuntimeError("Comfy Cloud needs an API key. Create one at platform.comfy.org (Profile > API Keys) "
+                               "and enter it in Workers > ComfyUI bridge > Comfy Cloud API key.")
         report(0.5, f"Connecting to {self.server}")
-        stats = self._json("/system_stats", timeout=10)
-        devices = ", ".join(d.get("name", "?") for d in stats.get("devices", []))
-        log(f"lane {lane()}: ComfyUI at {self.server} is up ({devices or 'no device info'})")
+        if self.cloud:
+            self._json("/user", timeout=10)  # 401 for a wrong key, 429 for a plan without API access
+            log(f"lane {lane()}: Comfy Cloud accepted the API key")
+        else:
+            stats = self._json("/system_stats", timeout=10)
+            devices = ", ".join(d.get("name", "?") for d in stats.get("devices", []))
+            log(f"lane {lane()}: ComfyUI at {self.server} is up ({devices or 'no device info'})")
         report(1.0, f"Connected to {self.server}")
 
     def generate(self, req, report):
@@ -164,7 +221,7 @@ class ComfyBridge:
             report(0.97, "Downloading the audio")
             query = urllib.parse.urlencode({"filename": audio["filename"], "subfolder": audio.get("subfolder", ""),
                                             "type": audio.get("type", "temp")})
-            data = self._request("/view?" + query, timeout=120)
+            data = self._download(query)
         finally:
             self._forget(prompt_id)
 
@@ -258,16 +315,17 @@ class ComfyBridge:
                         inputs[key] = int(req.seed)
         return workflow
 
-    @staticmethod
-    def _redirect_outputs(workflow):
+    def _redirect_outputs(self, workflow):
         """Turns Save Audio nodes into Preview Audio (ComfyUI's temp folder instead of its output folder) and
-        returns the ids of the nodes that produce audio, in workflow order."""
+        returns the ids of the nodes that produce audio, in workflow order. Comfy Cloud has no folders to keep
+        tidy (its results are removed with the history entry), so its Save Audio nodes stay as they are."""
         outputs = []
         for node_id, node in workflow.items():
             kind = node.get("class_type")
             if kind in SAVE_NODES:
-                node["class_type"] = "PreviewAudio"
-                node["inputs"] = {"audio": node.get("inputs", {}).get("audio")}
+                if not self.cloud:
+                    node["class_type"] = "PreviewAudio"
+                    node["inputs"] = {"audio": node.get("inputs", {}).get("audio")}
                 outputs.append(node_id)
             elif kind == "PreviewAudio":
                 outputs.append(node_id)
@@ -292,11 +350,15 @@ class ComfyBridge:
             parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="{name}"\r\n'
                          f"Content-Type: application/octet-stream\r\n\r\n".encode() + data + b"\r\n")
             parts.append(f"--{boundary}--\r\n".encode())
-            self._request("/upload/image", b"".join(parts), timeout=120,
-                          content_type=f"multipart/form-data; boundary={boundary}")
-            self.uploaded.add(name)
-            log(f"uploaded {path} as las/{name}")
-        return f"las/{name}"
+            raw = self._request("/upload/image", b"".join(parts), timeout=120,
+                                content_type=f"multipart/form-data; boundary={boundary}")
+            # The server says where the file landed; Comfy Cloud ignores the subfolder and stores by content.
+            info = json.loads(raw.decode("utf-8")) if raw else {}
+            stored = info.get("name") or name
+            sub = info.get("subfolder") or ""
+            self.uploaded[name] = f"{sub}/{stored}" if sub else stored
+            log(f"uploaded {path} as {self.uploaded[name]}")
+        return self.uploaded[name]
 
     # ------------------------------------------------------------------ running
 
@@ -305,8 +367,9 @@ class ComfyBridge:
         import websocket
 
         url = self.server.replace("http://", "ws://", 1).replace("https://", "wss://", 1)
+        query = f"clientId={self.client_id}" + (f"&token={urllib.parse.quote(self.api_key)}" if self.cloud else "")
         try:
-            ws = websocket.create_connection(f"{url}/ws?clientId={self.client_id}", timeout=10)
+            ws = websocket.create_connection(f"{url}/ws?{query}", timeout=10)
             ws.settimeout(0.5)
             return ws
         except Exception as e:  # noqa: BLE001
@@ -358,11 +421,32 @@ class ComfyBridge:
                 time.sleep(0.25 if finished else 0.5)
             if time.monotonic() >= next_poll:
                 next_poll = time.monotonic() + (0.25 if finished else 2.0)
-                entry = self._json(f"/history/{prompt_id}").get(prompt_id)
+                entry = self._job_entry(prompt_id)
                 if entry and entry.get("status", {}).get("completed", entry.get("outputs") is not None):
                     return entry
                 if entry and entry.get("status", {}).get("status_str") == "error":
                     raise RuntimeError(self._history_error(entry))
+
+    def _job_entry(self, prompt_id):
+        """The prompt's history entry, or None while it isn't there yet. Comfy Cloud has /jobs/<id> instead of
+        /history/<id>; its answer is turned into the same shape (status.completed, outputs, error messages)."""
+        if not self.cloud:
+            return self._json(f"/history/{prompt_id}").get(prompt_id)
+        try:
+            job = self._json(f"/jobs/{prompt_id}")
+        except ComfyError as e:
+            if e.code == 404:  # not known yet
+                return None
+            raise
+        state = job.get("status")
+        if state == "completed":
+            return {"status": {"completed": True, "status_str": "success"}, "outputs": job.get("outputs") or {}}
+        if state in ("failed", "cancelled"):
+            err = job.get("execution_error") or {}
+            data = {"node_type": err.get("node_type", "a node"),
+                    "exception_message": err.get("exception_message") or f"the job {state}."}
+            return {"status": {"status_str": "error", "messages": [["execution_error", data]]}}
+        return None
 
     @staticmethod
     def _history_error(entry):
@@ -385,7 +469,7 @@ class ComfyBridge:
         """Takes the prompt out of the queue, or stops it when it is the one running. Older servers ignore
         prompt_id on /interrupt and stop whatever runs, so it is only sent when that is this prompt."""
         try:
-            queue = self._json("/queue", timeout=10)
+            queue = {} if self.cloud else self._json("/queue", timeout=10)  # Comfy Cloud cancels either kind this way
             running = any(len(item) > 1 and item[1] == prompt_id for item in queue.get("queue_running", []))
             if running:
                 self._request("/interrupt", {"prompt_id": prompt_id}, timeout=10)
