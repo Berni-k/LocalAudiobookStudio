@@ -18,7 +18,7 @@ generating implements what its tags say, in place of ``generate`` (``req.audio_p
   Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript;
 - tag Diarization (alone, without Transcription): ``diarize(req, report)`` returns ``{"segments": [{"startMs", "endMs",
   "speaker"}]}``, who speaks when: the turns in order, their ``"text"`` empty or left out, turns of different voices
-  overlapping when they talk at once. ``req.settings`` may carry ``numSpeakers``, ``minSpeakers`` and ``maxSpeakers``.
+  overlapping when they talk at once. ``req.speaker_count`` is how many voices there are, when the app knows.
   The app pairs it with a transcriber: each heard word gets the voice of the turn it falls in.
 
 A worker tagged Diarization tells voices apart, with labels "S1", "S2" … (S0: a voice it can't place; any other string

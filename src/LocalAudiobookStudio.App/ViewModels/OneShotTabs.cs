@@ -72,6 +72,15 @@ public sealed partial class OneShotGenerateViewModel(OneShotViewModel owner) : O
         await Owner.PlayAsync(output);
     }
 
+    public override bool AcceptsDrop(string role, IReadOnlyList<string> paths) =>
+        role == "voice" ? SupportsCloning && paths.Any(IsAudio) : role == "text" && paths.Any(IsText);
+
+    public override void Drop(string role, IReadOnlyList<string> paths)
+    {
+        if (role == "voice" && paths.FirstOrDefault(IsAudio) is { } audio) VoiceFile = audio;
+        else if (role == "text" && paths.FirstOrDefault(IsText) is { } text) Text = File.ReadAllText(text);
+    }
+
     [RelayCommand]
     private async Task BrowseVoice()
     {
@@ -109,7 +118,23 @@ public abstract partial class OneShotListenViewModel(OneShotViewModel owner, One
     /// <summary>The text the audio should contain: optional for transcribing (the result is compared with it), required for aligning.</summary>
     public abstract bool TextRequired { get; }
 
+    /// <summary>Whether the tab has a text field at all (telling voices apart doesn't need one).</summary>
+    public virtual bool ShowText => true;
+
+    /// <summary>How many voices there are, when known (diarization): sent with the request, where a worker such as pyannote uses it.</summary>
+    public virtual bool ShowSpeakerCount => false;
+    [ObservableProperty] private decimal? _speakerCount;
+
     protected abstract ListenMode ModeOf(WorkerManifest worker);
+
+    public override bool AcceptsDrop(string role, IReadOnlyList<string> paths) =>
+        role == "audio" ? paths.Any(IsAudio) : role == "text" && ShowText && paths.Any(IsText);
+
+    public override void Drop(string role, IReadOnlyList<string> paths)
+    {
+        if (role == "audio" && paths.FirstOrDefault(IsAudio) is { } audio) AudioFile = audio;
+        else if (role == "text" && paths.FirstOrDefault(IsText) is { } text) Text = File.ReadAllText(text);
+    }
 
     protected override async Task RunJobAsync(WorkerManifest worker)
     {
@@ -131,7 +156,9 @@ public abstract partial class OneShotListenViewModel(OneShotViewModel owner, One
         }
 
         var expected = string.IsNullOrWhiteSpace(Text) ? null : Text;
-        var job = Transcription.Job(worker, wav, expected, settings, "One shot", JobPriority.Normal, tag: "one-shot", mode: ModeOf(worker));
+        var voices = ShowSpeakerCount && SpeakerCount is > 0 ? (int)SpeakerCount.Value : (int?)null;
+        var job = Transcription.Job(worker, wav, expected, settings, "One shot", JobPriority.Normal, tag: "one-shot", mode: ModeOf(worker),
+            speakerCount: voices);
         var clock = Stopwatch.StartNew();
         await RunJobsAsync([job]);
         if (FailureOf([job]) is { } failure) { Status = failure; return; }
@@ -141,7 +168,7 @@ public abstract partial class OneShotListenViewModel(OneShotViewModel owner, One
         ResultText = Describe(transcript, expected);
     }
 
-    private static string Describe(TranscriptResult transcript, string? expected)
+    protected virtual string Describe(TranscriptResult transcript, string? expected)
     {
         var sb = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(transcript.Text)) sb.AppendLine(transcript.Text.Trim());
@@ -195,6 +222,28 @@ public sealed class OneShotAlignViewModel(OneShotViewModel owner) : OneShotListe
     protected override ListenMode ModeOf(WorkerManifest worker) => ListenMode.Align;
 }
 
+/// <summary>Diarize: who speaks when in an audio file (the turns, without the words).</summary>
+public sealed class OneShotDiarizeViewModel(OneShotViewModel owner) : OneShotListenViewModel(owner, OneShotKind.Diarize, "Diarize")
+{
+    protected override IEnumerable<WorkerManifest> Candidates() => AppHost.Catalog.All.Where(w => w.Diarizes);
+    public override string RequiredTags => "Diarization";
+    public override bool TextRequired => false;
+    public override bool ShowText => false;
+    public override bool ShowSpeakerCount => true;
+    protected override ListenMode ModeOf(WorkerManifest worker) => ListenMode.Diarize;
+
+    protected override string Describe(TranscriptResult transcript, string? expected)
+    {
+        if (transcript.Segments is not { Count: > 0 } turns) return "(no speech found)";
+        var voices = turns.Select(t => t.Speaker ?? "?").Distinct().Count();
+        var sb = new StringBuilder();
+        sb.AppendLine($"{turns.Count} turn(s), {voices} voice(s):").AppendLine();
+        foreach (var t in turns.OrderBy(t => t.StartMs))
+            sb.AppendLine($"  {Time(t.StartMs)} – {Time(t.EndMs)}  [{t.Speaker ?? "?"}]");
+        return sb.ToString().TrimEnd();
+    }
+}
+
 /// <summary>Compare voices: how alike the voices in some audio files are.</summary>
 public sealed partial class OneShotCompareViewModel(OneShotViewModel owner) : OneShotTabViewModel(owner, OneShotKind.Compare, "Compare voices")
 {
@@ -208,6 +257,15 @@ public sealed partial class OneShotCompareViewModel(OneShotViewModel owner) : On
     public override string RequiredTags => "Speaker Verification";
 
     private static readonly FileFilter AudioFilter = new("Audio", "*.wav", "*.mp3", "*.opus");
+
+    public override bool AcceptsDrop(string role, IReadOnlyList<string> paths) => role is "reference" or "recording" && paths.Any(IsAudio);
+
+    public override void Drop(string role, IReadOnlyList<string> paths)
+    {
+        var list = role == "reference" ? References : Recordings;
+        foreach (var path in paths.Where(IsAudio))
+            if (!list.Contains(path)) list.Add(path);
+    }
 
     [RelayCommand]
     private async Task AddReferences()

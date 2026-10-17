@@ -204,7 +204,7 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
        (`workers/pyannote/worker.py`, numpy and scipy) are the same pipeline for the GPU; keep the two in step. On the
        CPU the ONNX sessions run one thread per call and many calls at once (a session with many threads leaves most
        cores idle). The request's `speakerCount` hint
-       sets the number of voices when the settings don't.
+       sets the number of voices (the *At least* and *At most* settings bound it without one).
      The app asks for the most a worker's tags allow in one request (`WorkerManifest.ListenMode`); cutting fused
      generations needs word times or blocks by voice. A speaker can also use an aligner (Speakers window, Alignment; only workers tagged
      `Alignment Forced`, `AlignsText`): its transcription worker hears the words, then the aligner times the text it

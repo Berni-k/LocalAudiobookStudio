@@ -140,7 +140,10 @@
         <MenuItem Header="_Generate audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Generate" />
         <MenuItem Header="_Transcribe audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Transcribe" />
         <MenuItem Header="_Align text to audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Align" />
+        <MenuItem Header="_Diarize audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Diarize" />
         <MenuItem Header="_Compare voices…" Command="{Binding ShowOneShotCommand}" CommandParameter="Compare" />
+        <Separator />
+        <MenuItem Header="System _check…" Command="{Binding SystemCheckCommand}" />
       </MenuItem>
       <MenuItem Header="_Workers">
         <MenuItem Header="_Manage workers…" Command="{Binding ShowWorkersCommand}" />
@@ -148,7 +151,6 @@
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="Keyboard _shortcuts" Click="OnShortcutsClick" />
-        <MenuItem Header="System _check…" Command="{Binding SystemCheckCommand}" />
         <MenuItem Header="Open _log folder" Command="{Binding OpenLogFolderCommand}" />
         <MenuItem Header="Open _data folder" Command="{Binding OpenDataFolderCommand}" />
         <Separator />

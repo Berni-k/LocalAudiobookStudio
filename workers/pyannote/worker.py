@@ -300,9 +300,8 @@ class PyannoteWorker:
             raise RuntimeError(f"the models want {cfg['sample_rate']} Hz audio")
         settings = req.settings or {}
         overlap = str(settings.get("overlap", False)).lower() == "true"
-        num, low, high = (int(settings.get(k) or 0) for k in ("numSpeakers", "minSpeakers", "maxSpeakers"))
-        if num == 0 and low == 0 and high == 0:
-            num = int(req.speaker_count or 0)
+        low, high = (int(settings.get(k) or 0) for k in ("minSpeakers", "maxSpeakers"))
+        num = int(req.speaker_count or 0)  # the request's hint of how many voices there are
         if num > 0:
             low = high = num
         low = max(low, 1)

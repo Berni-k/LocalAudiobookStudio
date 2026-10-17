@@ -20,12 +20,10 @@
   "settings": [
     { "key": "overlap", "type": "bool", "default": false, "label": "Overlapping speech",
       "description": "Off: one voice at a time, the one that talks most when several do (what you want for pairing with a transcript). On: every voice that talks, so turns can overlap." },
-    { "key": "numSpeakers", "type": "int", "min": 0, "max": 20, "default": 0, "label": "Number of voices",
-      "description": "How many voices there are, when you know. 0 finds out by itself." },
     { "key": "minSpeakers", "type": "int", "min": 0, "max": 20, "default": 0, "label": "At least",
-      "description": "The fewest voices to find. 0: no limit. Ignored when the number of voices is given." },
+      "description": "The fewest voices to find. 0: no limit. Ignored when the number of voices is given with the request." },
     { "key": "maxSpeakers", "type": "int", "min": 0, "max": 20, "default": 0, "label": "At most",
-      "description": "The most voices to find. 0: no limit. Ignored when the number of voices is given." }
+      "description": "The most voices to find. 0: no limit. Ignored when the number of voices is given with the request." }
   ],
   "approxVramGb": 2,
   "devices": ["cuda", "cpu"],

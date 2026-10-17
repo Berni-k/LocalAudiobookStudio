@@ -24,7 +24,8 @@ public sealed partial class OneShotViewModel : ObservableObject
         _player = player;
         Root = Path.Combine(AppHost.DataRoot.Root, "one-shot");
         Directory.CreateDirectory(Root);
-        Tabs = [new OneShotGenerateViewModel(this), new OneShotTranscribeViewModel(this), new OneShotAlignViewModel(this), new OneShotCompareViewModel(this)];
+        Tabs = [new OneShotGenerateViewModel(this), new OneShotTranscribeViewModel(this), new OneShotAlignViewModel(this),
+            new OneShotDiarizeViewModel(this), new OneShotCompareViewModel(this)];
         _selectedTab = Tabs[0];
     }
 
@@ -74,7 +75,7 @@ public sealed partial class OneShotViewModel : ObservableObject
     }
 }
 
-public enum OneShotKind { Generate, Transcribe, Align, Compare }
+public enum OneShotKind { Generate, Transcribe, Align, Diarize, Compare }
 
 /// <summary>What every tab has: a worker with its settings, a Run button, a status line and a result.</summary>
 public abstract partial class OneShotTabViewModel : ObservableObject
@@ -114,6 +115,15 @@ public abstract partial class OneShotTabViewModel : ObservableObject
     public bool HasResult => ResultText.Length > 0;
 
     public bool CanRun => !IsRunning && Worker != null;
+
+    // Files dropped on a field (see OneShotWindow): the field's role says what it takes.
+    public virtual bool AcceptsDrop(string role, IReadOnlyList<string> paths) => false;
+    public virtual void Drop(string role, IReadOnlyList<string> paths) { }
+
+    /// <summary>The audio the app can read (WAV, Opus, MP3).</summary>
+    protected static bool IsAudio(string path) => Path.GetExtension(path).ToLowerInvariant() is ".wav" or ".opus" or ".mp3";
+
+    protected static bool IsText(string path) => Path.GetExtension(path).ToLowerInvariant() is ".txt" or ".md";
 
     partial void OnIsRunningChanged(bool value) { OnPropertyChanged(nameof(CanRun)); RunCommand.NotifyCanExecuteChanged(); }
     partial void OnResultTextChanged(string value) => OnPropertyChanged(nameof(HasResult));

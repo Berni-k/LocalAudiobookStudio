@@ -17,12 +17,14 @@
             <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
               <TextBlock Text="Text" Classes="groupTitle" Margin="0,0,0,4" />
               <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="240"
-                       Watermark="Spoken, or a description of the sound or music" />
+                       Watermark="Spoken, or a description of the sound or music (drop a .txt file here)"
+                       Tag="text" DragDrop.AllowDrop="True" />
               <Grid IsVisible="{Binding SupportsCloning}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <TextBlock Text="Reference clip" Classes="formLabel" />
                 <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto">
-                  <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip" />
+                  <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip (drop a file here)"
+                           Tag="voice" DragDrop.AllowDrop="True" />
                   <Button Grid.Column="1" Content="Choose…" Command="{Binding BrowseVoiceCommand}" Margin="4,0,0,0" />
                   <Button Grid.Column="2" Content="Clear" Command="{Binding ClearVoiceCommand}" Margin="4,0,0,0" />
                 </Grid>
@@ -56,15 +58,23 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <TextBlock Text="Audio file" Classes="formLabel" />
                 <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
-                  <TextBox Text="{Binding AudioFile}" IsReadOnly="True" Watermark="WAV, MP3 or Opus" />
+                  <TextBox Text="{Binding AudioFile}" IsReadOnly="True" Watermark="WAV, MP3 or Opus (drop a file here)"
+                           Tag="audio" DragDrop.AllowDrop="True" />
                   <Button Grid.Column="1" Content="Choose…" Command="{Binding BrowseAudioCommand}" Margin="4,0,0,0" />
                 </Grid>
               </Grid>
-              <Grid>
+              <Grid IsVisible="{Binding ShowText}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
                 <TextBlock Text="Text" Classes="formLabel" />
                 <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="70" MaxHeight="200"
-                         Watermark="What the audio says: to time its words, or to check the transcript against" />
+                         Watermark="What the audio says: to time its words, or to check the transcript against (drop a .txt file here)"
+                         Tag="text" DragDrop.AllowDrop="True" />
+              </Grid>
+              <Grid IsVisible="{Binding ShowSpeakerCount}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Voices" Classes="formLabel" />
+                <NumericUpDown Grid.Column="1" Value="{Binding SpeakerCount}" Minimum="1" Maximum="32" Increment="1" FormatString="0"
+                               Watermark="auto" Width="130" HorizontalAlignment="Left" ToolTip.Tip="How many voices there are, if you know" />
               </Grid>
             </StackPanel>
           </Border>
@@ -83,13 +93,15 @@
               <TextBlock Text="Recordings are scored against the reference clips (several: their average). Without references every pair is scored."
                          Classes="caption" TextWrapping="Wrap" />
               <TextBlock Text="Reference clips" FontWeight="SemiBold" />
-              <ListBox ItemsSource="{Binding References}" SelectedItem="{Binding SelectedReference}" MinHeight="60" MaxHeight="140" />
+              <ListBox ItemsSource="{Binding References}" SelectedItem="{Binding SelectedReference}" MinHeight="60" MaxHeight="140"
+                       Tag="reference" DragDrop.AllowDrop="True" />
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="Add…" Command="{Binding AddReferencesCommand}" />
                 <Button Content="Remove" Command="{Binding RemoveReferenceCommand}" />
               </StackPanel>
               <TextBlock Text="Recordings" FontWeight="SemiBold" Margin="0,6,0,0" />
-              <ListBox ItemsSource="{Binding Recordings}" SelectedItem="{Binding SelectedCandidate}" MinHeight="60" MaxHeight="140" />
+              <ListBox ItemsSource="{Binding Recordings}" SelectedItem="{Binding SelectedCandidate}" MinHeight="60" MaxHeight="140"
+                       Tag="recording" DragDrop.AllowDrop="True" />
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="Add…" Command="{Binding AddCandidatesCommand}" />
                 <Button Content="Remove" Command="{Binding RemoveCandidateCommand}" />

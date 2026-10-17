@@ -16,8 +16,8 @@ pyannote.audio 4.0.7 (MIT), is `DiarizationMath.cs`.
   together into a discrete diarization, and turns are read off it.
 - **Output:** `diarize` answers with turns (no text), voices named S1, S2 … in the order they first speak. By default
   one voice at a time (the one that talks most when several do); *Overlapping speech* keeps all of them.
-  The number of voices is found; *Number of voices*, *At least* and *At most* set it (k-means, as in pyannote, when VBx
-  finds another number), and so does the app's `speakerCount` hint.
+  The number of voices is found; the app's `speakerCount` hint sets it (k-means, as in pyannote, when VBx finds another
+  number), and *At least* and *At most* bound it when there is no hint.
 - **Checked on:** a 56 s file of two voices (three turns, found at 17.7 s and 32.9 s, where they are) and a 200 s mix of
   three voices in ten turns (all three found; 0.9% of the speech given to the wrong voice, frame by frame against the
   known turns), about 6× real time on the CPU.

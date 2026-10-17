@@ -101,7 +101,7 @@ internal sealed class PyannoteEngine(EngineContext context) : EngineBase(context
         var settings = msg["settings"] as JsonObject;
         var audio = AudioPieces.ReadWav(path);
 
-        // The app's hint of how many voices there are (a fused generation knows) counts when the settings don't say.
+        // The app's hint of how many voices there are (a fused generation knows) fixes the number; without it the settings bound it.
         var hint = msg["speakerCount"] is { } h && int.TryParse(h.ToString(), CultureInfo.InvariantCulture, out var hinted) ? hinted : 0;
         var turns = Diarize(setup, audio, settings, hint, id, request.Token);
         Protocol.Progress(id, 1);
@@ -134,9 +134,8 @@ internal sealed class PyannoteEngine(EngineContext context) : EngineBase(context
     private List<(double Start, double End, string Speaker)> Diarize(Setup s, float[] audio, JsonObject? settings, int hintedSpeakers, string? id, CancellationToken ct)
     {
         var overlap = Bool(settings, "overlap", false);
-        int numSpeakers = Int(settings, "numSpeakers"), minSpeakers = Int(settings, "minSpeakers"), maxSpeakers = Int(settings, "maxSpeakers");
-        if (numSpeakers == 0 && minSpeakers == 0 && maxSpeakers == 0) numSpeakers = hintedSpeakers;
-        if (numSpeakers > 0) minSpeakers = maxSpeakers = numSpeakers;
+        int minSpeakers = Int(settings, "minSpeakers"), maxSpeakers = Int(settings, "maxSpeakers");
+        if (hintedSpeakers > 0) minSpeakers = maxSpeakers = hintedSpeakers;
         if (minSpeakers <= 0) minSpeakers = 1;
         if (maxSpeakers <= 0) maxSpeakers = int.MaxValue;
 
