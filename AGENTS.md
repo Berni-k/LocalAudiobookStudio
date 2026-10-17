@@ -172,7 +172,8 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
      splits the model over `torch.cuda.device_count()`). The scheduler gives such a job the GPU it was picked on and
      then each GPU that frees up before any other job, and starts it once it has enough
      (`GenerationScheduler.MultiGpu.cs`); its process counts as running on each of its GPUs.
-   - A worker that listens instead of generating isn't offered as a speaker's voice. Its tags say what it does, and
+   - A worker that listens instead of generating isn't offered as a speaker's voice (except one tagged `Bridge`, the
+     ComfyUI bridge, which runs the user's workflow for any job). Its tags say what it does, and
      each is a request (all answered with a `transcript`; it gets a 16 kHz mono WAV, `req.audio_path`, and the expected
      text, `req.text`):
      - `Transcription`: hears the words. `transcribe` → `transcribe(req, report)` returns the text.

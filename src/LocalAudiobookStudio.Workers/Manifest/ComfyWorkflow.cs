@@ -17,8 +17,13 @@ public static partial class ComfyWorkflow
 {
     public const string Extension = ".comfy.json";
 
-    /// <summary>Tags the bridge fills itself: the segment's text, the take's seed, the segment's length.</summary>
-    public static readonly IReadOnlySet<string> BuiltInTags = new HashSet<string>(["text", "seed", "duration"], StringComparer.Ordinal);
+    /// <summary>
+    /// Tags the bridge fills itself: the segment's text, the take's seed, the segment's length; for listening jobs
+    /// <c>audio</c> (what to transcribe or align), <c>reference</c> and <c>candidate</c> (voices to compare). <c>result</c>
+    /// titles the node whose text is a listening job's answer: it is read, never set.
+    /// </summary>
+    public static readonly IReadOnlySet<string> BuiltInTags =
+        new HashSet<string>(["text", "seed", "duration", "audio", "reference", "candidate", "result"], StringComparer.Ordinal);
 
     /// <summary>The input of an audio node (Load Audio) a tag sets: its setting picks an audio asset.</summary>
     public const string AudioInput = "audio";
@@ -93,25 +98,42 @@ public static partial class ComfyWorkflow
             byKey[def.Key] = def;
         }
 
+        var seeded = false;
         foreach (var (_, node) in workflow)
         {
             if (node is not JsonObject n || n["inputs"] is not JsonObject inputs) continue;
             var kind = n["class_type"]?.GetValue<string>() ?? "";
             var title = (n["_meta"] as JsonObject)?["title"] is JsonValue t && t.TryGetValue<string>(out var s) ? s.Trim() : "";
-            if (Tag().Match(title) is { Success: true } m && m.Length == title.Length
-                && TargetInput(inputs) is { } input)
-                Add(FromConstant(m.Groups[1].Value, kind, input, inputs[input]!), fromConstant: true);
-            foreach (var (_, value) in inputs)
+            if (Tag().Match(title) is { Success: true } m && m.Length == title.Length)
+            {
+                if (m.Groups[1].Value == "seed") seeded = true;
+                else if (TargetInput(inputs) is { } input)
+                    Add(FromConstant(m.Groups[1].Value, kind, input, inputs[input]!), fromConstant: true);
+            }
+            foreach (var (name, value) in inputs)
+            {
+                // A number in an input named seed gets the take's seed (see worker.py).
+                if (SeedInputs.Contains(name) && value is JsonValue num && num.GetValueKind() == JsonValueKind.Number) seeded = true;
                 if (value is JsonValue v && v.TryGetValue<string>(out var text))
                     foreach (Match tag in Tag().Matches(text))
+                    {
+                        if (tag.Groups[1].Value == "seed") seeded = true;
                         Add(new SettingDefinition
                         {
                             Key = tag.Groups[1].Value, Type = SettingTypes.String, Label = LabelOf(tag.Groups[1].Value),
                             Description = $"Fills {{{{{tag.Groups[1].Value}}}}} in the workflow.",
                         }, fromConstant: false);
+                    }
+            }
         }
-        return order.Select(k => byKey[k]).ToList();
+        var settings = order.Select(k => byKey[k]).ToList();
+        // Only a workflow that has something to seed gets the setting.
+        if (seeded) settings.Insert(0, new SettingDefinition { Key = "seed", Type = SettingTypes.Seed, Label = "Seed" });
+        return settings;
     }
+
+    /// <summary>Inputs that get the take's seed when the workflow has no {{seed}} tag.</summary>
+    private static readonly HashSet<string> SeedInputs = new(["seed", "noise_seed"], StringComparer.Ordinal);
 
     /// <summary>
     /// The input a node titled with a tag holds its value in: "value" (ComfyUI's Int, Float, String and Boolean

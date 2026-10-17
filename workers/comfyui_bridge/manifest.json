@@ -1,7 +1,7 @@
 {
   "id": "comfyui_bridge",
   "displayName": "ComfyUI bridge",
-  "description": "Runs your own ComfyUI workflow for each segment, on one or more ComfyUI servers. Add the workflow to the project's assets (exported with Export (API)); its {{tags}} become the speaker's settings.",
+  "description": "Runs your own ComfyUI workflow, on one or more ComfyUI servers: generates audio for each segment, and also transcribes, aligns and compares voices. Add the workflow to the project's assets (exported with Export (API)); its {{tags}} become the speaker's settings.",
   "tags": ["Bridge"],
   "priority": -10,
   "modelVersion": "1",
@@ -25,7 +25,6 @@
   ],
   "settings": [
     { "key": "workflow", "type": "asset", "extensions": [".comfy.json"], "addsSettings": "comfyWorkflow", "label": "Workflow",
-      "description": "A ComfyUI workflow from the project's assets (exported with Workflow > Export (API)). Its {{tags}} appear below as settings; {{text}}, {{seed}} and {{duration}} are filled in from the segment." },
-    { "key": "seed", "type": "seed", "label": "Seed" }
+      "description": "A ComfyUI workflow from the project's assets (exported with Workflow > Export (API)). Its {{tags}} appear below as settings; {{text}}, {{seed}} and {{duration}} are filled in from the segment. A Seed setting appears when the workflow has something to seed." }
   ]
 }

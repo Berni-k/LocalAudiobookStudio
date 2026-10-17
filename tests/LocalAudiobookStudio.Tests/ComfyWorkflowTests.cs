@@ -22,7 +22,10 @@ public sealed class ComfyWorkflowTests
     [Fact]
     public void Tags_become_settings_in_order_without_the_built_in_ones()
     {
-        var settings = ComfyWorkflow.SettingsOf((JsonObject)JsonNode.Parse(Workflow)!);
+        var all = ComfyWorkflow.SettingsOf((JsonObject)JsonNode.Parse(Workflow)!);
+        Assert.Equal("seed", all[0].Key); // this workflow has a {{seed}}
+        Assert.Equal(SettingTypes.Seed, all[0].Type);
+        var settings = all.Skip(1).ToList();
 
         Assert.Equal(["cfg", "steps", "style", "loud", "mood", "voice"], settings.Select(s => s.Key));
         Assert.Equal([SettingTypes.Float, SettingTypes.Int, SettingTypes.String, SettingTypes.Bool, SettingTypes.String, SettingTypes.Asset],
@@ -36,6 +39,38 @@ public sealed class ComfyWorkflowTests
         Assert.Contains(".wav", settings[5].Extensions);
         Assert.Equal("Voice Reference", settings[5].AssetFolder);
         Assert.Null(settings[5].Default);
+    }
+
+    [Fact]
+    public void The_seed_setting_appears_only_when_the_workflow_has_something_to_seed()
+    {
+        static List<string> Keys(string inputs) => ComfyWorkflow.SettingsOf((JsonObject)JsonNode.Parse(
+            $$"""{ "1": { "class_type": "Sampler", "inputs": { {{inputs}} } } }""")!).Select(s => s.Key).ToList();
+
+        Assert.Empty(Keys(""" "steps": 20 """));
+        Assert.Empty(Keys(""" "seed": ["5", 0] """)); // a link, not a value
+        Assert.Equal(["seed"], Keys(""" "noise_seed": 42 """));
+        Assert.Equal(["seed"], Keys(""" "prompt": "go {{seed}}" """));
+    }
+
+    [Fact]
+    public void Listening_tags_are_built_in_and_the_bridge_is_both_a_voice_and_a_listener()
+    {
+        var settings = ComfyWorkflow.SettingsOf((JsonObject)JsonNode.Parse("""
+            {
+              "1": { "class_type": "LoadAudio", "_meta": { "title": "{{audio}}" }, "inputs": { "audio": "a.wav" } },
+              "2": { "class_type": "LoadAudio", "_meta": { "title": "{{reference}}" }, "inputs": { "audio": "r.wav" } },
+              "3": { "class_type": "PreviewAny", "_meta": { "title": "{{result}}" }, "inputs": { "source": ["1", 0], "preview": "{{result}}" } }
+            }
+            """)!);
+        Assert.Empty(settings);
+
+        var catalog = new WorkerCatalog(Repo.Combine("workers"));
+        var bridge = catalog.Get("comfyui_bridge")!;
+        Assert.Contains(bridge, catalog.Generators);
+        Assert.Contains(bridge, catalog.Transcribers);
+        Assert.True(bridge.AlignsText);
+        Assert.True(bridge.VerifiesSpeaker);
     }
 
     [Fact]
@@ -73,7 +108,7 @@ public sealed class ComfyWorkflowTests
         var bridge = new WorkerCatalog(Repo.Combine("workers")).Get("comfyui_bridge")!;
         string Resolve(string rel) => Path.Combine(tmp.Path, rel);
 
-        Assert.Equal(["workflow", "seed"], bridge.SettingsFor(new JsonObject(), Resolve).Select(s => s.Key));
+        Assert.Equal(["workflow"], bridge.SettingsFor(new JsonObject(), Resolve).Select(s => s.Key));
         var keys = bridge.SettingsFor(new JsonObject { ["workflow"] = "assets/a.comfy.json" }, Resolve).Select(s => s.Key);
         Assert.Equal(["workflow", "seed", "cfg", "steps", "style", "loud", "mood", "voice"], keys);
 

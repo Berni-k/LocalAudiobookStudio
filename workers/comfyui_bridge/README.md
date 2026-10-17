@@ -6,6 +6,11 @@ Runs a [ComfyUI](https://github.com/comfyanonymous/ComfyUI) workflow (API format
 
 - Runs in the `basic` environment: `soundfile` decodes ComfyUI's FLAC, `websocket-client` follows progress.
   No torch, no GPU (`external: true`: the app gives it its own device, with "Parallel workers" lanes).
+- Tagged only `Bridge`: it generates and also listens (`WorkerManifest.IsBridge` makes `CanTranscribe`, `AlignsText`
+  and `VerifiesSpeaker` true and keeps it out of `IsListener`, so it stays a speaker's voice). `transcribe_align`, `align`
+  and `compare_voices` run the speaker's workflow like `generate` does (`_prepare` fills `audio`, `reference` and
+  `candidate` from the job; `_listen` reads the text of the node titled `{{result}}`). Results: `parse_transcript`
+  (plain text or JSON), `parse_score`. Voice comparison runs one workflow per pair of files.
 - Each lane uses server `lane % len(servers)` from the `servers` worker setting.
 - Tags: the app turns a workflow's `{{tags}}` into settings in `src/LocalAudiobookStudio.Workers/Manifest/ComfyWorkflow.cs`
   (types, defaults, the built-in `text`, `seed` and `duration`); `worker.py` fills the same tags. Keep the

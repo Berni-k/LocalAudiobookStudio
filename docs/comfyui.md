@@ -2,7 +2,7 @@
 
 The ComfyUI bridge generates segments with your own [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
 workflows instead of a built-in model. Anything ComfyUI can turn into audio works: speech, voice cloning, music,
-sound effects. ComfyUI does the work, on this machine or another one. The bridge itself needs no GPU and only a
+sound effects. It can also transcribe, align and compare voices with a workflow. ComfyUI does the work, on this machine or another one. The bridge itself needs no GPU and only a
 small Python environment.
 
 ## Setting up
@@ -75,8 +75,11 @@ These are filled from the segment instead of becoming settings:
 | `{{text}}` | The segment's text |
 | `{{seed}}` | The take's seed: the speaker's *Seed* setting, or a random one, so regenerating gives a new take |
 | `{{duration}}` | The segment's length in seconds (*Length* in the inspector) |
+| `{{audio}}`, `{{reference}}`, `{{candidate}}` | Files for [listening jobs](#other-jobs-transcribing-aligning-comparing-voices) |
+| `{{result}}` | Not filled: titles the node whose text is a listening job's answer |
 
-Without a `{{seed}}` tag, every input named `seed` or `noise_seed` gets the take's seed anyway.
+Without a `{{seed}}` tag, every input named `seed` or `noise_seed` gets the take's seed anyway. The speaker's
+*Seed* setting only appears for a workflow that has either; one with nothing to seed doesn't show it.
 
 ### Setting types
 
@@ -117,6 +120,36 @@ ComfyUI-VibeVoice custom node:
 | Int | `{{steps}}` | `inference_steps` | Setting "Steps", default 10 |
 | Load Audio | `{{voice}}` | `speaker_1_voice` | Setting "Voice": the clip to clone |
 | Preview Audio | – | its `Audio` output | The take |
+
+## Other jobs: transcribing, aligning, comparing voices
+
+The same bridge also listens. It appears next to the other workers wherever a speaker picks one: under
+**Transcription**, **Alignment** and **Speaker Verification** in *Speakers*. Each of those has its own **Workflow**
+setting, so a speaker can generate with one workflow and be transcribed by another.
+
+A listening workflow gets its audio through built-in tags and gives its answer in a text node:
+
+- **Audio in.** Title a **Load Audio** node `{{audio}}` (transcribing and aligning: a 16 kHz mono WAV of the take),
+  or `{{reference}}` and `{{candidate}}` (comparing voices). The bridge uploads the files for you. Aligning also
+  fills `{{text}}`, the text to time.
+- **Text out.** Title a **Preview Any** (or Show Text) node `{{result}}`. Its text is the answer. The node has to be
+  an output node, or ComfyUI won't run it.
+
+What `{{result}}` must contain:
+
+| Job | Result |
+|---|---|
+| Transcription | The text, or JSON `{"text": "…", "words": [{"text": "hello", "startMs": 120, "endMs": 480}]}` to give word times too |
+| Alignment | JSON: a list of words like the above, or `{"words": [...]}`. Times are `startMs`/`endMs`, or `start`/`end` in seconds |
+| Speaker Verification | A number, or JSON `{"score": 0.83}`. Higher means more alike |
+
+A workflow without what a job needs (no `{{result}}` node, no word times for aligning, a result that isn't a
+number) fails with a message saying what is missing. A transcription workflow that gives no word times
+transcribes fine, but can't cut fused generations or time words.
+
+Comparing voices runs the workflow once per pair of files (two files: one run; ten: 45), as the model only sees
+two voices at a time. A candidate's score is its average over the references. Scores from different workflows
+are never compared.
 
 ## What it leaves on the server
 

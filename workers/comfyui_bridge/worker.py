@@ -1,4 +1,5 @@
-"""ComfyUI bridge worker: runs a ComfyUI workflow per generation and returns its audio.
+"""ComfyUI bridge worker: runs a ComfyUI workflow per generation and returns its audio. The same worker also
+transcribes, aligns and compares voices with a workflow: see "listening" below.
 
 ComfyUI manages its own GPU, so this process needs no CUDA. The app starts up to "Parallel workers"
 processes of it; each has a lane number (``protocol.lane()``) and uses server ``lane % len(servers)``
@@ -76,6 +77,82 @@ def target_input(inputs: dict):
     if "audio" in widgets:
         return "audio"
     return widgets[0] if len(widgets) == 1 else None
+
+
+LISTEN_TAGS = ("audio", "reference", "candidate")  # files a listening job provides
+
+
+def is_result(node):
+    """The node whose text is a listening job's answer: titled {{result}}."""
+    title = str((node.get("_meta") or {}).get("title") or "").strip()
+    m = TAG.fullmatch(title)
+    return bool(m) and m.group(1) == "result"
+
+
+def text_of(output):
+    """The text a node put in its history output (Preview Any: "text"; other nodes use other keys), or None."""
+    for key in ("text", "string", "result"):
+        value = output.get(key)
+        if value is not None:
+            output = {key: value}
+            break
+    for value in output.values():
+        if isinstance(value, list) and value and isinstance(value[0], str):
+            return value[0]
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def parse_words(items):
+    """Words as the protocol wants them. Times are ``startMs``/``endMs`` (or ``start``/``end`` in seconds)."""
+    words = []
+    for w in items:
+        if not isinstance(w, dict):
+            raise RuntimeError(f"A word in the workflow's {{{{result}}}} is not an object: {w!r}")
+        text = w.get("text", w.get("word"))
+        if "startMs" in w and "endMs" in w:
+            start, end = w["startMs"], w["endMs"]
+        elif "start" in w and "end" in w:
+            start, end = float(w["start"]) * 1000, float(w["end"]) * 1000
+        else:
+            raise RuntimeError("A word in the workflow's {{result}} has no times (startMs and endMs, or start and end in seconds).")
+        if text is None:
+            raise RuntimeError("A word in the workflow's {{result}} has no text.")
+        words.append({"text": str(text), "startMs": int(start), "endMs": int(end)})
+    return words
+
+
+def parse_transcript(text):
+    """A listening result: plain text, JSON ``{"text", "words", "language"}``, or a JSON list of words."""
+    stripped = text.strip()
+    if stripped[:1] in ("{", "["):
+        try:
+            data = json.loads(stripped)
+        except ValueError:
+            data = None
+        if isinstance(data, list):
+            words = parse_words(data)
+            return {"text": " ".join(w["text"] for w in words), "words": words, "language": None}
+        if isinstance(data, dict):
+            words = parse_words(data.get("words") or [])
+            return {"text": str(data.get("text") or " ".join(w["text"] for w in words)), "words": words,
+                    "language": data.get("language")}
+    return {"text": stripped, "words": [], "language": None}
+
+
+def parse_score(text):
+    """A voice comparison's result: a number, or JSON with a ``score``."""
+    stripped = text.strip()
+    try:
+        data = json.loads(stripped)
+    except ValueError:
+        raise RuntimeError(f"The workflow's {{{{result}}}} is not a score: {stripped[:80]!r}") from None
+    if isinstance(data, dict):
+        data = data.get("score")
+    if isinstance(data, bool) or not isinstance(data, (int, float)):
+        raise RuntimeError(f"The workflow's {{{{result}}}} is not a score: {stripped[:80]!r}")
+    return float(data)
 
 
 class ComfyError(RuntimeError):
@@ -195,9 +272,9 @@ class ComfyBridge:
             log(f"lane {lane()}: ComfyUI at {self.server} is up ({devices or 'no device info'})")
         report(1.0, f"Connected to {self.server}")
 
-    def generate(self, req, report):
-        workflow = self._prepare(req)
-        outputs = self._redirect_outputs(workflow)
+    def _execute(self, workflow, report):
+        """Queues the workflow and waits for it. Returns (prompt id, history entry); the caller forgets the prompt
+        once it has what it needs from the entry."""
         ws = self._connect_ws()
         try:
             prompt_id = self._json("/prompt", {"prompt": workflow, "client_id": self.client_id})["prompt_id"]
@@ -216,6 +293,12 @@ class ComfyBridge:
                     ws.close()
                 except Exception:  # noqa: BLE001
                     pass
+        return prompt_id, entry
+
+    def generate(self, req, report):
+        workflow = self._prepare(req)
+        outputs = self._redirect_outputs(workflow)
+        prompt_id, entry = self._execute(workflow, report)
         try:
             audio = self._find_audio(entry, outputs)
             report(0.97, "Downloading the audio")
@@ -230,6 +313,67 @@ class ComfyBridge:
         samples, rate = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
         ms = write_wav(req.out_path, samples, rate)
         return {"durationMs": ms, "seed": req.seed, "sampleRate": rate}
+
+    # ------------------------------------------------------------------ listening
+    # The same workflow setting does these jobs too; a workflow ends in a node titled {{result}} (Preview Any, Show
+    # Text …) whose text is the answer. A workflow without what a job needs just fails with a message saying so.
+
+    def transcribe_align(self, req, report):
+        """The words heard. The result is plain text, or JSON ``{"text", "words": [{"text", "startMs", "endMs"}]}``."""
+        text = self._listen(req, report, {"audio": req.audio_path})
+        return parse_transcript(text)
+
+    def align(self, req, report):
+        """The times of ``req.text``'s words. The result is JSON: a list of words, or ``{"words": [...]}``."""
+        text = self._listen(req, report, {"audio": req.audio_path})
+        result = parse_transcript(text)
+        if not result["words"]:
+            raise RuntimeError("The workflow's {{result}} has no word times. Aligning needs JSON: a list of "
+                               '{"text", "startMs", "endMs"} words, or {"words": [...]}.')
+        return result
+
+    def compare_voices(self, req, report):
+        """Scores every pair of files with the workflow ({{reference}} and {{candidate}} are Load Audio nodes); the
+        result is a number, or JSON with a ``score``. Each candidate's score is its average against the references."""
+        import soundfile as sf
+
+        files = req.files
+        n = len(files)
+        matrix = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+        pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+        for k, (i, j) in enumerate(pairs):
+            a, b = files[i], files[j]
+            if b["role"] == "reference" and a["role"] != "reference":
+                a, b = b, a  # the reference goes in {{reference}}, the other file is the candidate
+            score = parse_score(self._listen(
+                req, lambda f, m, k=k: report((k + f) / len(pairs), m), {"reference": a["path"], "candidate": b["path"]}))
+            matrix[i][j] = matrix[j][i] = score
+        references = [i for i, f in enumerate(files) if f["role"] == "reference"]
+        candidates = [i for i, f in enumerate(files) if f["role"] != "reference"]
+        scores = [sum(matrix[c][r] for r in references) / len(references) for c in candidates] if references else []
+        speech = [int(sf.info(f["path"]).duration * 1000) for f in files]
+        return {"scores": scores, "matrix": matrix, "speechMs": speech,
+                "model": "comfyui:" + os.path.basename(str(req.settings.get("workflow") or ""))}
+
+    def _listen(self, req, report, extra):
+        """Runs the workflow with the job's audio and returns the text of its {{result}} node."""
+        workflow = self._prepare(req, extra)
+        result_nodes = [node_id for node_id, node in workflow.items() if is_result(node)]
+        if not result_nodes:
+            raise RuntimeError("The workflow has no node titled {{result}}. Title a Preview Any (or Show Text) node "
+                               "{{result}}: its text is the answer.")
+        prompt_id, entry = self._execute(workflow, report)
+        try:
+            if entry.get("status", {}).get("status_str") == "error":
+                raise RuntimeError(self._history_error(entry))
+            results = entry.get("outputs") or {}
+            for node_id in result_nodes:
+                text = text_of(results.get(node_id) or {})
+                if text is not None:
+                    return text
+            raise RuntimeError("The workflow's {{result}} node produced no text.")
+        finally:
+            self._forget(prompt_id)
 
     # ------------------------------------------------------------------ workflow
 
@@ -253,10 +397,12 @@ class ComfyBridge:
         self.workflows[path] = (mtime, wf)
         return json.loads(json.dumps(wf))
 
-    def _prepare(self, req):
+    def _prepare(self, req, extra=None):
         """The workflow with every tag filled in. Values are only worked out when a tag asks for them, so a
-        workflow that leaves an audio setting empty uploads nothing."""
+        workflow that leaves an audio setting empty uploads nothing. ``extra`` has the files of a listening job."""
         s = req.settings
+        extra = extra or {}
+        seed = req.seed if req.seed is not None else (s["seed"] if isinstance(s.get("seed"), int) else 0)
         workflow = self._load_workflow(str(s.get("workflow") or "").strip())
         used = set()
 
@@ -267,7 +413,9 @@ class ComfyBridge:
             if name == "text":
                 return req.text or ""
             if name == "seed":
-                return int(req.seed)
+                return int(seed)
+            if name in extra:
+                return extra[name]
             if name == "duration":
                 return float(req.duration_sec) if req.duration_sec else MISSING
             v = s.get(name)
@@ -280,6 +428,9 @@ class ComfyBridge:
                 return v
             if name == "duration":
                 raise RuntimeError("This workflow needs a length ({{duration}}). Set a length on the segment.")
+            if name in LISTEN_TAGS:
+                raise RuntimeError(f"This workflow uses {{{{{name}}}}}, which this job doesn't provide "
+                                   "({{audio}}: transcribing and aligning; {{reference}} and {{candidate}}: comparing voices).")
             return ""
 
         def fill(v):
@@ -294,7 +445,7 @@ class ComfyBridge:
             inputs = node.get("inputs") or {}
             # A node titled {{name}}: a constant (Int, Float, String, Boolean) or Load Audio.
             title = str((node.get("_meta") or {}).get("title") or "").strip()
-            titled = TAG.fullmatch(title)
+            titled = None if is_result(node) else TAG.fullmatch(title)  # {{result}} is read, not set
             target = target_input(inputs) if titled else None
             for key, v in inputs.items():
                 if key == target:
@@ -312,7 +463,7 @@ class ComfyBridge:
                 inputs = node.get("inputs") or {}
                 for key in SEED_INPUTS & inputs.keys():
                     if isinstance(inputs[key], (int, float)) and not isinstance(inputs[key], bool):
-                        inputs[key] = int(req.seed)
+                        inputs[key] = int(seed)
         return workflow
 
     def _redirect_outputs(self, workflow):

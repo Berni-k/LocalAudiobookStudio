@@ -68,29 +68,36 @@ public sealed class WorkerManifest
     /// returns scores. Such a worker can be a speaker's SIM scorer.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool VerifiesSpeaker => HasTag(WorkerTags.SpeakerVerification);
+    public bool VerifiesSpeaker => HasTag(WorkerTags.SpeakerVerification) || IsBridge;
+
+    /// <summary>
+    /// Runs the user's own workflow for any job (the ComfyUI bridge, tagged Bridge): it generates, and counts as a
+    /// transcriber, an aligner and a speaker verifier too (the checks above), without being only a listener.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsBridge => HasTag(WorkerTags.Bridge);
 
     /// <summary>Listens to audio instead of generating it: transcribes, aligns or verifies voices. Not offered as a speaker's voice.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsListener => IsTranscriber || VerifiesSpeaker || Diarizes;
+    public bool IsListener => !IsBridge && (IsTranscriber || VerifiesSpeaker || Diarizes);
 
     /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool CanTranscribe => HasTag(WorkerTags.Transcription);
+    public bool CanTranscribe => HasTag(WorkerTags.Transcription) || IsBridge;
 
     /// <summary>
     /// Times the words it hears (<c>transcribeAlign</c>): tagged Transcription with Alignment, or with Alignment Forced
     /// (a forced aligner times its own transcript too).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool CanAlign => HasTag(WorkerTags.Alignment) || CanTranscribe && HasTag(WorkerTags.ForcedAlignment);
+    public bool CanAlign => HasTag(WorkerTags.Alignment) || CanTranscribe && AlignsText;
 
     /// <summary>
     /// Times a given text's words without changing them (forced alignment, <c>align</c>; tag Alignment Forced): it can be
     /// a speaker's aligner, timing what its transcription worker heard.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool AlignsText => HasTag(WorkerTags.ForcedAlignment);
+    public bool AlignsText => HasTag(WorkerTags.ForcedAlignment) || IsBridge;
 
     /// <summary>
     /// The most this worker can be asked for in one request: the words heard with their times when it is tagged
@@ -611,6 +618,12 @@ public static class WorkerRuntimes
 /// <summary>Tags that change what the app does with a worker (the others are only shown).</summary>
 public static class WorkerTags
 {
+    /// <summary>
+    /// Runs a workflow of the user's own (ComfyUI). With listening tags it does those jobs as well as generating, and
+    /// stays a speaker's voice (<see cref="WorkerManifest.IsListener"/> is false for it).
+    /// </summary>
+    public const string Bridge = "Bridge";
+
     /// <summary>Hears the words in audio (speech recognition): answers <c>transcribe</c>.</summary>
     public const string Transcription = "Transcription";
 
