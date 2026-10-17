@@ -160,8 +160,8 @@ public sealed class FusionTests : IAsyncDisposable
         Worker("allround", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Alignment Forced"] """);
         Worker("hearer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription"] """);
         // Hear who says what in timed blocks, not word by word. "lump" hears everything as one block.
-        Worker("diarizer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Multi-speaker"] """);
-        Worker("lump", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Multi-speaker"] """);
+        Worker("diarizer", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Diarization"] """);
+        Worker("lump", """ "envGroup": "basic", "modelVersion": "v1", "tags": ["Transcription", "Diarization"] """);
         lock (FusionConnection.Requests) FusionConnection.Requests.Clear();
         lock (FusionConnection.Listens) FusionConnection.Listens.Clear();
         _scheduler = new GenerationScheduler((w, _) => new FusionConnection(w), _ => WorkerHosting.AnyLocal);
@@ -575,6 +575,9 @@ public sealed class FusionTests : IAsyncDisposable
     {
         // Hearing who says what is a mode of its own: timed blocks by voice, without word times.
         Assert.Equal(ListenMode.TranscribeDiarize, _host.Catalog.Get("diarizer")!.ListenMode);
+        // Hearing and telling voices apart: it can also be the diarizer of another transcriber, its blocks read as turns.
+        Assert.True(_host.Catalog.Get("diarizer")!.Diarizes);
+        Assert.True(_host.Catalog.Get("diarizer")!.CanDiarize);
         Assert.True(_host.Catalog.Get("diarizer")!.CanDiarize);
         Assert.False(_host.Catalog.Get("hearer")!.CanDiarize);
         Assert.Equal(ListenMode.TranscribeAlign, _host.Catalog.Get("listen")!.ListenMode);

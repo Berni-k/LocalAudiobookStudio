@@ -34,7 +34,7 @@ public sealed class VoiceBlocksView : Control
     public double ViewStartMs { get => GetValue(ViewStartMsProperty); set => SetValue(ViewStartMsProperty, value); }
     public double ViewEndMs { get => GetValue(ViewEndMsProperty); set => SetValue(ViewEndMsProperty, value); }
 
-    /// <summary>One colour per voice, in the order the voices first speak (the labels are the worker's own: "S01", "S02").</summary>
+    /// <summary>One colour per voice, in the order the voices first speak (the labels are the worker's own: "S1", "S2").</summary>
     public static readonly Color[] VoiceColors =
     [
         Color.FromRgb(0xE0, 0x6C, 0x75), Color.FromRgb(0x61, 0xAF, 0xEF), Color.FromRgb(0x98, 0xC3, 0x79),

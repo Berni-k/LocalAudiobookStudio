@@ -5,8 +5,9 @@ One pass of speech recognition and speaker diarization: the model writes ``[star
 code; the GitHub package's helpers (message building, input preparation, generation, the output parser) are a few
 lines each and are redone here, so none of its dependencies (a web server, PyAV, numba …) are installed.
 
-The model times segments, not words, so the worker is tagged Transcription and Multi-speaker (no Alignment) and answers
-``transcribeDiarize`` with the segments as they are: timed blocks of text, each with its voice. The app compares their
+The model times segments, not words, so the worker is tagged Transcription and Diarization (no Alignment) and answers
+``transcribeDiarize`` with the segments as they are: timed blocks of text, each with its voice (labelled S1, S2 …; the
+model's own S01 is renumbered). ``diarize`` gets the same blocks, which the app reads as turns. The app compares their
 words with the expected text itself, sharing a block's time among its words. For word times, give the speaker an
 aligner (Speakers window, Alignment) and use this worker as the transcriber; the app tries the blocks first and
 brings the aligner in when they don't line up with what it is looking for.
@@ -43,7 +44,7 @@ def parse_segments(raw: str, total_ms: int):
         end = max(start, int(round(float(m.group(4)) * 1000)))
         if total_ms:
             start, end = min(start, total_ms), min(end, total_ms)
-        out.append({"text": text, "startMs": start, "endMs": end, "speaker": m.group(2)})
+        out.append({"text": text, "startMs": start, "endMs": end, "speaker": "S" + str(int(m.group(2)[1:]))})  # S01 -> S1
     return out
 
 
@@ -136,7 +137,7 @@ class MossTranscribeWorker:
         raw, total_ms = self._hear(req, report)
         segments = parse_segments(raw, total_ms)
         if not segments and raw.strip():
-            segments = [{"text": raw.strip(), "startMs": 0, "endMs": total_ms, "speaker": "S01"}]
+            segments = [{"text": raw.strip(), "startMs": 0, "endMs": total_ms, "speaker": "S1"}]
         report(1.0)
         return {"text": " ".join(s["text"] for s in segments), "segments": segments, "language": None}
 

@@ -183,14 +183,27 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
        `align(req, report)` returns the words of `req.text` with their times. Alone (`mms_fa`, copy it), or with
        `Transcription` (`qwen3_asr`): that is the full set, as its forced aligner times its own transcript too, so it
        also implements `transcribe_align` and needs no `Alignment` tag.
-     - `Transcription` and `Multi-speaker` (no `Alignment`): hears who says what, without timing each word:
+     - `Transcription` and `Diarization` (no `Alignment`): hears who says what, without timing each word:
        `transcribeDiarize` → `transcribe_diarize(req, report)` returns the text and `segments`, timed blocks of text
-       `{text, startMs, endMs, speaker}` (a sentence or a turn; any label for the voice, the same for one voice
-       throughout; blocks may overlap when voices talk at once). It also answers `transcribe`. `moss_transcribe`, copy
-       it. The connection turns the blocks into the transcript's words (each a "word" holding several), so everything
+       `{text, startMs, endMs, speaker}` (a sentence or a turn; voices are labelled `S1`, `S2` …, `S0` for one it can't
+       place, or any string such as a name; the same label for one voice throughout; blocks may overlap when voices talk
+       at once). It also answers `transcribe`, and `diarize` (the blocks read as turns, so it can be another
+       transcriber's diarizer). `moss_transcribe`, copy it. The connection turns the blocks into the transcript's words (each a "word" holding several), so everything
        downstream works unchanged: `TranscriptCheck` splits a block into words that share its time by length, and
        `WordComparison.Unit` says which block a word came from. A worker that times words too is tagged `Alignment`
        as well and answers `transcribeAlign` with a `speaker` on each word.
+     - `Diarization` (alone): who speaks when, without the words: `diarize` → `diarize(req, report)` returns
+       `segments`, the turns (`startMs`, `endMs`, `speaker`, empty `text`; turns of different voices may overlap).
+       Alone it is never a transcriber (`IsTranscriber` is false, `IsListener` true); it pairs with one: `Listeners.Diarizer`
+       (`las transcribe --diarizer pyannote`) continues the chain once the words are final, and
+       `Transcription.WithTurns` gives each word the voice and block of the turn it falls in. `pyannote` is the
+       internal engine of the same name (`PyannoteEngine`, ONNX Runtime, CPU): community-1's segmentation and WeSpeaker
+       networks as ONNX files, the arithmetic ported from pyannote.audio 4 in `DiarizationMath.cs` (tests compare its
+       VBx and agglomerative clustering with pyannote's and scipy's own numbers). The `onnx` / `onnx-cuda` runtimes
+       (`workers/pyannote/worker.py`, numpy and scipy) are the same pipeline for the GPU; keep the two in step. On the
+       CPU the ONNX sessions run one thread per call and many calls at once (a session with many threads leaves most
+       cores idle). The request's `speakerCount` hint
+       sets the number of voices when the settings don't.
      The app asks for the most a worker's tags allow in one request (`WorkerManifest.ListenMode`); cutting fused
      generations needs word times or blocks by voice. A speaker can also use an aligner (Speakers window, Alignment; only workers tagged
      `Alignment Forced`, `AlignsText`): its transcription worker hears the words, then the aligner times the text it

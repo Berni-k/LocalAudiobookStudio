@@ -60,10 +60,21 @@ Stable Audio Open Small is broken for now: on HartsyInference its audio comes ou
 | MMS forced aligner | Letters a–z (accents are dropped) | – | ✅ | Very accurate | 170× (CPU: 11×) | 1 GB | CC-BY-NC 4.0 ⚠️ | [Model](https://huggingface.co/MahmoudAshraf/mms-300m-1130-forced-aligner) · [ONNX](https://huggingface.co/tatsu020/mms-300m-fa-onnx) · [Code](https://docs.pytorch.org/audio/stable/tutorials/ctc_forced_alignment_api_tutorial.html) |
 
 - **Transcribe**: hears the words; ⏱️ means it also says when each word is.
-- 🗣️ **Tells voices apart**: labels who said each block of text (S01, S02 …; the labels are anonymous and only mean "the same voice as before"), and times the blocks, not the words. `las transcribe --words` shows them. When a speaker with such a transcriber has its segments generated together, the app cuts them out at the blocks' edges if each segment is whole blocks; otherwise it uses the speaker's aligner (*Speakers → Alignment*) to time the words, and without one the segments are generated one by one.
+- 🗣️ **Tells voices apart**: labels who said each block of text (S1, S2 …; the labels are anonymous and only mean "the same voice as before"), and times the blocks, not the words. `las transcribe --words` shows them. When a speaker with such a transcriber has its segments generated together, the app cuts them out at the blocks' edges if each segment is whole blocks; otherwise it uses the speaker's aligner (*Speakers → Alignment*) to time the words, and without one the segments are generated one by one.
 - **Align**: times a text you already have, without changing its words. A speaker can pair a transcription worker
   with an aligner (*Speakers → Alignment*): the first hears the words, the aligner times them.
 - Use Whisper to judge *where* words are and Parakeet to check *what* was said (fast and strict about words).
+
+## Speaker diarization
+
+Says who speaks when, as turns without words, and finds the number of voices itself. `las diarize file.wav` prints the
+turns; `las transcribe -w parakeet --diarizer pyannote` gives each heard word the voice of its turn (and keeps the turns
+as the transcript's blocks). Voice labels (S1, S2 …) are anonymous: they only mean "the same voice as before". A
+transcriber that tells voices apart (MOSS-Transcribe-Diarize) can be the diarizer too: its blocks are read as turns.
+
+| Model | Speed | RAM | Notes | License | Links |
+|---|---|---|---|---|---|
+| pyannote community-1 | 45× (CPU: 16×) | 1 GB | Overlapping speech (*Overlapping speech* setting); up to 3 voices at once and any number in all. Built in (ONNX Runtime, CPU); the ONNX runtime installs a Python environment for the GPU. Any length (105 minutes tried); the voices are grouped over the whole recording, so labels stay consistent | CC-BY-4.0 | [Model](https://huggingface.co/pyannote/speaker-diarization-community-1) · [ONNX files](https://github.com/royce-mathew/sidekick-models/releases/tag/diarization-community-1) · [Code](https://github.com/pyannote/pyannote-audio) |
 
 ## Speaker verification
 
@@ -112,6 +123,7 @@ GPU: ✅ yes, 🐢 slowly (several times slower than real time), ❌ no.
 | MOSS-Transcribe-Diarize | ⭐ | | | | | | 🐢 |
 | MMS forced aligner | | ✅ | ✅ | | ⭐ | | ✅ |
 | | | | | | | | |
+| pyannote community-1 | | | | | ⭐ | | ✅ |
 | Speaker SIM Score | | | | | ⭐ | | ✅ |
 | Speaker SIM Score (WavLM) | ⭐ | | | | | | ✅ |
 

@@ -2,6 +2,8 @@
 
 Local Audiobook Studio is released under the [MIT License](LICENSE.txt). The app ships with the components below, each under its own license; their license texts follow.
 
+The speaker diarization worker (`pyannote`) runs [pyannote speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) by Hervé Bredin, Alexis Plaquet and the pyannote / pyannoteAI contributors, released under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). The app does not ship it: the converted files (ONNX versions of the segmentation and WeSpeaker ResNet34 embedding networks, and the PLDA parameters; made by [Sidekick](https://github.com/royce-mathew/sidekick-models/releases/tag/diarization-community-1), not by the original authors, who do not endorse this use) are downloaded when the worker first runs. The WeSpeaker model follows the VoxCeleb dataset license (CC-BY-4.0) and the PLDA model is the BUT Speech@FIT VBx one. The code that puts them together (`DiarizationMath.cs`) is a port of pyannote.audio 4's inference, clustering and VBx code (MIT).
+
 Not covered here, because they are not shipped with the app but downloaded later on your machine: Python and Python packages (from PyPI and the PyTorch index) when you install a worker, whisper.cpp's GPU builds (Whisper.net's Vulkan and CUDA runtimes, MIT) when you install Whisper's Internal (whisper.cpp GPU) runtime, the AI models when a worker first runs, and ffmpeg if you let the system check download it. Each comes with its own license; the models are listed in [docs/models.md](docs/models.md).
 
 | Component | What ships | License |

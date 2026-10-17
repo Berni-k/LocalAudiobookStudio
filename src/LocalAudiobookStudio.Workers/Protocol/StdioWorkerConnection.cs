@@ -182,6 +182,7 @@ public sealed class StdioWorkerConnection : IWorkerConnection
                 ListenMode.Transcribe => MessageTypes.Transcribe,
                 ListenMode.Align => MessageTypes.Align,
                 ListenMode.TranscribeDiarize => MessageTypes.TranscribeDiarize,
+                ListenMode.Diarize => MessageTypes.Diarize,
                 _ => MessageTypes.TranscribeAlign,
             },
             AudioPath = request.AudioPath,
@@ -192,15 +193,20 @@ public sealed class StdioWorkerConnection : IWorkerConnection
         };
         var reply = await RequestAsync(msg, progress, ct, sendCancelOnAbort: true).ConfigureAwait(false);
         // Blocks with nothing in them (a worker's empty segment) say nothing.
-        var segments = request.Mode == ListenMode.TranscribeDiarize
-            ? reply.Segments?.Where(s => !string.IsNullOrWhiteSpace(s.Text) && s.EndMs >= s.StartMs).ToList()
-            : null;
+        // (A turn from a diarization worker has no text: it is the voice and the time.)
+        var segments = request.Mode switch
+        {
+            ListenMode.TranscribeDiarize => reply.Segments?.Where(s => !string.IsNullOrWhiteSpace(s.Text) && s.EndMs >= s.StartMs).ToList(),
+            ListenMode.Diarize => reply.Segments?.Where(s => s.EndMs >= s.StartMs).ToList(),
+            _ => null,
+        };
         var text = reply.Text ?? "";
-        if (text.Length == 0 && segments is { Count: > 0 }) text = string.Join(' ', segments.Select(s => s.Text.Trim()));
+        if (text.Length == 0 && request.Mode != ListenMode.Diarize && segments is { Count: > 0 }) text = string.Join(' ', segments.Select(s => s.Text.Trim()));
         // The blocks are the timed words when the worker gave no words of its own: a block is a "word" holding several.
         // Text only: its words without times (all at 0), so it can still be compared with the text it should be.
         IReadOnlyList<TranscriptWord> words =
-            request.Mode == ListenMode.Transcribe ? TextWords(text)
+            request.Mode == ListenMode.Diarize ? []
+            : request.Mode == ListenMode.Transcribe ? TextWords(text)
             : reply.Words is { Count: > 0 } ? reply.Words
             : segments is { Count: > 0 } ? segments.Select((s, i) => new TranscriptWord(s.Text.Trim(), s.StartMs, s.EndMs, null, s.Speaker, i)).ToList()
             : TextWords(text);

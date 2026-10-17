@@ -31,6 +31,7 @@ public static class TranscribeCommand
         new("--speakers"),
         new("--speaker-count"),
         new("--aligner"),
+        new("--diarizer"),
         new("--recursive", "-r", HasValue: false),
     ];
 
@@ -55,19 +56,33 @@ public static class TranscribeCommand
         var (manifest, settings) = ResolveWorker(ctx, host, a);
         // --aligner: the worker hears the words (text only) and the aligner times what it heard, as for a speaker that
         // uses an aligner in the app.
+        // --diarizer: after the words, a diarization worker (pyannote) says who speaks when, and each word gets the voice of
+        // the turn it falls in.
         Listeners? listeners = null;
-        if (a.Get("--aligner") is { } alignerId)
+        if (a.Get("--aligner") is not null || a.Get("--diarizer") is not null)
         {
-            if (a.Has("--mode")) throw new UsageException("transcribe: --aligner times what the worker hears; leave out --mode.");
+            if (a.Has("--mode")) throw new UsageException("transcribe: --aligner and --diarizer add to what the worker hears; leave out --mode.");
             if (!manifest.CanTranscribe)
-                throw new UsageException($"transcribe: with --aligner, -w must hear words (tagged Transcription); {manifest.DisplayName} doesn't.");
-            var alignerManifest = host.Catalog.Get(alignerId) is { AlignsText: true } found
-                ? found
-                : throw new UsageException($"transcribe: --aligner {alignerId} can't time a given text: it needs a forced aligner (tagged " +
-                                           $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
-            if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
-            listeners = new Listeners(manifest, settings, alignerManifest,
-                OneShot.MergeSettings(alignerManifest.DefaultSettings(), null, alignerManifest, ctx.FullPath));
+                throw new UsageException($"transcribe: with --aligner or --diarizer, -w must hear words (tagged Transcription); {manifest.DisplayName} doesn't.");
+            WorkerManifest? alignerManifest = null, diarizerManifest = null;
+            if (a.Get("--aligner") is { } alignerId)
+            {
+                alignerManifest = host.Catalog.Get(alignerId) is { AlignsText: true } found
+                    ? found
+                    : throw new UsageException($"transcribe: --aligner {alignerId} can't time a given text: it needs a forced aligner (tagged " +
+                                               $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
+                if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
+            }
+            if (a.Get("--diarizer") is { } diarizerId)
+            {
+                diarizerManifest = host.Catalog.Get(diarizerId) is { Diarizes: true } foundDiarizer
+                    ? foundDiarizer
+                    : throw new UsageException($"transcribe: --diarizer {diarizerId} doesn't tell voices apart: it needs a worker tagged " +
+                                               $"{WorkerTags.Diarization}: {string.Join(", ", host.Catalog.All.Where(m => m.Diarizes).Select(m => m.Id))}.");
+                if (host.WhyWorkerCannotRun(diarizerManifest.Id) is { } whyNotDiarizer) throw new SetupException(whyNotDiarizer);
+            }
+            JsonObject Defaults(WorkerManifest? m) => m == null ? new JsonObject() : OneShot.MergeSettings(m.DefaultSettings(), null, m, ctx.FullPath);
+            listeners = new Listeners(manifest, settings, alignerManifest, Defaults(alignerManifest), diarizerManifest, Defaults(diarizerManifest));
         }
         var mode = listeners != null ? ListenMode.TranscribeAlign : ModeOf(manifest, a.Get("--mode"));
         // Aligning finds the words of a given text: without the text it has nothing to do, and comparing its words
@@ -161,14 +176,16 @@ public static class TranscribeCommand
             "transcribe" => ListenMode.Transcribe,
             "align" => ListenMode.Align,
             "transcribe-align" or "transcribealign" => ListenMode.TranscribeAlign,
-            "transcribe-diarize" or "transcribediarize" or "diarize" => ListenMode.TranscribeDiarize,
-            _ => throw new UsageException($"transcribe: --mode is transcribe, align, transcribe-align or transcribe-diarize, not '{requested}'."),
+            "transcribe-diarize" or "transcribediarize" => ListenMode.TranscribeDiarize,
+            "diarize" => ListenMode.Diarize,
+            _ => throw new UsageException($"transcribe: --mode is transcribe, align, transcribe-align, transcribe-diarize or diarize, not '{requested}'."),
         };
         var can = mode switch
         {
             ListenMode.Transcribe => manifest.CanTranscribe,
             ListenMode.Align => manifest.AlignsText,
-            ListenMode.TranscribeDiarize => manifest.CanTranscribe && manifest.TellsSpeakers,
+            ListenMode.TranscribeDiarize => manifest.CanDiarize,
+            ListenMode.Diarize => manifest.Diarizes,
             _ => manifest.CanTranscribe && manifest.CanAlign,
         };
         if (!can)
@@ -187,7 +204,7 @@ public static class TranscribeCommand
                        ?? throw new SetupException("No transcription worker is available.");
         var manifest = host.Catalog.Get(workerId)
                        ?? throw new UsageException($"transcribe: unknown worker '{workerId}'. Transcription workers: {string.Join(", ", transcribers.Select(m => m.Id))}.");
-        if (!manifest.IsTranscriber)
+        if (!manifest.IsTranscriber && !manifest.Diarizes)
             throw new UsageException($"transcribe: {manifest.DisplayName} doesn't transcribe. Transcription workers: {string.Join(", ", transcribers.Select(m => m.Id))}.");
         if (a.Get("--runtime") is { } runtime) manifest = WorkerSetupCommands.UseRuntime(host, manifest, runtime, "transcribe", ctx.Shared);
         if (a.Get("--device") is { } device) WorkerSetupCommands.UseDevice(host, manifest, device, "transcribe", ctx.Shared);
@@ -335,6 +352,14 @@ public static class TranscribeCommand
         ctx.Detail($"{name}: {unit.Seconds:0.0} s");
         if (several) ctx.Out($"{name}:");
         var indent = several ? "  " : "";
+        if (t.Words.Count == 0 && t.Text.Length == 0 && t.Segments is { } turns)
+        {
+            // A diarization worker: who speaks when, no words.
+            ctx.Out($"{indent}{turns.Count} turn(s), {turns.Select(x => x.Speaker).Distinct().Count()} voice(s)");
+            foreach (var turn in turns)
+                ctx.Out($"{indent}  {Seconds(turn.StartMs),7} {Seconds(turn.EndMs),7}  [{turn.Speaker}]");
+            return;
+        }
         ctx.Out(indent + t.Text);
         if (showWords)
             foreach (var w in t.Words)

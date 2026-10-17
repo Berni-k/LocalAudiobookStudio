@@ -1,9 +1,9 @@
 {
   "id": "moss_transcribe",
   "displayName": "MOSS-Transcribe-Diarize",
-  "description": "Speech recognition in 50+ languages that also tells voices apart (S01, S02 …), for recordings up to 90 minutes. It times blocks of text (a sentence or a turn), not words: for close word times give the speaker an aligner. Experimental.",
+  "description": "Speech recognition in 50+ languages that also tells voices apart (S1, S2 …), for recordings up to 90 minutes. It times blocks of text (a sentence or a turn), not words: for close word times give the speaker an aligner. Experimental.",
   "experimental": true,
-  "tags": ["Transcription", "Multi-speaker"],
+  "tags": ["Transcription", "Diarization"],
   "priority": 38,
   "envGroup": "torch2_11-cu128-tx5",
   "requirements": "requirements.txt",

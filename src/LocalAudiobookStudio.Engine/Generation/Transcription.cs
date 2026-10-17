@@ -9,9 +9,11 @@ namespace LocalAudiobookStudio.Engine;
 
 /// <summary>
 /// Who listens to a speaker's audio (<c>ProjectEngine.ListenersFor</c>): the worker that hears the words (tagged
-/// Transcription) and the one that times them, when the speaker uses an aligner. Either may be missing.
+/// Transcription) and the one that times them, when the speaker uses an aligner. Either may be missing. A diarizer, if
+/// there is one (tagged Diarization), listens after them and gives each heard word the voice of the turn it falls in.
 /// </summary>
-public sealed record Listeners(WorkerManifest? Hearer, JsonObject HearerSettings, WorkerManifest? Aligner, JsonObject AlignerSettings)
+public sealed record Listeners(WorkerManifest? Hearer, JsonObject HearerSettings, WorkerManifest? Aligner, JsonObject AlignerSettings,
+    WorkerManifest? Diarizer = null, JsonObject? DiarizerSettings = null)
 {
     public static readonly Listeners None = new(null, new JsonObject(), null, new JsonObject());
 
@@ -29,10 +31,11 @@ public sealed record Listeners(WorkerManifest? Hearer, JsonObject HearerSettings
 
     /// <summary>The same workers and settings (speakers listened to the same way can share a fused generation).</summary>
     public string Key => $"{Hearer?.Id}|{Hearer?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(HearerSettings)}|" +
-                         $"{Aligner?.Id}|{Aligner?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(AlignerSettings)}";
+                         $"{Aligner?.Id}|{Aligner?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(AlignerSettings)}|" +
+                         $"{Diarizer?.Id}|{Diarizer?.Runtime}|{Core.Hashing.InputHasher.Canonicalize(DiarizerSettings ?? new JsonObject())}";
 
-    /// <summary>Who listened, for logs and records: "parakeet", or "parakeet + mms_fa".</summary>
-    public string Names => string.Join(" + ", new[] { Hearer?.Id, Aligner?.Id }.OfType<string>());
+    /// <summary>Who listened, for logs and records: "parakeet", or "parakeet + mms_fa + pyannote".</summary>
+    public string Names => string.Join(" + ", new[] { Hearer?.Id, Aligner?.Id, Diarizer?.Id }.OfType<string>());
 }
 
 /// <summary>
@@ -52,7 +55,9 @@ public static class Transcription
     {
         var decoded = AudioDecoder.Decode(source);
         var mono = new DecodedAudio(AudioDecoder.ToMono(decoded), decoded.SampleRate, 1);
-        AudioDecoder.WriteWav(mono.SampleRate == SampleRate ? mono : AudioDecoder.Resample(mono, SampleRate), wavPath);
+        // Resampled the way torchaudio does (see SincResampler): models listen to what that filter leaves.
+        AudioDecoder.WriteWav(mono.SampleRate == SampleRate ? mono
+            : new DecodedAudio(SincResampler.Resample(mono.Samples, mono.SampleRate, SampleRate), SampleRate, 1), wavPath);
     }
 
     /// <summary>
@@ -109,9 +114,23 @@ public static class Transcription
         object? tag, long readingOrder, IReadOnlyList<string>? speakers, Func<GenerationJob, Task>? afterRun = null, int? speakerCount = null,
         Func<TranscriptResult, bool>? segmentsSuffice = null)
     {
+        // With a diarizer, once the words are final it listens too, and its turns give each word a voice. (The hearer is
+        // then not asked to tell voices apart: the diarizer is the one that does.)
+        Func<GenerationJob, GenerationJob?>? voices = listeners.Diarizer is { } diarizer
+            ? words => words.Transcript is { Words.Count: > 0 }
+                ? Job(diarizer, wavPath, null, listeners.DiarizerSettings ?? new JsonObject(), $"{label} (voices)", priority, tag, readingOrder,
+                    ListenMode.Diarize, speakers, speakerCount, async turns =>
+                    {
+                        if (turns.Transcript != null && turns.ContinuesFrom?.Transcript is { } heard)
+                            turns.AmendTranscript(WithTurns(heard, turns.Transcript));
+                        if (afterRun != null) await afterRun(turns).ConfigureAwait(false);
+                    })
+                : null // nothing heard: nobody to give a voice to
+            : null;
+
         if (listeners is { Hearer: { } hearer, Aligner: { } aligner })
         {
-            var blocks = hearer.CanDiarize;
+            var blocks = hearer.CanDiarize && listeners.Diarizer == null;
             return Job(hearer, wavPath, expectedText, listeners.HearerSettings, label, priority, tag, readingOrder,
                 blocks ? ListenMode.TranscribeDiarize : ListenMode.Transcribe, speakers, speakerCount, afterRun,
                 then: heard => blocks && segmentsSuffice != null && heard.Transcript is { } blocksHeard && segmentsSuffice(blocksHeard)
@@ -124,16 +143,50 @@ public static class Transcription
                                 if (timed.Transcript != null && timed.ContinuesFrom?.Transcript is { } hearerHeard)
                                     timed.AmendTranscript(WithBlocksOf(timed.Transcript, hearerHeard));
                                 if (afterRun != null) await afterRun(timed).ConfigureAwait(false);
-                            })
+                            }, then: voices)
                         : null); // nothing heard: nothing to time
         }
         if (listeners.Hearer is { } alone)
             return Job(alone, wavPath, expectedText, listeners.HearerSettings, label, priority, tag, readingOrder,
-                speakers: speakers, speakerCount: speakerCount, afterRun: afterRun);
+                listeners.Diarizer != null && alone.CanDiarize ? alone.CanAlign ? ListenMode.TranscribeAlign : ListenMode.Transcribe : null,
+                speakers, speakerCount, afterRun, then: voices);
         if (listeners.Aligner is { } aligning)
             return Job(aligning, wavPath, expectedText, listeners.AlignerSettings, label, priority, tag, readingOrder,
-                ListenMode.Align, speakers, speakerCount, afterRun);
+                ListenMode.Align, speakers, speakerCount, afterRun, then: voices);
         return null;
+    }
+
+    /// <summary>
+    /// The words of <paramref name="heard"/> with the voice of the turn each falls in, from what a diarization worker said
+    /// (<paramref name="turns"/>: segments with a speaker, no text): a word goes to the turn it overlaps most, and one in a
+    /// gap to the nearest. The turns that hold words become the transcript's blocks (their text the words in them), and the
+    /// words point to them; the times are the words' own.
+    /// </summary>
+    public static TranscriptResult WithTurns(TranscriptResult heard, TranscriptResult turns)
+    {
+        if (turns.Segments is not { Count: > 0 } all || heard.Words.Count == 0) return heard;
+        int Turn(TranscriptWord w)
+        {
+            int best = -1, nearest = 0;
+            long bestOverlap = 0, nearestGap = long.MaxValue;
+            var middle = (w.StartMs + w.EndMs) / 2;
+            for (var i = 0; i < all.Count; i++)
+            {
+                var overlap = Math.Min(w.EndMs, all[i].EndMs) - Math.Max(w.StartMs, all[i].StartMs);
+                if (overlap > bestOverlap) { bestOverlap = overlap; best = i; }
+                var gap = middle < all[i].StartMs ? all[i].StartMs - middle : middle > all[i].EndMs ? middle - all[i].EndMs : 0;
+                if (gap < nearestGap) { nearestGap = gap; nearest = i; }
+            }
+            return best >= 0 ? best : nearest;
+        }
+        var turnOf = heard.Words.Select(Turn).ToList();
+        var used = turnOf.Distinct().OrderBy(i => i).ToList();
+        var renumbered = used.Select((turn, index) => (turn, index)).ToDictionary(x => x.turn, x => x.index);
+        var words = heard.Words.Select((w, i) => w with { Speaker = all[turnOf[i]].Speaker, Block = renumbered[turnOf[i]] }).ToList();
+        var blocks = used.Select(turn => new TranscriptSegment(
+            string.Join(' ', words.Where((_, i) => turnOf[i] == turn).Select(w => w.Text)),
+            all[turn].StartMs, all[turn].EndMs, all[turn].Speaker)).ToList();
+        return heard with { Words = words, Segments = blocks };
     }
 
     public static TranscriptCheck Check(string expectedText, TranscriptResult transcript) =>

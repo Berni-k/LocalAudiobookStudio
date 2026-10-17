@@ -415,6 +415,17 @@
         "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
       }
     },
+    "pyannote-community-1-onnx": {
+      "displayName": "pyannote speaker diarization community-1 (ONNX)",
+      "sources": [
+        { "url": "https://github.com/royce-mathew/sidekick-models/releases/download/diarization-community-1/{file}" }
+      ],
+      "files": {
+        "community-1-segmentation.onnx": { "size": 5919203, "sha256": "a6dd77dbce5fadb038f1212dc7feec98a7374be089141a2bff7e4abc2e99c842" },
+        "community-1-embedding.onnx": { "size": 26546560, "sha256": "c1f9b63f894212bf2ee21bfc02da9f5be423982213cae5a2dc5c7d897b12f642" },
+        "community-1-plda.json": { "size": 983498, "sha256": "deb5b431afcd839824e806f05356ab2458a55f50a8f8d4763bdd27703c2796ec" }
+      }
+    },
     "moss-transcribe-diarize": {
       "displayName": "MOSS-Transcribe-Diarize (0.9B)",
       "sources": [

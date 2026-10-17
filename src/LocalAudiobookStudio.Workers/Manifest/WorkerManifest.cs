@@ -72,7 +72,7 @@ public sealed class WorkerManifest
 
     /// <summary>Listens to audio instead of generating it: transcribes, aligns or verifies voices. Not offered as a speaker's voice.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsListener => IsTranscriber || VerifiesSpeaker;
+    public bool IsListener => IsTranscriber || VerifiesSpeaker || Diarizes;
 
     /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -92,29 +92,34 @@ public sealed class WorkerManifest
     [System.Text.Json.Serialization.JsonIgnore]
     public bool AlignsText => HasTag(WorkerTags.ForcedAlignment);
 
-    /// <summary>Says who said each word it returns (tag Multi-speaker).</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool TellsSpeakers => HasTag(WorkerTags.MultiSpeaker);
-
     /// <summary>
     /// The most this worker can be asked for in one request: the words heard with their times when it is tagged
     /// Transcription and Alignment (<c>transcribeAlign</c>), the text as timed blocks by voice with Transcription and
-    /// Multi-speaker (<c>transcribeDiarize</c>), the words heard with Transcription alone, the times of a given text when it
-    /// only aligns (Alignment Forced).
+    /// Diarization (<c>transcribeDiarize</c>), the words heard with Transcription alone, the turns with Diarization alone,
+    /// the times of a given text when it only aligns (Alignment Forced).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public ListenMode ListenMode => CanTranscribe && CanAlign ? ListenMode.TranscribeAlign
         : CanDiarize ? ListenMode.TranscribeDiarize
         : CanTranscribe ? ListenMode.Transcribe
+        : Diarizes ? ListenMode.Diarize
         : ListenMode.Align;
 
     /// <summary>
+    /// Tells voices apart (<c>diarize</c>; tag Diarization): it answers with turns, each a stretch of one voice. Such a worker
+    /// listens (it is never a speaker's voice). Alone (pyannote) it isn't a transcriber and only pairs with one; with
+    /// Transcription (MOSS-Transcribe-Diarize) it can also be that pairing's diarizer, its blocks read as turns.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Diarizes => HasTag(WorkerTags.Diarization);
+
+    /// <summary>
     /// Hears the words and tells voices apart without timing each word (<c>transcribeDiarize</c>): tagged Transcription and
-    /// Multi-speaker. It answers with timed blocks of text, each said by one voice. A worker that also times words is asked
+    /// Diarization. It answers with timed blocks of text, each said by one voice. A worker that also times words is asked
     /// for those instead (<c>transcribeAlign</c>, with a speaker on each word).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool CanDiarize => CanTranscribe && TellsSpeakers;
+    public bool CanDiarize => CanTranscribe && Diarizes;
 
     /// <summary>
     /// Not well tested yet. Set per runtime (in a runtime's overlay) or for the whole worker (in manifest.json).
@@ -623,11 +628,13 @@ public static class WorkerTags
     public const string ForcedAlignment = "Alignment Forced";
 
     /// <summary>
-    /// Tells voices apart (a label of its own, "S0", "S1"). With Transcription alone it answers <c>transcribeDiarize</c>:
-    /// timed blocks of text, each said by one voice, no word times. With Transcription and Alignment each timed word
-    /// says who said it (<c>transcribeAlign</c>).
+    /// Tells voices apart (speaker diarization). Voices get labels of the worker's own, "S1", "S2" … (S0 for one it can't
+    /// place), or any string, such as a name it knows. <c>diarize</c> returns turns, each a stretch of one voice. Alone
+    /// (pyannote) it has no words. With <see cref="Transcription"/> it answers <c>transcribeDiarize</c>: timed blocks of
+    /// text, each said by one voice, no word times (and still <c>diarize</c>, the blocks read as turns); with
+    /// Transcription and <see cref="Alignment"/> each timed word says who said it (<c>transcribeAlign</c>).
     /// </summary>
-    public const string MultiSpeaker = "Multi-speaker";
+    public const string Diarization = "Diarization";
 
     /// <summary>
     /// Says how alike voices are (speaker verification): takes two or more audio files, some marked as references, and

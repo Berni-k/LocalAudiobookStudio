@@ -56,12 +56,18 @@ public static class MessageTypes
     public const string TranscribeAlign = "transcribeAlign";
 
     /// <summary>
-    /// What is said and by whom (workers tagged Transcription and Multi-speaker): a <see cref="Transcript"/> whose
+    /// What is said and by whom (workers tagged Transcription and Diarization): a <see cref="Transcript"/> whose
     /// <see cref="WorkerMessage.Segments"/> are timed blocks of text, each with the voice that said it. The times are
     /// the block's, not each word's. The worker may add timed words as well. <see cref="WorkerMessage.Text"/> is never
     /// a prompt.
     /// </summary>
     public const string TranscribeDiarize = "transcribeDiarize";
+
+    /// <summary>
+    /// Who speaks when, without the words (workers tagged Diarization): a <see cref="Transcript"/> with no text and
+    /// <see cref="WorkerMessage.Segments"/> that are the turns: each a stretch of one voice, its text empty.
+    /// </summary>
+    public const string Diarize = "diarize";
 
     /// <summary>
     /// How alike voices are (workers tagged Speaker Verification): two or more audio files (<see cref="WorkerMessage.Files"/>),
@@ -275,7 +281,7 @@ public sealed class TranscribeRequest
 
     /// <summary>
     /// Who may be speaking, when known: names, in the order they first speak. A hint for workers that tell voices apart
-    /// (Multi-speaker); any worker may ignore it, and the labels it returns needn't be these.
+    /// (Diarization); any worker may ignore it, and the labels it returns needn't be these.
     /// </summary>
     public IReadOnlyList<string>? Speakers { get; init; }
 
@@ -295,8 +301,11 @@ public enum ListenMode
     /// <summary>The words heard with their times (Transcription and Alignment): <see cref="MessageTypes.TranscribeAlign"/>.</summary>
     TranscribeAlign,
 
-    /// <summary>The text as timed blocks, each with the voice that said it (Transcription and Multi-speaker): <see cref="MessageTypes.TranscribeDiarize"/>.</summary>
+    /// <summary>The text as timed blocks, each with the voice that said it (Transcription and Diarization): <see cref="MessageTypes.TranscribeDiarize"/>.</summary>
     TranscribeDiarize,
+
+    /// <summary>Who speaks when, as turns without text (Diarization): <see cref="MessageTypes.Diarize"/>.</summary>
+    Diarize,
 }
 
 /// <summary>One audio file of a voice comparison: a 16 kHz mono WAV made like a transcription's (<c>Transcription.PrepareAudio</c>).</summary>
@@ -337,7 +346,7 @@ public sealed record VoiceScores(IReadOnlyList<double> Scores, IReadOnlyList<IRe
 
 /// <summary>One word as heard, with where it is in the audio.</summary>
 /// <param name="Speaker">
-/// Who said it, from a worker tagged Multi-speaker: any label the model likes ("S0", "S1"), the same for one voice
+/// Who said it, from a worker tagged Diarization: any label the model likes ("S1", "S2"; S0 for a voice it can't place), the same for one voice
 /// within a transcript; null from other workers.
 /// </param>
 /// <param name="Block">

@@ -18,6 +18,7 @@ internal static class Fbank
     private const double Preemphasis = 0.97;
 
     private static readonly float[] Window = BuildWindow();
+    private static readonly float[] HammingWindow = BuildHammingWindow();
     private static readonly float[][] MelWeights = BuildMelBanks();
     private static readonly (double Cos, double Sin)[] Twiddles = BuildTwiddles();
 
@@ -26,8 +27,14 @@ internal static class Fbank
     /// the way the model was trained (some want -1..1, WeSpeaker's the 16-bit integer range). Empty when the clip is
     /// shorter than one window.
     /// </summary>
-    public static float[][] Compute(ReadOnlySpan<float> samples)
+    /// <param name="samples">16 kHz mono samples.</param>
+    /// <param name="hamming">
+    /// A Hamming window instead of the Povey one (WeSpeaker's own features, which pyannote's embedding model takes; the
+    /// 3D-Speaker and sherpa-onnx exports use Povey).
+    /// </param>
+    public static float[][] Compute(ReadOnlySpan<float> samples, bool hamming = false)
     {
+        var window = hamming ? HammingWindow : Window;
         if (samples.Length < WindowSamples) return [];
         var frames = (samples.Length - WindowSamples) / ShiftSamples + 1;
         var result = new float[frames][];
@@ -47,7 +54,7 @@ internal static class Fbank
 
             for (var i = 0; i < FftSize; i++)
             {
-                re[i] = i < WindowSamples ? frame[i] * Window[i] : 0;
+                re[i] = i < WindowSamples ? frame[i] * window[i] : 0;
                 im[i] = 0;
             }
             Fft(re, im);
@@ -86,6 +93,14 @@ internal static class Fbank
         var w = new float[WindowSamples];
         for (var i = 0; i < w.Length; i++)
             w[i] = (float)Math.Pow(0.5 - 0.5 * Math.Cos(2 * Math.PI * i / (WindowSamples - 1)), 0.85);
+        return w;
+    }
+
+    private static float[] BuildHammingWindow()
+    {
+        var w = new float[WindowSamples];
+        for (var i = 0; i < w.Length; i++)
+            w[i] = (float)(0.54 - 0.46 * Math.Cos(2 * Math.PI * i / (WindowSamples - 1)));
         return w;
     }
 

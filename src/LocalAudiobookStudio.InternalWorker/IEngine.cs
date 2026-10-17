@@ -18,6 +18,12 @@ internal enum ListenMode
 
     /// <summary><c>transcribeAlign</c>: the words heard with their times.</summary>
     TranscribeAlign,
+
+    /// <summary><c>transcribeDiarize</c>: the text as timed blocks, each with the voice that said it.</summary>
+    TranscribeDiarize,
+
+    /// <summary><c>diarize</c>: who speaks when, as timed turns without text.</summary>
+    Diarize,
 }
 
 internal interface IEngine : IDisposable

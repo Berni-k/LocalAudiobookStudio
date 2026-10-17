@@ -15,10 +15,15 @@ generating implements what its tags say, in place of ``generate`` (``req.audio_p
   speech in each file, ``model`` what scored (scores of different models are never compared);
 - tag Alignment Forced: ``align(req, report)`` returns ``{"words": [{"text", "startMs", "endMs", "confidence"}]}``, the
   times of ``req.text``'s words as written (it needs the text, and doesn't check that they were said). With
-  Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript.
+  Transcription, it is the full set: it also implements ``transcribe_align``, timing its own transcript;
+- tag Diarization (alone, without Transcription): ``diarize(req, report)`` returns ``{"segments": [{"startMs", "endMs",
+  "speaker"}]}``, who speaks when: the turns in order, their ``"text"`` empty or left out, turns of different voices
+  overlapping when they talk at once. ``req.settings`` may carry ``numSpeakers``, ``minSpeakers`` and ``maxSpeakers``.
+  The app pairs it with a transcriber: each heard word gets the voice of the turn it falls in.
 
-A worker tagged Multi-speaker tells voices apart, with any label it likes ("S0", "S1"), the same for one voice within
-the transcript. ``req.speakers`` (names, in the order they first speak) and ``req.speaker_count`` say who and how many,
+A worker tagged Diarization tells voices apart, with labels "S1", "S2" … (S0: a voice it can't place; any other string
+works too, such as a name it knows), the same for one voice within the transcript. With Transcription it also answers
+``diarize`` with its ``transcribe_diarize`` blocks, which the app reads as turns. ``req.speakers`` (names, in the order they first speak) and ``req.speaker_count`` say who and how many,
 when the app knows; a hint that any worker may ignore. How the voices are reported depends on the other tags:
 
 - with Transcription and Alignment, each word returned by ``transcribe_align`` may have a ``"speaker"``;
@@ -449,7 +454,7 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
                 _handle_generate(worker, msg, current)
             elif mtype == "compareVoices":
                 _handle_compare_voices(worker, msg, current)
-            elif mtype in ("transcribe", "align", "transcribeAlign", "transcribeDiarize"):
+            elif mtype in ("transcribe", "align", "transcribeAlign", "transcribeDiarize", "diarize"):
                 _handle_listen(worker, mtype, msg, current)
             elif mtype == "listVoices":
                 voices = worker.list_voices() if hasattr(worker, "list_voices") else []
@@ -605,7 +610,10 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
         missing = "doesn't transcribe audio (tag Transcription)"
     elif mtype == "transcribeDiarize":
         method = getattr(worker, "transcribe_diarize", None) or getattr(worker, "transcribe_align", None)
-        missing = "doesn't tell voices apart (tags Transcription and Multi-speaker)"
+        missing = "doesn't tell voices apart (tags Transcription and Diarization)"
+    elif mtype == "diarize":
+        method = getattr(worker, "diarize", None) or getattr(worker, "transcribe_diarize", None)
+        missing = "doesn't diarize audio (tag Diarization)"
     elif mtype == "align":
         method = getattr(worker, "align", None)
         missing = "doesn't align a known text (tag Alignment Forced)"
@@ -633,15 +641,18 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
         raise Cancelled()
     if mtype == "transcribe":
         result = dict(result, words=[], segments=[])  # text only, as asked
+    elif mtype == "diarize":
+        # Turns only, as asked: a worker that also hears (its blocks of text) gives the voices and times without the words.
+        result = dict(result, text="", words=[], segments=[dict(s, text="") for s in result.get("segments") or []])
     segments = [
         {
-            "text": str(s["text"]),
+            "text": str(s.get("text") or ""),
             "startMs": int(s["startMs"]),
             "endMs": int(s["endMs"]),
             **({"speaker": str(s["speaker"])} if s.get("speaker") is not None else {}),
         }
         for s in result.get("segments") or []
-        if str(s.get("text") or "").strip()
+        if mtype == "diarize" or str(s.get("text") or "").strip()  # (a turn has no text)
     ]
     words = [
         {
@@ -657,7 +668,7 @@ def _handle_listen(worker: Any, mtype: str, msg: dict, current: dict) -> None:
     send({
         "type": "transcript",
         "id": req.id,
-        "text": result.get("text") or " ".join(s["text"].strip() for s in segments) or " ".join(w["text"] for w in words),
+        "text": result.get("text") or " ".join(s["text"].strip() for s in segments).strip() or " ".join(w["text"] for w in words),
         "words": words,
         "segments": segments,
         "language": result.get("language"),

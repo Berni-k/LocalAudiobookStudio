@@ -34,6 +34,28 @@ public class VoiceFeatureTests
     }
 
     [Fact]
+    public void HammingFbankMatchesTorchaudioForPyannotesEmbeddingModel()
+    {
+        // torchaudio.compliance.kaldi.fbank(window_type="hamming", the rest as above) of two sines, 0.2 s at 16 kHz, in the
+        // 16-bit range (what pyannote's WeSpeaker wrapper computes before the network), rows 0, 5 and 17, bins 0, 1, 10, 40, 79.
+        var samples = Enumerable.Range(0, 3200)
+            .Select(n => (float)((0.3 * Math.Sin(2 * Math.PI * 440 * n / 16000) + 0.2 * Math.Sin(2 * Math.PI * 1234 * n / 16000 + 0.5)) * 32768))
+            .ToArray();
+        var features = Fbank.Compute(samples, hamming: true);
+        Assert.Equal(18, features.Length);
+        int[] bins = [0, 1, 10, 40, 79];
+        (int Row, double[] Values)[] expected =
+        [
+            (0, [12.3962, 12.627, 12.0056, 14.5558, 12.9175]),
+            (5, [12.8946, 13.693, 12.9458, 14.054, 11.6032]),
+            (17, [14.3295, 15.2534, 14.065, 14.3887, 12.1593]),
+        ];
+        foreach (var (row, values) in expected)
+            for (var i = 0; i < bins.Length; i++)
+                Assert.InRange(features[row][bins[i]], values[i] - Tolerance, values[i] + Tolerance);
+    }
+
+    [Fact]
     public void MeanSubtractionCentersEachFeature()
     {
         var features = Fbank.Compute(Signal());

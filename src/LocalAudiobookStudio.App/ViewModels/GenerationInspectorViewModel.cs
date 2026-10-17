@@ -115,7 +115,7 @@ public sealed partial class GenerationInspectorViewModel : ObservableObject, IWa
     public IReadOnlyList<HeardBlock>? Blocks { get; }
     public bool HasBlocks => Blocks != null;
 
-    /// <summary>"voices heard: S01, S02", or null without blocks.</summary>
+    /// <summary>"voices heard: S1, S2", or null without blocks.</summary>
     private static string? VoicesText(IReadOnlyList<HeardBlock>? blocks) =>
         blocks?.Select(b => b.Speaker).Where(s => s != null).Distinct().ToList() is { Count: > 0 } voices
             ? "voices heard: " + string.Join(", ", voices) : null;

@@ -53,6 +53,8 @@ public static class CommandRunner
             {
                 "tts" => await TtsCommand.RunAsync(ctx, tail),
                 "transcribe" => await TranscribeCommand.RunAsync(ctx, tail),
+                // Who speaks when: transcribe's machinery with a diarization worker (pyannote unless -w names another).
+                "diarize" => await TranscribeCommand.RunAsync(ctx, ["--mode", "diarize", .. tail.Contains("-w") || tail.Contains("--worker") ? tail : ["--worker", "pyannote", .. tail]]),
                 "compare" => await CompareCommand.RunAsync(ctx, tail),
                 "project" => await ProjectCommand.RunAsync(ctx, tail),
                 "workers" => await InfoCommands.WorkersAsync(ctx, tail),

@@ -18,6 +18,8 @@ internal static class Engines
         ["ctc-align"] = c => new CtcAlignEngine(c),
         // Speaker-embedding networks (3D-Speaker, WeSpeaker) exported to ONNX: how alike voices are, on the CPU.
         ["speaker-embed"] = c => new SpeakerEmbedEngine(c),
+        // Speaker diarization (pyannote community-1 exported to ONNX): who speaks when, on the CPU.
+        ["pyannote"] = c => new PyannoteEngine(c),
     };
 
     public static IEngine Create(EngineContext context) =>

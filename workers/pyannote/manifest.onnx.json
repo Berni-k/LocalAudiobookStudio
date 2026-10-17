@@ -1,0 +1,8 @@
+{
+  "envGroup": "onnx1_30-cpu",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "devices": ["cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "The built-in runtime does the same on the CPU without installing anything."
+}

@@ -50,8 +50,8 @@ internal abstract class EngineBase(EngineContext context) : IEngine
     /// <summary>For an engine that hears words with their times: everything but aligning a given text.</summary>
     protected void RequireHearing(ListenMode mode)
     {
-        if (mode == ListenMode.Align)
-            throw new NotSupportedException($"the {Context.Options.Engine} engine hears words: it can transcribe, with or without times, but not align a given text");
+        if (mode is ListenMode.Align or ListenMode.Diarize or ListenMode.TranscribeDiarize)
+            throw new NotSupportedException($"the {Context.Options.Engine} engine hears words: it can transcribe, with or without times, but not align a given text or tell voices apart");
     }
 
     public virtual Task GenerateAsync(string? id, JsonObject msg) =>

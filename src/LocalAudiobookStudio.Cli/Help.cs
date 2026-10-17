@@ -22,6 +22,9 @@ internal static class Help
           tts        Text to a WAV file, like the speaker preview (no project involved)
           transcribe What a transcription worker hears in audio files, with word timings; compared with
                      the text the audio should contain when you give it
+          diarize    Who speaks when in audio files (speaker diarization, pyannote): the turns, one voice each;
+                     it is 'transcribe' with a diarization worker. 'transcribe --diarizer pyannote' gives each
+                     heard word the voice of its turn
           compare    How alike the voices in audio files are (speaker verification): every pair, or each file
                      against a reference clip; for comparing seeds, models and settings
           project    Run steps on a project: import, erase-takes, generate, export, status, …
@@ -98,7 +101,7 @@ internal static class Help
         What a worker does depends on its tags, and is what it is asked for unless --mode says otherwise:
           transcribe-align  Transcription with Alignment (Whisper, Parakeet) or Alignment Forced (Qwen3-ASR):
                             the words heard, with their times
-          transcribe-diarize  Transcription with Multi-speaker (MOSS-Transcribe-Diarize): the text as timed
+          transcribe-diarize  Transcription with Diarization (MOSS-Transcribe-Diarize): the text as timed
                             blocks, each with the voice that said it. --words prints the blocks
           transcribe        Transcription: the words heard, without times
           align             Alignment Forced (MMS, Qwen3-ASR): the times of a given text's words. It needs
@@ -112,8 +115,12 @@ internal static class Help
                                    worker does)
               --aligner <id>       The worker hears the words, then this aligner (tagged Alignment) times what
                                    was heard: the app's speaker setting Alignment
+              --diarizer <id>      After the words, this diarization worker (tagged Diarization: pyannote) says who
+                                   speaks when, and each word gets its turn's voice ([S1] …). 'las diarize' prints
+                                   the turns alone; --set overlap=true there keeps voices talking at once.
+                                   A worker that hears too (MOSS-Transcribe-Diarize) can be the diarizer
               --speakers <a,b>     Who may be speaking, in order; --speaker-count <n> how many voices. Hints
-                                   for workers tagged Multi-speaker, which say who said each word or block ([S0] …)
+                                   for workers tagged Diarization, which say who said each word or block ([S1] …)
           -w, --worker <id>        Worker (default: the first installed transcription worker)
               --runtime <name>     Runtime of the worker (internal, internal-gpu, python, onnx, onnx-cuda);
                                    see 'las workers <id>'

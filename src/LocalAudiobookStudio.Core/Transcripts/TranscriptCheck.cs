@@ -8,7 +8,7 @@ namespace LocalAudiobookStudio.Core.Transcripts;
 /// A word a transcription worker heard, with where it is in the audio. When the worker times only blocks of text, the
 /// "word" is the whole block (several words) timed as one.
 /// </summary>
-/// <param name="Speaker">Who said it, when the transcription worker tells voices apart (Multi-speaker): its own label ("S0").</param>
+/// <param name="Speaker">Who said it, when the transcription worker tells voices apart (Diarization): its own label ("S1"; S0 is a voice it can't place).</param>
 /// <param name="Block">
 /// The block of text it came from, as an index into the transcript's <see cref="HeardBlock"/>s, when a worker that tells
 /// voices apart heard it. It stays with the word when an aligner times it afterwards, so an exactly timed word can

@@ -7,7 +7,7 @@ namespace LocalAudiobookStudio.InternalWorker;
 /// A word as an engine heard it, in the file's time. <see cref="OpenEnd"/>: the engine doesn't know where it ends;
 /// <see cref="OpenStart"/>: where it starts (the first word of a whisper.cpp segment: <see cref="StartMs"/> is only
 /// where it can't start before). <see cref="TranscriptWords"/> finds them in the audio. <see cref="Speaker"/>: who said
-/// it, from an engine that tells voices apart (worker tag Multi-speaker), as its own label ("S0").
+/// it, from an engine that tells voices apart (worker tag Diarization), as its own label ("S1").
 /// </summary>
 internal sealed record HeardWord(string Text, long StartMs, long EndMs, double Confidence, bool OpenEnd = false, bool OpenStart = false,
     string? Speaker = null);
