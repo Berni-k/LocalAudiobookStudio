@@ -253,6 +253,14 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     ];
 
     /// <summary>The speaker has a transcription worker. Its checkbox is the same thing: unchecking clears the worker.</summary>
+    // A checked group with nothing to pick from: a warning says which kind of worker to install.
+    public bool NoGeneratorInstalled => UseGeneration && Worker == null && Workers.Count == 0;
+    public bool NoTranscriberInstalled => UseTranscriber && Transcriber == null && Transcribers.Count == 0;
+    public bool NoAlignerInstalled => UseAligner && Aligner == null && Aligners.Count == 0;
+
+    private static readonly string[] NoWorkerNames =
+        [nameof(NoGeneratorInstalled), nameof(NoTranscriberInstalled), nameof(NoAlignerInstalled)];
+
     public bool HasTranscriber => Transcriber != null;
     public bool IsTranscriberMissing => HasTranscriber && !AppHost.Environments.IsWorkerReady(Transcriber!.Id);
     public string MissingTranscriberText => Transcriber == null ? "" : $"{Transcriber.DisplayName} is not installed. Install it in Workers, or pick another.";
@@ -670,7 +678,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
         {
             _loading = false;
         }
-        foreach (var n in new[] { nameof(HasSelection), nameof(SpeakerId), nameof(IsDefault), nameof(SupportsCloning), nameof(WorkerInfo), nameof(SegmentCount), nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText) }.Concat(ContextWarnings))
+        foreach (var n in new[] { nameof(HasSelection), nameof(SpeakerId), nameof(IsDefault), nameof(SupportsCloning), nameof(WorkerInfo), nameof(SegmentCount), nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText) }.Concat(ContextWarnings).Concat(NoWorkerNames))
             OnPropertyChanged(n);
         RefreshPreviewLength();
     }
@@ -759,7 +767,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     partial void OnUseGenerationChanged(bool value)
     {
-        foreach (var n in ContextWarnings.Concat(new[] { nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText), nameof(WorkerInfo) }))
+        foreach (var n in ContextWarnings.Concat(NoWorkerNames).Concat(new[] { nameof(IsRecorded), nameof(CanPreview), nameof(IsWorkerMissing), nameof(MissingWorkerText), nameof(WorkerInfo) }))
             OnPropertyChanged(n);
         if (_loading || Selected == null) return;
         var sp = Selected.Model;
@@ -823,6 +831,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
     partial void OnUseAlignerChanged(bool value)
     {
         foreach (var n in AlignmentNames.Concat(ContextWarnings)) OnPropertyChanged(n);
+        OnPropertyChanged(nameof(NoAlignerInstalled));
         if (_loading || Selected == null) return;
         Selected.Model.UseAligner = value;
         Commit();
@@ -847,6 +856,7 @@ public sealed partial class SpeakersDialogViewModel : ObservableObject
 
     partial void OnUseTranscriberChanged(bool value)
     {
+        OnPropertyChanged(nameof(NoTranscriberInstalled));
         if (_loading || Selected == null) return;
         var sp = Selected.Model;
         if (value)

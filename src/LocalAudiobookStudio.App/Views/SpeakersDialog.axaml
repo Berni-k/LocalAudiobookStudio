@@ -140,7 +140,11 @@
                 <TextBlock Text="Worker" Classes="formLabel" />
                 <StackPanel Grid.Column="1" Spacing="2">
                   <ComboBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Worker}" HorizontalAlignment="Stretch"
-                            Classes.missing="{Binding IsWorkerMissing}" PlaceholderText="Install a worker in Workers" />
+                            Classes.missing="{Binding IsWorkerMissing}" PlaceholderText="Choose a worker" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoGeneratorInstalled}">
+                    <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                    <TextBlock Text="No installed worker is tagged Voice, SFX or Music. Install one in Workers, or uncheck Generation to record." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                  </StackPanel>
                   <!-- The project uses a worker this machine doesn't have. -->
                   <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsWorkerMissing}">
                     <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
@@ -248,7 +252,11 @@
                   <TextBlock Text="Worker" Classes="formLabel" />
                   <StackPanel Grid.Column="1" Spacing="2">
                     <ComboBox ItemsSource="{Binding Transcribers}" SelectedItem="{Binding Transcriber}" HorizontalAlignment="Stretch"
-                              Classes.missing="{Binding IsTranscriberMissing}" PlaceholderText="Install a transcription worker in Workers" />
+                              Classes.missing="{Binding IsTranscriberMissing}" PlaceholderText="Choose a worker" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoTranscriberInstalled}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="No installed worker is tagged Transcription. Install one in Workers." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTranscriberMissing}">
                       <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
                       <TextBlock Text="{Binding MissingTranscriberText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
@@ -287,7 +295,11 @@
                   <TextBlock Text="Worker" Classes="formLabel" />
                   <StackPanel Grid.Column="1" Spacing="2">
                     <ComboBox ItemsSource="{Binding Aligners}" SelectedItem="{Binding Aligner}" HorizontalAlignment="Stretch"
-                              Classes.missing="{Binding IsAlignerMissing}" PlaceholderText="Install a forced aligner (MMS, Qwen3-ASR) in Workers" />
+                              Classes.missing="{Binding IsAlignerMissing}" PlaceholderText="Choose a worker" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoAlignerInstalled}">
+                      <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+                      <TextBlock Text="No installed worker is tagged Alignment Forced. Install one in Workers." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsAlignerMissing}">
                       <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
                       <TextBlock Text="{Binding MissingAlignerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
@@ -314,14 +326,14 @@
                   <TextBlock Text="Worker" Classes="formLabel" />
                   <StackPanel Grid.Column="1" Spacing="2">
                     <ComboBox ItemsSource="{Binding SimScorers}" SelectedItem="{Binding SimScorer}" HorizontalAlignment="Stretch"
-                              Classes.missing="{Binding IsSimScorerMissing}" PlaceholderText="Install Speaker SIM Score in Workers" />
+                              Classes.missing="{Binding IsSimScorerMissing}" PlaceholderText="Choose a worker" />
                     <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSimScorerMissing}">
                       <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
                       <TextBlock Text="{Binding MissingSimScorerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoSimScorerInstalled}">
                       <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
-                      <TextBlock Text="No speaker verification worker is installed. Install it in Workers." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
+                      <TextBlock Text="No installed worker is tagged Speaker Verification. Install one in Workers." Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="420" />
                     </StackPanel>
                     <TextBlock Text="{Binding SimScorerInfo}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasSimScorer}" />
                   </StackPanel>
