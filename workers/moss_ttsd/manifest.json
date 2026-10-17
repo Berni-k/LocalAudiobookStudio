@@ -1,0 +1,30 @@
+{
+  "id": "moss_ttsd",
+  "displayName": "MOSS-TTSD",
+  "description": "Conversations of up to 5 voices (20 languages) that sound like a dialogue: natural turn-taking and a steady voice per speaker. Each speaker clones from a 3–10 s reference clip plus its transcript. Experimental.",
+  "experimental": true,
+  "tags": ["Voice", "Voice clone"],
+  "priority": 70,
+  "modelVersion": "v1.0",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 1500,
+  "sampleRate": 24000,
+  "voiceCloning": true,
+  "approxVramGb": 22,
+  "devices": ["cuda"],
+  "models": ["moss-ttsd-1.0", "moss-audio-tokenizer"],
+  "fusion": { "speakers": 5, "maxChars": 6000, "context": ["text"], "spans": false },
+  "settings": [
+    { "key": "refText", "type": "string", "label": "Reference transcript", "default": "", "perVoice": true,
+      "description": "The exact words spoken in the reference clip. Required when the speaker has a clip. Without a clip the model invents a voice." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 2.5, "step": 0.05, "default": 1.1, "label": "Temperature" },
+    { "key": "textTemperature", "type": "float", "min": 0.1, "max": 2.0, "step": 0.05, "default": 1.1, "label": "Stop temperature",
+      "description": "How loosely the model decides when to stop. Lower values make early stops less likely." },
+    { "key": "topP", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.9, "label": "Top-p" },
+    { "key": "topK", "type": "int", "min": 1, "max": 200, "default": 50, "label": "Top-k" },
+    { "key": "repetitionPenalty", "type": "float", "min": 0.9, "max": 2.0, "step": 0.05, "default": 1.1, "label": "Repetition penalty" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

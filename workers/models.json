@@ -272,6 +272,149 @@
         "vae/vae_128d_48k.pth": { "size": 1486465965, "sha256": "07e6139ff33bd21ba8a7a7f40ed24aab13ac0d100cd686f8a9f3e03dc5251cb1" }
       }
     },
+    "moss-audio-tokenizer": {
+      "displayName": "MOSS Audio Tokenizer (24 kHz codec)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-Audio-Tokenizer", "revision": "3cd226ba2947efa357ef453bcad111b6eafba782" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors"],
+      "files": {
+        "__init__.py": { "size": 52, "gitSha1": "be87d805388ff76659c35e7273e8c3687b55eeff" },
+        "config.json": { "size": 6601, "gitSha1": "7683ae6ce1697e4ce5894de857a28d08df79ef59" },
+        "configuration_moss_audio_tokenizer.py": { "size": 12933, "gitSha1": "d82791b43f5cb87256a810b8ee718c2ba4b685fa" },
+        "model-00001-of-00002.safetensors": { "size": 4998259168, "sha256": "037f441ed30a0ab59f6049de83b824a1b3bd6feb7dbd46c3fbca41fc2f649f28" },
+        "model-00002-of-00002.safetensors": { "size": 2100202560, "sha256": "a187d73d2cda1c2d0676586d9d03c09c0a5813450266af32029c871493fc9582" },
+        "model.safetensors.index.json": { "size": 148113, "gitSha1": "f29f2656102e41040db3d3e5223464249891b44e" },
+        "modeling_moss_audio_tokenizer.py": { "size": 70906, "gitSha1": "2956a4b4482433ad3face7f6ee7eb176891a449a" }
+      }
+    },
+    "moss-audio-tokenizer-v2": {
+      "displayName": "MOSS Audio Tokenizer v2 (48 kHz stereo codec)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-Audio-Tokenizer-v2", "revision": "f6e20e543b33d2c252a7ef71bdf8aa71e5ff9169" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors"],
+      "files": {
+        "__init__.py": { "size": 52, "gitSha1": "be87d805388ff76659c35e7273e8c3687b55eeff" },
+        "config.json": { "size": 10166, "gitSha1": "5a94059fa4106b43d1dc53f07efd759793d54af5" },
+        "configuration_moss_audio_tokenizer.py": { "size": 19772, "gitSha1": "0649b97e337ad5532d1767c97e14749edbba5f06" },
+        "model-00001-of-00003.safetensors": { "size": 3978639168, "sha256": "2d9f9182f17b143a23937feb87c63c08221bd28e685e4bc2fa55dcdce17fcde7" },
+        "model-00002-of-00003.safetensors": { "size": 3992738352, "sha256": "d4e48106d0254fe3b00ea0707e88fc6aee076993825e108dd9cef847f9db236e" },
+        "model-00003-of-00003.safetensors": { "size": 523681336, "sha256": "d0449fe1b0ef1f6045946867148d8166b9a91a58d0feca4a18b641494d0b22da" },
+        "model.safetensors.index.json": { "size": 191718, "gitSha1": "475b2b6753b96451aa6ec35587cff28ab07b01d3" },
+        "modeling_moss_audio_tokenizer.py": { "size": 105970, "gitSha1": "3da48dce423e8dd1e58c9225d54553350e83acdd" }
+      }
+    },
+    "moss-tts-1.5": {
+      "displayName": "MOSS-TTS v1.5 (8B)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-TTS-v1.5", "revision": "cdd3b911b1585e3f2dbc7775ef10f9926f58850a" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors", "*.txt", "*.jinja"],
+      "requires": ["moss-audio-tokenizer"],
+      "files": {
+        "__init__.py": { "size": 0, "gitSha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391" },
+        "added_tokens.json": { "size": 704, "gitSha1": "82da7c72d0a900d520bfe3ef5e2b3bb95bf87f6d" },
+        "chat_template.jinja": { "size": 352, "gitSha1": "92909f8edadc3842c289ccfd7cd5de6a9ac655e4" },
+        "config.json": { "size": 2275, "gitSha1": "ddfae7149e06a804f5afbcae068fa77ac4ed103e" },
+        "configuration_moss_tts.py": { "size": 5584, "gitSha1": "f7e91c65f7f30c35d309b4ebc50453cf5c89eebf" },
+        "inference_utils.py": { "size": 5092, "gitSha1": "b2175d852af5469e3e9dd7688b2c8798d1a1cea8" },
+        "merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "model-00001-of-00004.safetensors": { "size": 4932667368, "sha256": "749b82d07cebea77dd15af365e2efeb1dc0dd54537f7010795fdf42f520743a9" },
+        "model-00002-of-00004.safetensors": { "size": 4915961640, "sha256": "4d891c8adb8bf9c135e8a44cd9f003f1dbf8b09278ced48d5af1fe7d989efb39" },
+        "model-00003-of-00004.safetensors": { "size": 4983069760, "sha256": "111013e05174e67748443eafdd4d64c051292d0e5fce2cac23a16988b661eea1" },
+        "model-00004-of-00004.safetensors": { "size": 2148040304, "sha256": "951ee88cf85996ee5c39441ace6e50f52894adad5da42ad2314b9a9db7f940b8" },
+        "model.safetensors.index.json": { "size": 40416, "gitSha1": "ae07ffbcefc80e9f53c0c1d786836dbc295c1f6e" },
+        "modeling_moss_tts.py": { "size": 25330, "gitSha1": "b3941bc66dd2b46ee695825c50d034dd22285dc3" },
+        "processing_moss_tts.py": { "size": 35531, "gitSha1": "a84f65c9757729479d750e8e7729c2995d204d1e" },
+        "processor_config.json": { "size": 145, "gitSha1": "b5df3b949f047d5949fafa7d42b9cf8693fcbb94" },
+        "special_tokens_map.json": { "size": 631, "gitSha1": "f1e356a4bfa4ead1419a3116957555c1cbfeb26a" },
+        "tokenizer.json": { "size": 11422691, "sha256": "cb3c8fa82993d515469c2800cc455bff4aaa3c4fed9da1f2b0c0668c304f335a" },
+        "tokenizer_config.json": { "size": 5501, "gitSha1": "c75c008749bc999e4749eafb407512f428b01acc" },
+        "tts_robust_normalizer_single_script.py": { "size": 14544, "gitSha1": "d7f6a66698582a84420f5268672fcac3d0100306" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "moss-tts-local-1.5": {
+      "displayName": "MOSS-TTS Local Transformer v1.5 (4B)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5", "revision": "be7766a6735b98bd793f7c79fb720b4d0f5d13b8" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors", "*.txt", "*.jinja"],
+      "requires": ["moss-audio-tokenizer-v2"],
+      "files": {
+        "__init__.py": { "size": 254, "gitSha1": "2dcfd72a091e0ecacd0cc44d05d3bc8b8fdb69de" },
+        "added_tokens.json": { "size": 790, "gitSha1": "9e5f284c0d74ecf9b9c006194bd5040b1fe3b640" },
+        "chat_template.jinja": { "size": 4168, "gitSha1": "01be9b307daa2d425f7c168c9fb145a286e0afb4" },
+        "config.json": { "size": 10045, "gitSha1": "c9e6b86a7d151bf800bb030831bba929163ad43f" },
+        "configuration_moss_tts.py": { "size": 7160, "gitSha1": "04b453edd7077170ebbd6a3ffb8167d9af8ac458" },
+        "gpt2_decoder.py": { "size": 30896, "gitSha1": "84c597cf1bcca240562dec1417a53fb19f47bfca" },
+        "merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "model.safetensors": { "size": 9100859544, "sha256": "608f1ff64bc6caa9be836060fc7c78a15c4658c4a07b8d73c78d6f70d1b39c23" },
+        "modeling_moss_tts.py": { "size": 26379, "gitSha1": "4891b570440663b44f0304fe44e6df3d9baf55f8" },
+        "processing_moss_tts.py": { "size": 37496, "gitSha1": "2b15449bb1504a564207eb4c513430416864fce3" },
+        "processor_config.json": { "size": 210, "gitSha1": "9bb021c7cc13f3e886f4be9ca326b68f6b42c461" },
+        "qwen3_decoder.py": { "size": 25473, "gitSha1": "3756bd7033d88388d51a9e64d2fa0efd71959e84" },
+        "special_tokens_map.json": { "size": 394, "gitSha1": "a2a920bbe1a549d19078491a836432ca805caa22" },
+        "tokenizer.json": { "size": 11423220, "sha256": "06902d1fb775216338802205886a24bc715ccc606bd872a892e3d3c83ca1b9e2" },
+        "tokenizer_config.json": { "size": 5727, "gitSha1": "5426bc4f185cb5a3f45b0c7db3d3379eb6019fed" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "moss-ttsd-1.0": {
+      "displayName": "MOSS-TTSD v1.0 (8B)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-TTSD-v1.0", "revision": "c7cd852d87aff71cab5bd2b9b05509cedc0ef1ba" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors", "*.txt", "*.jinja"],
+      "requires": ["moss-audio-tokenizer"],
+      "files": {
+        "added_tokens.json": { "size": 704, "gitSha1": "82da7c72d0a900d520bfe3ef5e2b3bb95bf87f6d" },
+        "chat_template.jinja": { "size": 352, "gitSha1": "92909f8edadc3842c289ccfd7cd5de6a9ac655e4" },
+        "config.json": { "size": 2275, "gitSha1": "881d182ab92ba30c173b399bcf74b01196f95121" },
+        "configuration_moss_tts.py": { "size": 5584, "gitSha1": "f32cd4c80b5df0b79580e2ae635b427f3ef4bcf6" },
+        "generation_config.json": { "size": 132, "gitSha1": "7e1957760f97bf01d2f40ea6cf30548c17dc9e08" },
+        "inference_utils.py": { "size": 5092, "gitSha1": "b2175d852af5469e3e9dd7688b2c8798d1a1cea8" },
+        "merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "model-00001-of-00004.safetensors": { "size": 4932667368, "sha256": "ad8bb115b6c87c902c76e7a4ef90a6eee98041a87f741fcd163fbe81d855d87a" },
+        "model-00002-of-00004.safetensors": { "size": 4915961640, "sha256": "7cb9641e2f25651a43bc7f681337d79ab57ca50d63355660787712fcee393c40" },
+        "model-00003-of-00004.safetensors": { "size": 4983069760, "sha256": "646b345809967a41308d95afcf5af233ae94de7997befac287017af602c59687" },
+        "model-00004-of-00004.safetensors": { "size": 1879339648, "sha256": "ab0a0ed173b7a86a8cb16b82ca981ad0f1866c2c2d0ecb47c97e72b68ccbaba6" },
+        "model.safetensors.index.json": { "size": 38448, "gitSha1": "b0784d7b8f0643b4af2aa7787f6b5ed2673db3e5" },
+        "modeling_moss_tts.py": { "size": 28563, "gitSha1": "5e6cdf6a522685e428dbec04f39b45e2ba28960c" },
+        "processing_moss_tts.py": { "size": 35797, "gitSha1": "bfb7c88c636d85f74ef45b8b846ecb6cd634cdc5" },
+        "processor_config.json": { "size": 145, "gitSha1": "b5df3b949f047d5949fafa7d42b9cf8693fcbb94" },
+        "special_tokens_map.json": { "size": 631, "gitSha1": "f1e356a4bfa4ead1419a3116957555c1cbfeb26a" },
+        "tokenizer.json": { "size": 11422691, "sha256": "cb3c8fa82993d515469c2800cc455bff4aaa3c4fed9da1f2b0c0668c304f335a" },
+        "tokenizer_config.json": { "size": 5501, "gitSha1": "c75c008749bc999e4749eafb407512f428b01acc" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
+    "moss-voicegenerator": {
+      "displayName": "MOSS-VoiceGenerator (1.7B)",
+      "sources": [
+        { "repo": "OpenMOSS-Team/MOSS-VoiceGenerator", "revision": "97521ec2b6f3ec5026ac1f5751f8fc302d82c2d4" }
+      ],
+      "include": ["*.json", "*.py", "*.safetensors", "*.txt", "*.jinja"],
+      "requires": ["moss-audio-tokenizer"],
+      "files": {
+        "__init__.py": { "size": 0, "gitSha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391" },
+        "added_tokens.json": { "size": 704, "gitSha1": "82da7c72d0a900d520bfe3ef5e2b3bb95bf87f6d" },
+        "chat_template.jinja": { "size": 352, "gitSha1": "92909f8edadc3842c289ccfd7cd5de6a9ac655e4" },
+        "config.json": { "size": 2203, "gitSha1": "260e999b1652268d7f1214947610e98171bf545b" },
+        "configuration_moss_tts.py": { "size": 5584, "gitSha1": "f7e91c65f7f30c35d309b4ebc50453cf5c89eebf" },
+        "inference_utils.py": { "size": 5092, "gitSha1": "b2175d852af5469e3e9dd7688b2c8798d1a1cea8" },
+        "merges.txt": { "size": 1671853, "gitSha1": "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+        "model.safetensors": { "size": 4228278872, "sha256": "dbe345257ff9f6cc84195bed830a268b39d5e0b728ff3ba90e715150a49b16d4" },
+        "modeling_moss_tts.py": { "size": 25329, "gitSha1": "422a2f57f79ef7ea99b9b2904cbe755f1a16a977" },
+        "processing_moss_tts.py": { "size": 37220, "gitSha1": "cd4192a647a8def1fc1b23923b780983c66658ce" },
+        "processor_config.json": { "size": 145, "gitSha1": "b5df3b949f047d5949fafa7d42b9cf8693fcbb94" },
+        "special_tokens_map.json": { "size": 631, "gitSha1": "f1e356a4bfa4ead1419a3116957555c1cbfeb26a" },
+        "tokenizer.json": { "size": 11422691, "sha256": "cb3c8fa82993d515469c2800cc455bff4aaa3c4fed9da1f2b0c0668c304f335a" },
+        "tokenizer_config.json": { "size": 5501, "gitSha1": "c75c008749bc999e4749eafb407512f428b01acc" },
+        "vocab.json": { "size": 2776833, "gitSha1": "4783fe10ac3adce15ac8f358ef5462739852c569" }
+      }
+    },
     "ace-step-1.5-xl-turbo": {
       "displayName": "ACE-Step 1.5 XL turbo",
       "sources": [

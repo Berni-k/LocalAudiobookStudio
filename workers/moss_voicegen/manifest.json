@@ -1,0 +1,32 @@
+{
+  "id": "moss_voicegen",
+  "displayName": "MOSS-VoiceGenerator",
+  "description": "Voice design in English or Chinese: describe the voice (\"Hearty, jovial tavern owner, loud and welcoming, slightly gruff\") and what it says. No reference clip. Every take is a new voice drawn from the description, so keep the seed fixed to keep a voice. Experimental.",
+  "experimental": true,
+  "tags": ["Voice"],
+  "priority": 55,
+  "modelVersion": "v1",
+  "envGroup": "torch2_11-cu128-tx5",
+  "requirements": "requirements.txt",
+  "entry": "worker.py",
+  "maxChars": 500,
+  "sampleRate": 24000,
+  "voiceCloning": false,
+  "approxVramGb": 8,
+  "devices": ["cuda", "cpu"],
+  "cpuRecommended": false,
+  "cpuNote": "Slow on the CPU: expect several times longer than the audio.",
+  "models": ["moss-voicegenerator", "moss-audio-tokenizer"],
+  "settings": [
+    { "key": "instruction", "type": "string", "label": "Voice description", "default": "",
+      "description": "Emotion, speed, pitch and character of the voice, in English or Chinese. Required." },
+    { "key": "temperature", "type": "float", "min": 0.1, "max": 2.5, "step": 0.05, "default": 1.5, "label": "Temperature",
+      "description": "This model is sensitive to its sampling settings; the defaults are upstream's." },
+    { "key": "textTemperature", "type": "float", "min": 0.1, "max": 2.0, "step": 0.05, "default": 1.0, "label": "Stop temperature",
+      "description": "How loosely the model decides when to stop. Upstream's 1.5 ends some takes in the middle of the text; 1.0 and lower didn't." },
+    { "key": "topP", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.6, "label": "Top-p" },
+    { "key": "topK", "type": "int", "min": 1, "max": 200, "default": 50, "label": "Top-k" },
+    { "key": "repetitionPenalty", "type": "float", "min": 0.9, "max": 2.0, "step": 0.05, "default": 1.1, "label": "Repetition penalty" },
+    { "key": "seed", "type": "seed", "label": "Seed" }
+  ]
+}

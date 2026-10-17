@@ -1,0 +1,11 @@
+# See moss_tts/requirements.txt: shared environment for torch and transformers, plus what the remote code imports.
+numpy
+soundfile
+tqdm
+einops
+scipy
+librosa
+tiktoken
+safetensors
+psutil
+packaging

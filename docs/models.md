@@ -19,9 +19,12 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 | Fish Audio Drama 3 | 80+ | – | ✅ Clip + transcript | – | – | ✅ `[…]` | – | 1.1× to 0.5× | 43 GB ([down to 8 GB with offload](#big-models-on-small-gpus)) | Fish Audio Community License ⚠️ (free under US$500k revenue) | [Model](https://huggingface.co/fishaudio/drama-3) · [Code](https://github.com/fishaudio/fish-speech) |
 | Chatterbox | English | ✅ | ✅ Clip | – | – | – | – | 1.2× | 5 GB | MIT | [Model](https://huggingface.co/ResembleAI/chatterbox) · [Code](https://github.com/resemble-ai/chatterbox) |
 | CosyVoice 2 | Chinese, English, Japanese, Korean, Cantonese | – | ✅ Clip max 17 s | – | ✅ | – | – | 1.5× | 4 GB | Apache 2.0 | [Model](https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B) · [Code](https://github.com/FunAudioLLM/CosyVoice) |
+| MOSS-TTS v1.5 (8B, Local 4B) | 31 | – | ✅ Clip | – | – | ✅ `[pause 1.5s]` | – | ? | 22 GB (Local: 14 GB) | Apache 2.0 | [8B](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-v1.5) · [Local](https://huggingface.co/OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
+| MOSS-TTSD | 20 | – | ✅ 3–10 s clip + transcript | – | – | – | ✅ [5 voices](#conversations-and-context) | ? | 22 GB | Apache 2.0 | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-TTSD-v1.0) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
+| MOSS-VoiceGenerator | English, Chinese | – | – | ✅ | – | – | – | ? | 8 GB | Apache 2.0 | [Model](https://huggingface.co/OpenMOSS-Team/MOSS-VoiceGenerator) · [Code](https://github.com/OpenMOSS/MOSS-TTS) |
 
 - **Voice cloning**: what the model needs to copy a voice. "Clip + transcript" means it also needs the clip's words.
-- **Voice design**: makes a new voice from a description or attributes, without a clip.
+- **Voice design**: makes a new voice from a description or attributes, without a clip. Designed voices usually differ from seed to seed and from text to text, even with the same description. For a consistent voice, design it once, keep the take you like as a reference clip, and let a voice cloning model speak the rest with that clip.
 - **Direction**: an instruction for how to say a line (calm, whispering, faster).
 - **Inline tags**: directions typed into the text that the model acts out but doesn't say.
 - Some features exist only on some runtimes (Qwen3-TTS's design and direction, CosyVoice 2's direction, VibeVoice's conversations); see [Runtimes](#runtimes).
@@ -89,6 +92,9 @@ GPU: ✅ yes, 🐢 slowly (several times slower than real time), ❌ no.
 | Fish Audio Drama 3 | ⭐ | | | | | | ❌ |
 | Chatterbox | | | | ⭐ | | | 🐢 |
 | CosyVoice 2 | ✅ | | | ⭐ ³ | | | 🐢 |
+| MOSS-TTS v1.5 | ⭐ | | | | | | ❌ |
+| MOSS-TTSD | ⭐ | | | | | | ❌ |
+| MOSS-VoiceGenerator | ⭐ | | | | | | 🐢 |
 | | | | | | | | |
 | Stable Audio 3 | ⭐ | | | | | | ✅ |
 | Stable Audio Open Small | | | | ⭐ | | | ✅ |

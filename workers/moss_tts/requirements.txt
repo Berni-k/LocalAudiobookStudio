@@ -1,0 +1,13 @@
+# torch, torchaudio and transformers come from the shared environment (workers/environments.json), whose
+# overrides replace the pins in MOSS-TTS's pyproject.toml (torch 2.9.1, transformers 5.0.0). The models are
+# Hugging Face remote code, so there is no package to install, only what that code imports.
+numpy
+soundfile
+tqdm
+einops
+scipy
+librosa
+tiktoken
+safetensors
+psutil
+packaging
