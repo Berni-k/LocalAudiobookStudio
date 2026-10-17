@@ -1,0 +1,40 @@
+<!-- The worker of a One shot tab and its settings, then the Run bar and the result. Shared by every tab. -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+             x:Class="LocalAudiobookStudio.App.Views.OneShotWorkerView"
+             x:DataType="vm:OneShotTabViewModel">
+  <StackPanel Spacing="12">
+    <Border Classes="group">
+      <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+        <TextBlock Text="Worker" Classes="groupTitle" Margin="0,0,0,4" />
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+          <TextBlock Text="Worker" Classes="formLabel" />
+          <StackPanel Grid.Column="1" Spacing="2">
+            <ComboBox ItemsSource="{Binding Workers}" SelectedItem="{Binding Worker}" HorizontalAlignment="Stretch" PlaceholderText="Choose a worker" />
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding NoWorkerInstalled}">
+              <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorDanger}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding NoWorkerText}" Classes="caption error" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="460" />
+            </StackPanel>
+            <TextBlock Text="{Binding WorkerInfo}" Classes="caption" TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+        <ContentControl Content="{Binding Settings}" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="group">
+      <StackPanel Classes="form">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Classes="primary" Content="Run" Command="{Binding RunCommand}" MinWidth="90" HorizontalContentAlignment="Center" />
+          <Button Content="Cancel" Command="{Binding CancelRunCommand}" IsVisible="{Binding IsRunning}" />
+          <TextBlock Text="{Binding Status}" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
+        </StackPanel>
+        <!-- Selectable, so a result can be copied. -->
+        <TextBox Text="{Binding ResultText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="320"
+                 FontFamily="Cascadia Mono, Consolas, DejaVu Sans Mono, monospace" IsVisible="{Binding HasResult}" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

@@ -14,6 +14,7 @@ public static class WindowService
 {
     private static JobsWindow? _jobs;
     private static WorkersDialog? _workers;
+    private static OneShotWindow? _oneShot;
 
     private static Window? Owner => Dialogs.Owner;
 
@@ -73,6 +74,23 @@ public static class WindowService
         _jobs = new JobsWindow { DataContext = new JobsViewModel(main) };
         _jobs.Closed += (_, _) => _jobs = null;
         _jobs.Show();
+    }
+
+    /// <summary>The One shot window (one at a time, not modal), on the tab of <paramref name="kind"/>.</summary>
+    public static void ShowOneShot(OneShotKind kind)
+    {
+        if (_oneShot != null)
+        {
+            (_oneShot.DataContext as OneShotViewModel)?.Show(kind);
+            _oneShot.Activate();
+            return;
+        }
+        var main = (Owner?.DataContext as MainWindowViewModel) ?? (Dialogs.Owner?.DataContext as MainWindowViewModel);
+        var vm = new OneShotViewModel(main);
+        vm.Show(kind);
+        _oneShot = new OneShotWindow { DataContext = vm };
+        _oneShot.Closed += (_, _) => _oneShot = null;
+        _oneShot.Show();
     }
 
     public static async Task ShowWorkersAsync(string? installWorker = null)

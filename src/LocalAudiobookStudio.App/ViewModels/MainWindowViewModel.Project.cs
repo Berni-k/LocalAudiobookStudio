@@ -467,6 +467,11 @@ public sealed partial class MainWindowViewModel
     [RelayCommand]
     private void ShowJobs() => WindowService.ShowJobs(this);
 
+    /// <summary>Tools menu: the One shot window on the tab named by the parameter (Generate, Transcribe, Align, Compare).</summary>
+    [RelayCommand]
+    private void ShowOneShot(string? tab) =>
+        WindowService.ShowOneShot(Enum.TryParse<OneShotKind>(tab, out var kind) ? kind : OneShotKind.Generate);
+
     [RelayCommand]
     private async Task ShowWorkers() => await WindowService.ShowWorkersAsync();
 

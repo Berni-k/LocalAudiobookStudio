@@ -135,6 +135,13 @@
         <MenuItem Header="_Speakers…" Command="{Binding ShowSpeakersCommand}" />
         <MenuItem Header="_Jobs…" Command="{Binding ShowJobsCommand}" InputGesture="Ctrl+J" />
       </MenuItem>
+      <!-- One shot: a single job for a worker on any input, with no project. -->
+      <MenuItem Header="_Tools">
+        <MenuItem Header="_Generate audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Generate" />
+        <MenuItem Header="_Transcribe audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Transcribe" />
+        <MenuItem Header="_Align text to audio…" Command="{Binding ShowOneShotCommand}" CommandParameter="Align" />
+        <MenuItem Header="_Compare voices…" Command="{Binding ShowOneShotCommand}" CommandParameter="Compare" />
+      </MenuItem>
       <MenuItem Header="_Workers">
         <MenuItem Header="_Manage workers…" Command="{Binding ShowWorkersCommand}" />
         <MenuItem Header="_Devices and settings…" Command="{Binding ShowSettingsCommand}" />

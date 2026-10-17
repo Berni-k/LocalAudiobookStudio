@@ -88,6 +88,8 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 
 For models the app doesn't include, the [ComfyUI bridge](docs/comfyui.md) runs your own ComfyUI workflows as a worker.
 
+To try a worker, or get one job done, without a project, open **Tools** in the menu bar: *Generate audio*, *Transcribe audio*, *Align text to audio* and *Compare voices* open the One shot window on the matching tab. Pick a worker and its settings, give it an input and press Run.
+
 ## Projects
 
 A project is a folder (new ones are named `<title>.audiobook`):

@@ -1,0 +1,112 @@
+<!-- One shot: a single job for a worker on any input, outside a project. One tab per kind of job. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        xmlns:views="using:LocalAudiobookStudio.App.Views"
+        x:Class="LocalAudiobookStudio.App.Views.OneShotWindow"
+        x:DataType="vm:OneShotViewModel"
+        Title="One shot"
+        Width="760" Height="780" MinWidth="620" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+  <Window.DataTemplates>
+    <!-- ===== Generate audio -->
+    <DataTemplate DataType="vm:OneShotGenerateViewModel">
+      <ScrollViewer>
+        <StackPanel Spacing="12" Margin="0,12,12,12">
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Text" Classes="groupTitle" Margin="0,0,0,4" />
+              <TextBox Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="90" MaxHeight="240"
+                       Watermark="Spoken, or a description of the sound or music" />
+              <Grid IsVisible="{Binding SupportsCloning}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Reference clip" Classes="formLabel" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto">
+                  <TextBox Text="{Binding VoiceFile}" IsReadOnly="True" Watermark="no reference clip" />
+                  <Button Grid.Column="1" Content="Choose…" Command="{Binding BrowseVoiceCommand}" Margin="4,0,0,0" />
+                  <Button Grid.Column="2" Content="Clear" Command="{Binding ClearVoiceCommand}" Margin="4,0,0,0" />
+                </Grid>
+              </Grid>
+              <Grid IsVisible="{Binding SupportsLength}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Length (s)" Classes="formLabel" />
+                <NumericUpDown Grid.Column="1" Value="{Binding Length}" Minimum="0" Maximum="600" Increment="0.1" FormatString="0.0"
+                               Watermark="{Binding LengthWatermark}" Width="130" HorizontalAlignment="Left" />
+              </Grid>
+            </StackPanel>
+          </Border>
+          <views:OneShotWorkerView />
+          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOutput}">
+            <Button Content="Play" Command="{Binding PlayCommand}" />
+            <Button Content="Stop" Command="{Binding StopCommand}" />
+            <Button Content="Save as…" Command="{Binding SaveAsCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ===== Transcribe and Align text: an audio file, and a text (optional to transcribe, needed to align) -->
+    <DataTemplate DataType="vm:OneShotListenViewModel">
+      <ScrollViewer>
+        <StackPanel Spacing="12" Margin="0,12,12,12">
+          <Border Classes="group">
+            <StackPanel Classes="form" Grid.IsSharedSizeScope="True">
+              <TextBlock Text="Input" Classes="groupTitle" Margin="0,0,0,4" />
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Audio file" Classes="formLabel" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto">
+                  <TextBox Text="{Binding AudioFile}" IsReadOnly="True" Watermark="WAV, MP3 or Opus" />
+                  <Button Grid.Column="1" Content="Choose…" Command="{Binding BrowseAudioCommand}" Margin="4,0,0,0" />
+                </Grid>
+              </Grid>
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" SharedSizeGroup="label" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                <TextBlock Text="Text" Classes="formLabel" />
+                <TextBox Grid.Column="1" Text="{Binding Text}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="70" MaxHeight="200"
+                         Watermark="What the audio says: to time its words, or to check the transcript against" />
+              </Grid>
+            </StackPanel>
+          </Border>
+          <views:OneShotWorkerView />
+        </StackPanel>
+      </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ===== Compare voices -->
+    <DataTemplate DataType="vm:OneShotCompareViewModel">
+      <ScrollViewer>
+        <StackPanel Spacing="12" Margin="0,12,12,12">
+          <Border Classes="group">
+            <StackPanel Classes="form">
+              <TextBlock Text="Files" Classes="groupTitle" Margin="0,0,0,4" />
+              <TextBlock Text="Recordings are scored against the reference clips (several: their average). Without references every pair is scored."
+                         Classes="caption" TextWrapping="Wrap" />
+              <TextBlock Text="Reference clips" FontWeight="SemiBold" />
+              <ListBox ItemsSource="{Binding References}" SelectedItem="{Binding SelectedReference}" MinHeight="60" MaxHeight="140" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="Add…" Command="{Binding AddReferencesCommand}" />
+                <Button Content="Remove" Command="{Binding RemoveReferenceCommand}" />
+              </StackPanel>
+              <TextBlock Text="Recordings" FontWeight="SemiBold" Margin="0,6,0,0" />
+              <ListBox ItemsSource="{Binding Recordings}" SelectedItem="{Binding SelectedCandidate}" MinHeight="60" MaxHeight="140" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="Add…" Command="{Binding AddCandidatesCommand}" />
+                <Button Content="Remove" Command="{Binding RemoveCandidateCommand}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <views:OneShotWorkerView />
+        </StackPanel>
+      </ScrollViewer>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" Margin="16">
+    <TabControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:OneShotTabViewModel">
+        <TextBlock Text="{Binding Title}" />
+      </DataTemplate>
+    </TabControl.ItemTemplate>
+  </TabControl>
+</Window>
