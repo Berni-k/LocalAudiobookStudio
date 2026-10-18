@@ -51,8 +51,8 @@ public static class AudioAnalyzer
 
     /// <summary>
     /// Progress over the whole chain of jobs <see cref="Transcription.Listen"/> makes (the hearer, then the aligner's
-    /// windows, then the diarizer): which step runs, how far it is, and about how long it still takes. The bar moves
-    /// through the steps in equal shares.
+    /// windows, then the diarizer): the message is two lines, which step runs ("Step 2 of 3: Timing the words"), then
+    /// what its worker says. The bar moves through the steps in equal shares.
     /// </summary>
     private sealed class StepProgress(Listeners listeners)
     {
@@ -63,9 +63,6 @@ public static class AudioAnalyzer
             listeners.Diarizer == null ? null : "Telling the voices apart",
         }.OfType<string>().ToArray();
 
-        private int _step = -1;
-        private DateTime _stepStartedUtc;
-
         public (double Fraction, string Message) Of(GenerationJob first)
         {
             var job = first;
@@ -73,30 +70,13 @@ public static class AudioAnalyzer
             var mode = job.Transcribe?.Mode;
             var name = mode == ListenMode.Diarize ? "Telling the voices apart" : mode == ListenMode.Align ? "Timing the words" : _names.FirstOrDefault() ?? "Listening";
             var step = Math.Max(0, Array.IndexOf(_names, name));
-            // A step's time counts from when its first job starts running (not while it waits or its worker loads).
-            if (step != _step || _stepStartedUtc == default)
-            {
-                _step = step;
-                _stepStartedUtc = job.State == JobState.Running && job.Progress > 0 ? DateTime.UtcNow : default;
-            }
-
-            var within = job.Part is { } part ? (part.Number - 1 + job.Progress) / part.Of : job.Progress;
-            var fraction = (step + Math.Clamp(within, 0, 1)) / Math.Max(1, _names.Length);
+            var within = Math.Clamp(job.Part is { } part ? (part.Number - 1 + job.Progress) / part.Of : job.Progress, 0, 1);
+            var fraction = (step + within) / Math.Max(1, _names.Length);
             var detail = job.State == JobState.Queued
-                ? "waiting for a worker…"
-                : (job.Part is { } p ? $"part {p.Number} of {p.Of}" + (job.ProgressMessage is { } m ? $", {m}" : "") : job.ProgressMessage) ?? "working…";
+                ? "Waiting for a worker…"
+                : (job.Part is { } p ? $"Part {p.Number} of {p.Of}" + (job.ProgressMessage is { } m ? $": {m}" : "") : job.ProgressMessage) ?? "Working…";
             var header = _names.Length > 1 ? $"Step {step + 1} of {_names.Length}: {name}" : name;
-            return (fraction, $"{header} — {detail}{Left(within)}");
-        }
-
-        /// <summary>" · about 3 min left" once the step is far enough along to tell; empty before.</summary>
-        private string Left(double within)
-        {
-            if (_stepStartedUtc == default || within < 0.03 || within >= 1) return "";
-            var spent = DateTime.UtcNow - _stepStartedUtc;
-            if (spent < TimeSpan.FromSeconds(10)) return "";
-            var left = spent * ((1 - within) / within);
-            return left < TimeSpan.FromMinutes(1) ? " · less than a minute left" : $" · about {Math.Ceiling(left.TotalMinutes):0} min left";
+            return (fraction, $"{header}\n{detail}");
         }
     }
 }

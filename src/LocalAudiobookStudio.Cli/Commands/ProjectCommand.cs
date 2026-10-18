@@ -235,13 +235,13 @@ public static class ProjectCommand
         var progress = new Progress<(double Fraction, string Message)>(r =>
         {
             // A new message, and about every 10 % rather than every update; always when a new step starts (the
-            // analysis says "Step 2 of 3: Timing the words — …").
-            var step = r.Message.Split(" — ")[0];
+            // analysis says "Step 2 of 3: Timing the words" on its first line, what the worker says on the second).
+            var step = r.Message.Split('\n')[0];
             if (r.Message == lastMessage || (step == lastStep && r.Fraction < 1 && r.Fraction - lastReport < 0.1 && r.Fraction >= lastReport)) return;
             lastReport = r.Fraction;
             lastMessage = r.Message;
             lastStep = step;
-            ctx.Info(r.Message);
+            ctx.Info(r.Message.Replace("\n", " — "));
         });
         var sw = Stopwatch.StartNew();
         using var source = await AudioSource.PrepareAsync(host, file, keepAudio, progress, ctx.Cancel);
