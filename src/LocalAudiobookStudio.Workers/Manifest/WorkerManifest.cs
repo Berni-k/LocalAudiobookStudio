@@ -195,6 +195,9 @@ public sealed class WorkerManifest
     [System.Text.Json.Serialization.JsonIgnore]
     public string RuntimeLabel { get; set; } = "";
 
+    /// <summary>A word added to the runtime's name where it is offered ("slow" gives "HartsyInference (.NET) (slow)").</summary>
+    public string? RuntimeNote { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsHartsy => string.Equals(Runtime, WorkerRuntimes.Hartsy, StringComparison.OrdinalIgnoreCase);
 

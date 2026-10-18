@@ -15,6 +15,7 @@ kernel launches per audio frame: about 2 frames/s on Windows), and prefills 128 
 On one GPU with Triton and SM89+ (Linux), fish-speech's own FP8 kernel is kept.
 """
 
+import re
 import time
 
 import torch
@@ -78,8 +79,9 @@ def gpu_bytes(device):
 
 
 def apply(codec_on_gpu: bool, int4: bool, log) -> bool:
-    """Patches fish-speech in place. With int4 the experts are re-quantized to 4 bits while loading (half the
-    memory). Returns whether fish-speech's own FP8 kernel is used (one SM89+ GPU with Triton, FP8 experts)."""
+    """Patches fish-speech in place. With int4 the model is Fish Audio's int4 checkpoint, whose experts stay 4-bit (half
+    the memory). Returns whether fish-speech's own FP8 kernel is used (one SM89+ GPU with Triton, FP8 experts)."""
+    import fish_speech.models.text2semantic.fish_omni.config as omni_config
     import fish_speech.models.text2semantic.fish_omni.generate as omni_generate
     import fish_speech.models.text2semantic.fish_omni.model as omni_model
     import fish_speech.models.text2semantic.fish_omni.moe as moe
@@ -95,7 +97,7 @@ def apply(codec_on_gpu: bool, int4: bool, log) -> bool:
         moe.dequantize_fp8_blocks = _dequantize_bf16(fp8_to_float, moe.FP8_BLOCK_SIZE)
         moe.MoEExperts.forward = _expert_forward(moe.GATHERED_EXPERT_MAX_ROWS)
         if int4:
-            _use_int4(moe, omni_model, fp8_to_float)
+            _use_int4(moe, omni_model, omni_config)
     omni_generate.generate_drama3.__wrapped__.__kwdefaults__["prefill_chunk_size"] = PREFILL_ROWS
 
     # Every visible GPU holds backbone layers; the last one also the tower (fish-speech keeps one for the tower alone).
@@ -190,31 +192,58 @@ def _forward_padded(self, x, topk_ids, topk_weights):
 INT4_GROUP = 64
 
 
-def quantize_int4(weight):
-    """[rows, cols] float -> (packed uint8 [rows, cols / 2], scale, offset fp16 [rows, cols / INT4_GROUP]).
+# Fish Audio's int4 checkpoint (fishaudio/drama-3-int4, GPTQ symmetric): one scale per 128 inputs, value = (q - 8) * scale.
+GPTQ_GROUP = 128
+INT4_EXPERT_KEY = re.compile(
+    r"model\.layers\.(?P<layer>\d+)\.mlp\.experts\.(?P<expert>\d+)\.(?P<proj>gate_proj|up_proj|down_proj)\.(?P<kind>qweight|scales)")
+# Dense layers (attention) are int4 in the checkpoint too, with fields only GPTQ kernels need (zeros are all 8).
+INT4_DENSE_KEY = re.compile(r"(?P<base>model\.layers\.\d+\.(?:self_attn|linear_attn)\.\w+)\.(?P<kind>qweight|scales|qzeros|g_idx)")
 
-    Asymmetric per group: value = q * scale + offset with q in 0..15. Two values per byte, the even column in the low
-    nibble. About 0.56 bytes per weight with the scales, against 1 for FP8.
-    """
-    rows, cols = weight.shape
-    groups = weight.float().view(rows, cols // INT4_GROUP, INT4_GROUP)
-    low = groups.amin(dim=-1)
-    scale = ((groups.amax(dim=-1) - low) / 15).clamp(min=1e-8)
-    q = ((groups - low[..., None]) / scale[..., None]).round_().clamp_(0, 15).to(torch.uint8).view(rows, cols)
-    return q[:, 0::2] | (q[:, 1::2] << 4), scale.half(), low.half()
+
+def gptq_to_packed(qweight):
+    """GPTQ qweight int32 [cols / 8, rows] -> packed uint8 [rows, cols / 2], the even column in the low nibble."""
+    return qweight.t().contiguous().view(torch.uint8)
+
+
+def gptq_to_groups(scales):
+    """GPTQ scales [cols / 128, rows] -> (scale, offset) fp16 [rows, cols / INT4_GROUP]: the same value as
+    (q - 8) * scale, written as q * scale + offset for groups of 64."""
+    scale = scales.t().repeat_interleave(GPTQ_GROUP // INT4_GROUP, dim=1).contiguous()
+    return scale, -8 * scale
 
 
 def dequantize_int4(packed, scale, offset, dtype):
-    """The inverse of quantize_int4 for [..., rows, cols / 2] packed weights, in dtype."""
+    """Packed [..., rows, cols / 2] weights as dtype values (q * scale + offset per group of INT4_GROUP)."""
     *lead, rows, half = packed.shape
     q = torch.stack((packed & 15, packed >> 4), dim=-1).view(*lead, rows, half * 2 // INT4_GROUP, INT4_GROUP)
     return (q.to(dtype) * scale.to(dtype)[..., None] + offset.to(dtype)[..., None]).view(*lead, rows, half * 2)
 
 
-def _use_int4(moe, omni_model, fp8_to_float):
-    """Experts hold 4-bit weights instead of FP8 ones, filled by a loader that re-quantizes each FP8 expert as it
-    arrives (the FP8 copy is never in GPU memory as a whole)."""
+def _dequantize_gptq_dense(qweight, scales, dtype):
+    """A dense layer's int4 weight [rows, cols] as dtype, on the device of its tensors."""
+    packed = gptq_to_packed(qweight)
+    scale = scales.t().repeat_interleave(GPTQ_GROUP, dim=1)
+    q = torch.stack((packed & 15, packed >> 4), dim=-1).view(packed.shape[0], -1)
+    return ((q.to(torch.float32) - 8) * scale.to(torch.float32)).to(dtype)
+
+
+def _use_int4(moe, omni_model, omni_config):
+    """Experts hold 4-bit weights instead of FP8 ones, filled from Fish Audio's int4 checkpoint: the experts' packed
+    values are used as they are, the attention layers' are expanded to bf16 (they are a small part)."""
     import fish_speech.models.text2semantic.fish_omni.backbone as backbone
+
+    # The checkpoint's config names its own quantization, which fish-speech doesn't know: it loads as if FP8 (the
+    # experts' buffers are replaced below).
+    from_dict = omni_config.FishOmniConfig.from_dict.__func__
+
+    def config_from_dict(cls, data):
+        quantization = data.get("quantization_config")
+        if quantization and quantization.get("quant_method") == "drama3-int4":
+            data = {**data, "quantization_config": {"quant_method": omni_config.FP8_QUANT_METHOD,
+                                                    "weight_block_size": [128, 128]}}
+        return from_dict(cls, data)
+
+    omni_config.FishOmniConfig.from_dict = classmethod(config_from_dict)
 
     experts_init = moe.MoEExperts.__init__
     parts = ("w13", "w2")
@@ -235,14 +264,29 @@ def _use_int4(moe, omni_model, fp8_to_float):
 
     @torch.no_grad()
     def load_weights(model, weights):
-        """fish-speech's load_backbone_weights, for 4-bit experts: every tensor exactly once, checked."""
+        """fish-speech's load_backbone_weights, for the int4 checkpoint: every tensor exactly once, checked."""
         targets = dict(model.named_parameters())
         targets.update(model.named_buffers())
         dense = {n for n in targets if ".mlp.experts." not in n}
-        loaded, pending, expert_parts = set(), {}, 0
+        loaded, pending, pending_dense, expert_parts = set(), {}, {}, 0
         for checkpoint_name, tensor in weights:
             name = backbone.backbone_name(checkpoint_name)
-            match = backbone.EXPERT_KEY_PATTERN.fullmatch(name)
+            match = INT4_EXPERT_KEY.fullmatch(name)
+            if match is None and (dense_match := INT4_DENSE_KEY.fullmatch(name)) is not None:
+                # qzeros (all 8) and g_idx (in order) say nothing more for this symmetric, unordered format.
+                if dense_match["kind"] in ("qweight", "scales"):
+                    parts_of = pending_dense.setdefault(dense_match["base"] + ".weight", {})
+                    parts_of[dense_match["kind"]] = tensor
+                    if len(parts_of) == 2:
+                        target = targets[dense_match["base"] + ".weight"]
+                        device = target.device if target.is_cuda else torch.device("cuda", torch.cuda.current_device())
+                        value = _dequantize_gptq_dense(parts_of["qweight"].to(device), parts_of["scales"].to(device), target.dtype)
+                        if target.shape != value.shape:
+                            raise ValueError(f"{dense_match['base']}: checkpoint shape {tuple(value.shape)} != {tuple(target.shape)}")
+                        target.copy_(value)
+                        loaded.add(dense_match["base"] + ".weight")
+                        del pending_dense[dense_match["base"] + ".weight"]
+                continue
             if match is None:
                 if name not in dense or name in loaded:
                     raise ValueError(f"checkpoint key {checkpoint_name!r} has no free parameter {name!r}")
@@ -251,32 +295,25 @@ def _use_int4(moe, omni_model, fp8_to_float):
                 targets[name].copy_(tensor)
                 loaded.add(name)
                 continue
-            key = (match["layer"], int(match["expert"]), match["proj"])
-            halves = pending.setdefault(key, {})
-            halves[match["kind"]] = tensor
-            if len(halves) < 2:
-                continue
-            del pending[key]
             experts = model.get_submodule(f"model.layers.{match['layer']}.mlp.experts")
-            # Quantized on a GPU even when the experts are kept in RAM (copy_ moves them there).
-            device = experts.w13_q.device if experts.w13_q.is_cuda else torch.device("cuda", torch.cuda.current_device())
-            q, scale, offset = quantize_int4(
-                fp8_to_float(halves["weight"].to(device), halves["weight_scale_inv"].to(device), torch.float32))
-            expert = key[1]
-            if key[2] == "down_proj":
+            expert = int(match["expert"])
+            if match["proj"] == "down_proj":
                 rows, name = slice(None), "w2"
             else:
                 half = experts.w13_q.shape[1] // 2
-                rows, name = (slice(0, half) if key[2] == "gate_proj" else slice(half, 2 * half)), "w13"
-            getattr(experts, f"{name}_q")[expert, rows].copy_(q)
-            getattr(experts, f"{name}_scale")[expert, rows].copy_(scale)
-            getattr(experts, f"{name}_offset")[expert, rows].copy_(offset)
+                rows, name = (slice(0, half) if match["proj"] == "gate_proj" else slice(half, 2 * half)), "w13"
+            if match["kind"] == "qweight":
+                getattr(experts, f"{name}_q")[expert, rows].copy_(gptq_to_packed(tensor))
+            else:
+                scale, offset = gptq_to_groups(tensor)
+                getattr(experts, f"{name}_scale")[expert, rows].copy_(scale)
+                getattr(experts, f"{name}_offset")[expert, rows].copy_(offset)
             expert_parts += 1
         layers = model.model.layers
-        wanted = sum(layer.mlp.experts.num_experts * 3 for layer in layers)
-        if pending or expert_parts != wanted or dense - loaded:
+        wanted = sum(layer.mlp.experts.num_experts * 6 for layer in layers)  # gate, up and down: values and scales
+        if pending_dense or expert_parts != wanted or dense - loaded:
             raise ValueError(f"Drama 3 checkpoint incomplete: {expert_parts} of {wanted} expert weights, "
-                             f"{len(dense - loaded)} other tensors missing, {len(pending)} without their scale")
+                             f"{len(dense - loaded)} other tensors missing, {len(pending_dense)} without their scale")
 
     moe.MoEExperts.__init__ = init
     moe.MoEExperts.expert_weights = expert_weights

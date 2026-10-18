@@ -249,6 +249,38 @@
         "tokenizer_config.json": { "size": 103580, "gitSha1": "f6d3655491f93602f82a61a6ad6fa0658d737f63" }
       }
     },
+    "drama-3-int4": {
+      "displayName": "Fish Audio Drama 3 (4-bit)",
+      "sources": [
+        { "repo": "fishaudio/drama-3-int4", "revision": "a6f588691a13b6607cb09f9800556487ab7aa0fe" }
+      ],
+      "include": ["*.json", "*.safetensors", "codec.pth", "chat_template.jinja", "LICENSE"],
+      "files": {
+        "LICENSE": { "size": 19685, "gitSha1": "3109ed8be76ee63f8b79e8752deef2bce2886675" },
+        "chat_template.jinja": { "size": 7756, "gitSha1": "a585dec894e63da457d9440ec6aa7caa16d20860" },
+        "codec.pth": { "size": 1871099728, "sha256": "74fc41c5a7151c6f350af8bd7e5d6e3accfcc7f3dfbfac23afd35af07052bb2f" },
+        "config.json": { "size": 6019, "gitSha1": "c8b8535248abb8a48d178211acd0a868b7cd6602" },
+        "eval/eval_results.json": { "size": 4201, "gitSha1": "bf15cd7acacd221c4476b76c0f1142da096873d9" },
+        "eval_ab/eval_results.json": { "size": 5137, "gitSha1": "239f16e3c24d542517c2ef75c73ec31c552cd100" },
+        "model-00001-of-00012.safetensors": { "size": 2000535888, "sha256": "1d17414dc1abf63ff063a590b2447d24f6ea7f18d5dd14d00576232231bd1eee" },
+        "model-00002-of-00012.safetensors": { "size": 2001314592, "sha256": "77d83c82a83bc02b4893ab22257415806aa8400d2ba31416d26e27d9052b88bc" },
+        "model-00003-of-00012.safetensors": { "size": 2001489696, "sha256": "607da15109e98ab1b1de60fc3bb9db3246ce71cd974310f66e5b259c7190d53e" },
+        "model-00004-of-00012.safetensors": { "size": 2001332856, "sha256": "476ebbc278d262ba9c9f43dbed0a7194fdd783c3046f418eebafa475fe910a9f" },
+        "model-00005-of-00012.safetensors": { "size": 2001385568, "sha256": "204b11abc1e223c05b9b025941b4d9b9e9b71c1d410656d3292d9e1cb909ac53" },
+        "model-00006-of-00012.safetensors": { "size": 2001201200, "sha256": "2aa11e163646420fd3cbbe4d28fe258ce64868299c3f4cc08109eda78f69ca40" },
+        "model-00007-of-00012.safetensors": { "size": 2001466576, "sha256": "135e10983dee048cb5fd9b1aa54731bb26e7de71a5fb3788a3aa770dfd2b8ab0" },
+        "model-00008-of-00012.safetensors": { "size": 2006184792, "sha256": "72ae08e3f7e6bd2f352c882b17e386b74ec898eb0d5f61bb2707b6b6d6c656b1" },
+        "model-00009-of-00012.safetensors": { "size": 2001368888, "sha256": "fe327f32b05c4783e63ba63e09e63d4e25c092983533763082e3cdfb5bbfd03c" },
+        "model-00010-of-00012.safetensors": { "size": 2003610704, "sha256": "82fc8904de8bdb7d1e30e30a8293075f8a123e9db1cffe5e3a866be286d66121" },
+        "model-00011-of-00012.safetensors": { "size": 2000926592, "sha256": "8c627d0980146857c8742ed6841041a9350774d7974796231a8f063bd7d11206" },
+        "model-00012-of-00012.safetensors": { "size": 80001416, "sha256": "2b72dc82f247f36881859ce05d36c8f6b02dfe9fd5fa3237c579b958c07b28a7" },
+        "model.safetensors.index.json": { "size": 6643280, "gitSha1": "54ca5a43d5a590c456126557482fe2e267356c29" },
+        "quant_stats.json": { "size": 439, "gitSha1": "e61b2e4a8fb55d65349b025f38af1242c512b9b2" },
+        "special_tokens_map.json": { "size": 102779, "gitSha1": "aaac48f459bc88b562c2079a64d5b13aa23d2685" },
+        "tokenizer.json": { "size": 20791070, "sha256": "0e9b9db76b2f0389b04b6ef057a2ac3b89100b7e96f2dd7034d19580a09654d6" },
+        "tokenizer_config.json": { "size": 103580, "gitSha1": "f6d3655491f93602f82a61a6ad6fa0658d737f63" }
+      }
+    },
     "moss-soundeffect-2.0": {
       "displayName": "MOSS-SoundEffect v2.0",
       "sources": [

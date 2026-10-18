@@ -193,6 +193,7 @@ public sealed class WorkerCatalog
                   && torchEnv.Packages.Any(p => p.StartsWith("torch", StringComparison.OrdinalIgnoreCase))
                     ? WorkerRuntimes.PyTorchLabel
                     : WorkerRuntimes.Label(m.Runtime);
+            if (!string.IsNullOrWhiteSpace(m.RuntimeNote)) m.RuntimeLabel += $" ({m.RuntimeNote})";
             MarkUnsupported(m, file);
             foreach (var def in m.Settings.Where(d => d.AddsSettings != null && !SettingSources.Readers.Contains(d.AddsSettings)))
                 LoadErrors.Add($"{file}: setting '{def.Key}' has an unknown \"addsSettings\" reader '{def.AddsSettings}' " +

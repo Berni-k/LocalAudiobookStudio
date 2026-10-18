@@ -36,6 +36,16 @@ internal static class ModelLinks
             case "vibevoice":
                 yield return Folder("vibevoice-1.5b", "microsoft/VibeVoice-1.5B", "tts");
                 break;
+            case "fishaudio-drama3" or "drama3":
+                // Fish Audio's own 4-bit build is a repo of its own; every other variant quantizes the FP8 one on loading.
+                var model = variant.Equals("int4", StringComparison.OrdinalIgnoreCase) ? "drama-3-int4" : "drama-3";
+                yield return Folder(model, model == "drama-3" ? "fishaudio/drama-3" : "fishaudio/drama-3-int4", "tts");
+                // The codec is looked up in S2 Pro's folder; it is the same file (same hash) as the one in Drama 3's.
+                yield return new ModelNeed(model, Links: new Dictionary<string, string>
+                {
+                    ["codec.pth"] = Path.Combine(AudioModelCache.GetRepoDirectory("fishaudio/s2-pro", "tts"), "codec.pth"),
+                });
+                break;
             case "chatterbox":
                 yield return Folder("chatterbox", "ResembleAI/chatterbox", "tts");
                 break;

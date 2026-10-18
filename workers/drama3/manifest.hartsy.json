@@ -1,0 +1,8 @@
+{
+  "experimental": true,
+  "hartsyModel": "fishaudio-drama3",
+  "runtimeNote": "slow",
+  "approxVramGb": 23,
+  "devices": ["cuda"],
+  "models": ["drama-3", "drama-3-int4"]
+}

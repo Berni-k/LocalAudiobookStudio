@@ -52,14 +52,18 @@ codec, about 39 GB of weights.
   the experts. Elsewhere it would dequantize all experts to bf16 at load (about 70 GB). Here they stay FP8 and only the
   8 of 256 a step routes to are dequantized, straight to bf16. With one SM89+ GPU and Triton (Linux), fish-speech's own
   kernel is kept.
-- **4-bit experts** (*Expert precision* worker setting, or `las tts --set expertPrecision=int4`): each FP8 expert is
-  dequantized as it loads and re-quantized to 4 bits with a scale and offset per 64 weights (about 0.56 bytes per
-  weight against 1), so the model needs about 29 GB instead of 43. It never holds the FP8 copy as a whole, so it
-  fits where FP8 doesn't. Loading takes about 10 s longer. In the voice tests (3 clips × 3 seeds × English,
-  German, Slovenian; `samples/Test`) the voices were as close to their clips as with FP8 (similarity 0.78 / 0.81 /
-  0.77 against 0.79 / 0.82 / 0.77), but takes that stop reading part-way were more frequent: 4 of 54 against 1
-  (Whisper word errors 5.2 / 8.3 / 0.7 % against 2.1 / 0.7 / 1.1 %), and generation was about 25 % slower. Use it
-  when FP8 doesn't fit; the app's transcript check flags those takes for regenerating.
+- **4-bit experts** (*Expert precision* worker setting, or `las tts --set expertPrecision=int4`): runs on Fish
+  Audio's own int4 build, [fishaudio/drama-3-int4](https://huggingface.co/fishaudio/drama-3-int4) (22 GB download,
+  the `drama-3-int4` model; GPTQ symmetric, one scale per 128 weights, experts and attention in 4 bits). The experts'
+  values are used as they are (`gptq_to_packed`, `gptq_to_groups`: the same numbers, with the scale repeated for our
+  groups of 64 and an offset of −8 × scale), the attention layers are expanded to bf16 while loading. About 29 GB of
+  weights on the GPU(s) with the shared expert and tower in bf16, instead of 43 with FP8, so it fits where FP8
+  doesn't. The earlier voice tests (3 clips × 3 seeds × English, German, Slovenian; `samples/Test`) used 4-bit
+  made by re-quantizing the FP8 experts on loading; the numbers in this README come from those: the voices were as close
+  to their clips as with FP8 (similarity 0.78 / 0.81 / 0.77 against 0.79 / 0.82 / 0.77), but takes that stop reading
+  part-way were more frequent: 4 of 54 against 1 (Whisper word errors 5.2 / 8.3 / 0.7 % against 2.1 / 0.7 / 1.1 %),
+  and generation was about 25 % slower. The app's transcript check flags such takes for regenerating. Not retested
+  with Fish's build yet.
 - **Speed:** fish-speech only captures its decode step as a CUDA graph on a single GPU; split over several it decodes
   eagerly at about 2 frames/s on Windows (launch-bound). The patches capture a graph per GPU and copy between them
   (GeForce cards on Windows have no peer access, so one graph can't span them), and prefill the whole prompt at once

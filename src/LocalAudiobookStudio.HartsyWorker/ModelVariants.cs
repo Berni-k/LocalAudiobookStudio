@@ -19,6 +19,9 @@ internal static class ModelVariants
         // Qwen3-TTS: cloning uses the Base checkpoint, preset voices CustomVoice (VoiceDesign is greyed out:
         // HartsyInference's voice design takes no description). Size from the "size" setting.
         "qwen3tts" => $"qwen3tts:{(Settings.String(settings, "size") == "0.6B" ? "0.6B" : "1.7B")}-{(hasReference ? "Base" : "CustomVoice")}",
+        // Drama 3: the "build" setting is Fish Audio's FP8 or int4 weights, or a precision HartsyInference makes while loading.
+        "fishaudio-drama3" or "drama3" => Settings.String(settings, "build") is ("int4" or "q8" or "q6" or "q5" or "q4") and var build
+            ? $"{model}:{build}" : model,
         _ => model,
     };
 

@@ -3,7 +3,7 @@
 fish-speech is not installable as a package (``pyrootutils`` needs the repository's ``.project-root``, and the codec
 config is loaded by relative path), so the worker downloads the source at a pinned commit and imports it from there,
 as the Fish S2 Pro worker does. ``drama3_patches.py`` makes the 35B model fit and run on consumer GPUs: FP8 experts
-dequantized on use (or re-quantized to 4 bits: the "Expert precision" setting), the layers split over the GPUs the
+dequantized on use (or Fish Audio's int4 build: the "Expert precision" setting), the layers split over the GPUs the
 app gives the process (its "GPU count" setting), and decoding as CUDA graphs per GPU.
 
 Reference clips are encoded once: their codes are cached on disk by the clip's content. The codec runs on the last
@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from common.protocol import ensure_model, log, run_worker, worker_settings, write_wav  # noqa: E402
 
 MODEL = "drama-3"  # fishaudio/drama-3 (workers/models.json)
+MODEL_INT4 = "drama-3-int4"  # fishaudio/drama-3-int4: the 4-bit experts plan runs on this
 MODEL_VERSION = "drama-3"
 FISH_COMMIT = "1ff3c3ed2f80d3106a83909dd25b83129c3d816f"  # tag v3.0.0-beta
 SOURCE_URL = f"https://codeload.github.com/fishaudio/fish-speech/zip/{FISH_COMMIT}"
@@ -140,9 +141,30 @@ class Drama3Worker:
 
         log(f"fish-speech {FISH_COMMIT[:12]} imported")
 
+    def _plan(self):
+        """The memory plan for this machine and the worker settings (which also decides the model: FP8 or int4)."""
+        import torch
+
+        import drama3_patches
+        import drama3_plan
+
+        settings = worker_settings()
+        count = torch.cuda.device_count()
+        # What each GPU may use: all of it, or less with the GPU memory target.
+        target = float(settings.get("gpuMemoryGb") or 0) * drama3_plan.GIB
+        budgets = [min(drama3_patches.gpu_bytes(i), target) if target > 0 else drama3_patches.gpu_bytes(i)
+                   for i in range(count)]
+        reserves = (drama3_patches.LAYER_GPU_RESERVE, drama3_patches.TOWER_GPU_RESERVE, drama3_patches.CODEC_BYTES)
+        return drama3_plan.choose(settings, budgets, drama3_plan.available_ram(), reserves), budgets
+
     def prepare(self, report):
+        import torch
+
         ensure_source()
-        self.model_dir = ensure_model(MODEL)
+        if not torch.cuda.is_available():
+            raise RuntimeError("Drama 3 needs an NVIDIA GPU.")
+        plan, _ = self._plan()
+        self.model_dir = ensure_model(MODEL_INT4 if plan.precision == "int4" else MODEL)
 
     def load(self, report):
         import torch
@@ -153,18 +175,10 @@ class Drama3Worker:
         import drama3_patches
         from fish_speech.models.text2semantic.inference import init_model, load_codec_model
 
-        import drama3_plan
-
-        path = self.model_dir or ensure_model(MODEL)
-        settings = worker_settings()
         count = torch.cuda.device_count()
         self.devices = ",".join(f"cuda:{i}" for i in range(count))
-        # What each GPU may use: all of it, or less with the GPU memory target.
-        target = float(settings.get("gpuMemoryGb") or 0) * drama3_plan.GIB
-        budgets = [min(drama3_patches.gpu_bytes(i), target) if target > 0 else drama3_patches.gpu_bytes(i)
-                   for i in range(count)]
-        reserves = (drama3_patches.LAYER_GPU_RESERVE, drama3_patches.TOWER_GPU_RESERVE, drama3_patches.CODEC_BYTES)
-        plan = drama3_plan.choose(settings, budgets, drama3_plan.available_ram(), reserves)
+        plan, budgets = self._plan()
+        path = self.model_dir or ensure_model(MODEL_INT4 if plan.precision == "int4" else MODEL)
         log(f"Memory plan: {plan.describe(count)}")
         for warning in plan.warnings:
             log(f"WARNING: {warning}")
