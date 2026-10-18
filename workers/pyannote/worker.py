@@ -299,6 +299,12 @@ class PyannoteWorker:
         if cfg["sample_rate"] != SAMPLE_RATE:
             raise RuntimeError(f"the models want {cfg['sample_rate']} Hz audio")
         settings = req.settings or {}
+        # The clustering knobs of the settings replace the model's own values (Merge distance, Acoustic weight, Voice-count
+        # penalty, Shortest voice); a missing one leaves the model's.
+        clu = dict(clu)
+        for key, name in (("threshold", "threshold"), ("fa", "fa"), ("fb", "fb"), ("min_active_ratio", "minActiveRatio")):
+            if settings.get(name) not in (None, ""):
+                clu[key] = float(settings[name])
         overlap = str(settings.get("overlap", False)).lower() == "true"
         low, high = (int(settings.get(k) or 0) for k in ("minSpeakers", "maxSpeakers"))
         num = int(req.speaker_count or 0)  # the request's hint of how many voices there are

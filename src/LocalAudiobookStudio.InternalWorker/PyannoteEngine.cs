@@ -128,12 +128,23 @@ internal sealed class PyannoteEngine(EngineContext context) : EngineBase(context
     private static int Int(JsonObject? settings, string key) =>
         settings?[key] is { } n && int.TryParse(n.ToString(), CultureInfo.InvariantCulture, out var v) ? v : 0;
 
+    private static double Number(JsonObject? settings, string key, double fallback) =>
+        settings?[key] is { } n && double.TryParse(n.ToString(), CultureInfo.InvariantCulture, out var v) && v > 0 ? v : fallback;
+
     private static bool Bool(JsonObject? settings, string key, bool fallback) =>
         settings?[key] is { } n && bool.TryParse(n.ToString(), out var v) ? v : fallback;
 
     private List<(double Start, double End, string Speaker)> Diarize(Setup s, float[] audio, JsonObject? settings, int hintedSpeakers, string? id, CancellationToken ct)
     {
         var overlap = Bool(settings, "overlap", false);
+        // The clustering knobs of the settings replace the model's own values; a missing one leaves the model's.
+        s = s with
+        {
+            Threshold = Number(settings, "threshold", s.Threshold),
+            Fa = Number(settings, "fa", s.Fa),
+            Fb = Number(settings, "fb", s.Fb),
+            MinActiveRatio = Number(settings, "minActiveRatio", s.MinActiveRatio),
+        };
         int minSpeakers = Int(settings, "minSpeakers"), maxSpeakers = Int(settings, "maxSpeakers");
         if (hintedSpeakers > 0) minSpeakers = maxSpeakers = hintedSpeakers;
         if (minSpeakers <= 0) minSpeakers = 1;

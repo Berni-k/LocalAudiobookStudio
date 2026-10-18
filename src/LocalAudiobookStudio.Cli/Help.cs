@@ -220,8 +220,24 @@ internal static class Help
               --no-headings      Don't speak chapter headings
               --names <a,b>      Speaker names to recognise as labels
               --title <t>        Title, when the import creates the project
+          import-audio <file>    Listen to a recording and add it as new chapters at the end (creates the project if the
+                                 folder has none): chapters, segments, pauses, speakers, and the recording as each
+                                 segment's first take, locked. The whole file goes to the workers, so cut very long ones.
+              -w, --worker <id>  Transcription worker (default: the first installed); --runtime, --device, --set k=v as in transcribe
+              --aligner <id>     Time the words with a forced aligner (sharper pauses; long files are cut to fit it)
+              --diarizer <id>    Tell voices apart (pyannote, or a worker that hears and tells apart); each voice becomes a speaker
+              --voices <n>       How many voices there are, if known
+              --language <l>     The transcriber's language setting
+              --chapters <list>  Where chapters start: any of meta, headings, pauses (comma separated) or none; default meta,headings
+              --chapter-pause <s>  With 'pauses': start a chapter at a pause this long (default 3)
+              --pause-ms <n>     A gap this long between segments becomes a Pause item of its length (default 600; 0: none)
+              --max-chars <n>    Longest segment (also limited by the speaker's worker)
+              --no-headings      Don't make a segment of a spoken chapter heading
+              --no-keep-audio    Text only: don't use the recording as the first take
+              --no-lock          Don't lock the segments that have the recording as their take
+              --title <t>        Title, when the import creates the project
           erase-takes            Delete all generated takes (locked segments and microphone recordings keep theirs)
-          generate               Generate what's not generated, stale or failed, and wait for it
+          generate              Generate what's not generated, stale or failed, and wait for it
               --all              Every segment (a new take each)
               --failed           Only failed segments
               -c, --chapter <n>  Only these chapters: 3, 1,4 or 2-5 (repeatable)
@@ -242,6 +258,7 @@ internal static class Help
         Examples:
           las project MyBook import book.txt erase-takes generate export -o book.m4b
           las project MyBook speaker narrator --voice bf_emma generate
+          las project MyBook import-audio podcast.mp3 -w whisper --aligner mms_fa --diarizer pyannote
           las --json project MyBook status
 
         """;

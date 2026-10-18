@@ -88,6 +88,8 @@ A worker is a model the app runs in its own process, on one of the [supported ru
 
 For models the app doesn't include, the [ComfyUI bridge](docs/comfyui.md) runs your own ComfyUI workflows as a worker.
 
+**File → Import audio…** turns a recording (an audiobook, a podcast, any speech) into chapters and segments of the open project. The whole file is listened to by the transcription worker you choose, optionally with an aligner for sharper pauses and a worker that tells voices apart (each voice becomes a speaker you can name). A preview shows the chapters, segments, pauses and voices, and follows the options (where chapters start, how long a gap must be to become a pause, how long a segment may be) until it looks right. Importing adds the chapters at the end, and by default uses the recording itself as each segment's first take, locked, so the project already plays as the original. Cancel stops everything and closes the window. Very long recordings (hours) are best cut down first. The command line has the same as `las project <folder> import-audio <file>`.
+
 To try a worker, or get one job done, without a project, open **Tools** in the menu bar: *Generate audio*, *Transcribe audio*, *Align text to audio* and *Compare voices* open the One shot window on the matching tab. Pick a worker and its settings, give it an input and press Run.
 
 ## Projects

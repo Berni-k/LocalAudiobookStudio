@@ -18,6 +18,13 @@ pyannote.audio 4.0.7 (MIT), is `DiarizationMath.cs`.
   one voice at a time (the one that talks most when several do); *Overlapping speech* keeps all of them.
   The number of voices is found; the app's `speakerCount` hint sets it (k-means, as in pyannote, when VBx finds another
   number), and *At least* and *At most* bound it when there is no hint.
+- **Clustering settings:** *Merge distance* (`threshold`, 0.6), *Acoustic weight* (`fa`, 0.07), *Voice-count penalty* (`fb`, 0.8)
+  and *Shortest voice* (`minActiveRatio`, 0.2) replace the model's clustering values in both runtimes (`Diarize` in
+  `PyannoteEngine.cs`, `worker.py`). `fa` and `fb` decide how many voices the grouping keeps and are touchy: on the 5 minute
+  podcast excerpt, `fa` 0.2 or `fb` 0.5 gave 4 voices instead of 3, `fa` 0.3 six, and `fa` ≥ 0.5 or `fb` ≤ 0.2 a dozen or more.
+  `threshold` and `minActiveRatio` alone changed nothing there (the final grouping merges what the start separated). A voice
+  that is merged with another for good (the host and a guest answering "hello, hello" at 1:12) split with the `speakerCount`
+  hint (4 or more) and not with these, which only change how many voices are found.
 - **Checked on:** a 56 s file of two voices (three turns, found at 17.7 s and 32.9 s, where they are) and a 200 s mix of
   three voices in ten turns (all three found; 0.9% of the speech given to the wrong voice, frame by frame against the
   known turns), about 6× real time on the CPU.

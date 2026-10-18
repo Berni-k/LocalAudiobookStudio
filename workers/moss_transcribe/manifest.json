@@ -12,6 +12,7 @@
   "devices": ["cuda", "cpu"],
   "cpuRecommended": false,
   "cpuNote": "Several times slower than on a GPU.",
+  "maxAudioMinutes": 90,
   "approxVramGb": 4,
   "models": ["moss-transcribe-diarize"],
   "settings": [

@@ -72,7 +72,7 @@ public static class Transcription
     public static GenerationJob Job(WorkerManifest worker, string wavPath, string? expectedText, JsonObject settings,
         string label, JobPriority priority, object? tag = null, long readingOrder = 0, ListenMode? mode = null,
         IReadOnlyList<string>? speakers = null, int? speakerCount = null, Func<GenerationJob, Task>? afterRun = null,
-        Func<GenerationJob, GenerationJob?>? then = null) =>
+        Func<GenerationJob, GenerationJob?>? then = null, Func<GenerationJob, CancellationToken, Task>? beforeRun = null) =>
         new()
         {
             WorkerId = worker.Id,
@@ -91,6 +91,7 @@ public static class Transcription
             },
             AfterRun = afterRun,
             Then = then,
+            BeforeRun = beforeRun,
         };
 
     /// <summary>
@@ -131,19 +132,16 @@ public static class Transcription
         if (listeners is { Hearer: { } hearer, Aligner: { } aligner })
         {
             var blocks = hearer.CanDiarize && listeners.Diarizer == null;
+            // A recording longer than the aligner takes is cut at the hearer's pauses (AlignJob), so a hearer that times words is
+            // asked for them then; for a short one the text is all the aligner needs (and asking for times can cost time).
+            var roughTimes = !blocks && hearer.CanAlign && DurationMs(wavPath) > AlignWindows.TargetMs(aligner);
             return Job(hearer, wavPath, expectedText, listeners.HearerSettings, label, priority, tag, readingOrder,
-                blocks ? ListenMode.TranscribeDiarize : ListenMode.Transcribe, speakers, speakerCount, afterRun,
+                blocks ? ListenMode.TranscribeDiarize : roughTimes ? ListenMode.TranscribeAlign : ListenMode.Transcribe, speakers, speakerCount, afterRun,
                 then: heard => blocks && segmentsSuffice != null && heard.Transcript is { } blocksHeard && segmentsSuffice(blocksHeard)
                     ? null // the blocks are enough: the hearer's job finishes
                     : heard.Transcript?.Text is { Length: > 0 } text && text.Any(char.IsLetterOrDigit)
-                        ? Job(aligner, wavPath, text, listeners.AlignerSettings, $"{label} (timing)", priority, tag, readingOrder,
-                            ListenMode.Align, speakers, speakerCount, async timed =>
-                            {
-                                // The aligner knows the words, not who said them: they get the voice and block they came from.
-                                if (timed.Transcript != null && timed.ContinuesFrom?.Transcript is { } hearerHeard)
-                                    timed.AmendTranscript(WithBlocksOf(timed.Transcript, hearerHeard));
-                                if (afterRun != null) await afterRun(timed).ConfigureAwait(false);
-                            }, then: voices)
+                        ? AlignJob(aligner, listeners.AlignerSettings, heard.Transcript, wavPath, text, label, priority, tag, readingOrder,
+                            speakers, speakerCount, afterRun, voices)
                         : null); // nothing heard: nothing to time
         }
         if (listeners.Hearer is { } alone)
@@ -154,6 +152,64 @@ public static class Transcription
             return Job(aligning, wavPath, expectedText, listeners.AlignerSettings, label, priority, tag, readingOrder,
                 ListenMode.Align, speakers, speakerCount, afterRun, then: voices);
         return null;
+    }
+
+    /// <summary>How long a prepared WAV is, or 0 when it can't be read (then nothing is cut).</summary>
+    private static int DurationMs(string wavPath)
+    {
+        try { return (int)AudioDecoder.ReadInfo(wavPath).DurationMs; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException) { return 0; }
+    }
+
+    /// <summary>
+    /// The job that times what <paramref name="heard"/> heard. When that came with rough times (words, or blocks) and the
+    /// recording is longer than the aligner takes (<see cref="AlignWindows.TargetMs"/>), it is cut at the speaker's pauses
+    /// into windows, each a job of its own on its own slice of the audio, one after the other
+    /// (<see cref="GenerationJob.Then"/>); the last one finishes in the first one's place with every word's time on the
+    /// recording's timeline. Otherwise one job times it all.
+    /// </summary>
+    private static GenerationJob AlignJob(WorkerManifest aligner, JsonObject settings, TranscriptResult heard, string wavPath, string text,
+        string label, JobPriority priority, object? tag, long readingOrder, IReadOnlyList<string>? speakers, int? speakerCount,
+        Func<GenerationJob, Task>? afterRun, Func<GenerationJob, GenerationJob?>? voices)
+    {
+        var windows = AlignWindows.Plan(AlignWindows.UnitsOf(heard), AlignWindows.TargetMs(aligner));
+        if (windows.Count <= 1)
+            return Job(aligner, wavPath, text, settings, $"{label} (timing)", priority, tag, readingOrder, ListenMode.Align, speakers, speakerCount,
+                async timed =>
+                {
+                    // The aligner knows the words, not who said them: they get the voice and block they came from.
+                    if (timed.Transcript != null && timed.ContinuesFrom?.Transcript is { } hearerHeard)
+                        timed.AmendTranscript(WithBlocksOf(timed.Transcript, hearerHeard));
+                    if (afterRun != null) await afterRun(timed).ConfigureAwait(false);
+                }, then: voices);
+
+        var timedWords = new IReadOnlyList<TranscriptWord>[windows.Count];
+        var slices = windows.Select((_, i) => $"{Path.ChangeExtension(wavPath, null)}-window{i + 1}.wav").ToList();
+
+        GenerationJob Window(int i) => Job(aligner, slices[i], windows[i].Text, settings, $"{label} (timing {i + 1}/{windows.Count})", priority, tag,
+            readingOrder, ListenMode.Align, speakers, speakerCount,
+            afterRun: async last =>
+            {
+                // (Reached only when the last window ends here: nobody continues it.)
+                if (afterRun != null) await afterRun(last).ConfigureAwait(false);
+            },
+            then: timed =>
+            {
+                timedWords[i] = timed.Transcript?.Words ?? [];
+                try { File.Delete(slices[i]); } catch (IOException) { /* cache */ }
+                if (i + 1 < windows.Count) return Window(i + 1);
+
+                var joined = AlignWindows.Join(windows, timedWords);
+                var merged = new TranscriptResult(string.Join(' ', joined.Select(w => w.Text)), joined, heard.Language);
+                timed.AmendTranscript(WithBlocksOf(merged, heard));
+                return voices?.Invoke(timed);
+            },
+            beforeRun: (_, _) =>
+            {
+                AlignWindows.Slice(wavPath, windows[i].StartMs, windows[i].EndMs, slices[i]);
+                return Task.CompletedTask;
+            });
+        return Window(0);
     }
 
     /// <summary>

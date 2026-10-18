@@ -79,6 +79,15 @@ workers installed there, so whatever works in the app works here. Its log is the
   With the user's *Fused generation inspector* setting on, each one's input, whole output and transcript land in
   `<project>/fused/<id>/` (`record.json`, `audio.wav`): read them to see how it was cut. Ask the user to turn the
   setting on rather than editing their `settings.json`.
+- **Importing a recording**: `las project <dir> import-audio file.mp3 -w whisper --aligner mms_fa --diarizer pyannote` is
+  File → Import audio… (`ImportAudioViewModel`) without the window: `AudioSource.PrepareAsync` (ffmpeg → the 16 kHz copy the
+  workers listen to, plus the original as PCM for cutting takes), `AudioAnalyzer` (one `Transcription.Listen` job for the whole
+  file), `AudioStructurer.Build` (pure: chapters from file metadata, spoken headings or pauses; segments from sentences and
+  pauses; a Pause item for a gap ≥ `InsertPauseMs`; voices numbered "Speaker N"), then `AudioImporter` / `HeadlessProject.ImportAudioAsync`
+  (new chapters at the end; the recording cut into take 1 of each segment with the segment's *current* input hash, so it is current
+  until the text or voice changes, `TakeInfo.Worker` "imported", locked by default). The alignment path cuts a long recording at
+  the transcriber's pauses to fit the aligner (`AlignWindows`; `maxAudioMinutes` in a worker's manifest). Use a short excerpt
+  (`ffmpeg -t 300 -i long.mp3 short.mp3`) to try it; a scratch project is fine.
 - **Measuring against the audio**: when timings look wrong, read the WAV's loudness in 10–50 ms frames (Python with
   the `basic` environment's interpreter, `envs/basic/Scripts/python.exe -I`) and compare it with the word times. That
   is how whisper.cpp's DTW times were found to mark a token's end.

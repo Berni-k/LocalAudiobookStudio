@@ -203,18 +203,7 @@ public sealed partial class ImportViewModel : ObservableObject
     // ------------------------------------------------------------------ applying the mapping
 
     /// <summary>Resolves "merge with label" chains to the final label.</summary>
-    private string Resolve(string label)
-    {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var current = label;
-        while (seen.Add(current))
-        {
-            var m = Mappings.FirstOrDefault(x => x.Label.Equals(current, StringComparison.OrdinalIgnoreCase));
-            if (m is not { Mode: LabelMappingMode.MergeWithLabel, MergeTarget: { } t }) break;
-            current = t;
-        }
-        return current;
-    }
+    private string Resolve(string label) => SpeakerMapping.Resolve(Mappings, label);
 
     /// <summary>For a new project: speakers to create, and the label → speaker id map.</summary>
     public List<Speaker> BuildNewSpeakers(out Dictionary<string, string> labelToId)
@@ -259,11 +248,33 @@ public sealed partial class ImportViewModel : ObservableObject
     }
 
     /// <summary>For an existing project: creates new speakers, records aliases, returns label → id.</summary>
-    public Dictionary<string, string> ApplySpeakerMapping(ProjectSession session)
+    public Dictionary<string, string> ApplySpeakerMapping(ProjectSession session) => SpeakerMapping.Apply(session, Mappings);
+}
+
+/// <summary>What the speaker label mappings of an import (text or audio) do to an open project.</summary>
+public static class SpeakerMapping
+{
+    /// <summary>Resolves "merge with label" chains to the final label.</summary>
+    public static string Resolve(IEnumerable<LabelMappingViewModel> mappings, string label)
+    {
+        var list = mappings.ToList();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var current = label;
+        while (seen.Add(current))
+        {
+            var m = list.FirstOrDefault(x => x.Label.Equals(current, StringComparison.OrdinalIgnoreCase));
+            if (m is not { Mode: LabelMappingMode.MergeWithLabel, MergeTarget: { } t }) break;
+            current = t;
+        }
+        return current;
+    }
+
+    /// <summary>Creates the new speakers, records the labels as aliases, and returns label → speaker id.</summary>
+    public static Dictionary<string, string> Apply(ProjectSession session, IReadOnlyList<LabelMappingViewModel> mappings)
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var defaultWorker = session.Project.FindSpeaker(session.Project.Defaults.Speaker)?.Worker ?? "kokoro";
-        foreach (var m in Mappings.Where(m => m.Mode != LabelMappingMode.MergeWithLabel))
+        foreach (var m in mappings.Where(m => m.Mode != LabelMappingMode.MergeWithLabel))
         {
             Speaker sp;
             if (m.Mode == LabelMappingMode.ExistingSpeaker && m.ExistingSpeaker != null)
@@ -278,9 +289,9 @@ public sealed partial class ImportViewModel : ObservableObject
             session.MarkSpeakerDirty(sp);
             map[m.Label] = sp.Id;
         }
-        foreach (var m in Mappings.Where(m => m.Mode == LabelMappingMode.MergeWithLabel))
+        foreach (var m in mappings.Where(m => m.Mode == LabelMappingMode.MergeWithLabel))
         {
-            var final = Resolve(m.Label);
+            var final = Resolve(mappings, m.Label);
             var id = map.GetValueOrDefault(final) ?? session.Project.Defaults.Speaker;
             map[m.Label] = id;
             if (session.Project.FindSpeaker(id) is { } sp && !sp.MarkerAliases.Contains(m.Label, StringComparer.OrdinalIgnoreCase))

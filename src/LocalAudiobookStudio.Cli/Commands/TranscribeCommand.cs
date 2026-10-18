@@ -58,32 +58,9 @@ public static class TranscribeCommand
         // uses an aligner in the app.
         // --diarizer: after the words, a diarization worker (pyannote) says who speaks when, and each word gets the voice of
         // the turn it falls in.
-        Listeners? listeners = null;
-        if (a.Get("--aligner") is not null || a.Get("--diarizer") is not null)
-        {
-            if (a.Has("--mode")) throw new UsageException("transcribe: --aligner and --diarizer add to what the worker hears; leave out --mode.");
-            if (!manifest.CanTranscribe)
-                throw new UsageException($"transcribe: with --aligner or --diarizer, -w must hear words (tagged Transcription); {manifest.DisplayName} doesn't.");
-            WorkerManifest? alignerManifest = null, diarizerManifest = null;
-            if (a.Get("--aligner") is { } alignerId)
-            {
-                alignerManifest = host.Catalog.Get(alignerId) is { AlignsText: true } found
-                    ? found
-                    : throw new UsageException($"transcribe: --aligner {alignerId} can't time a given text: it needs a forced aligner (tagged " +
-                                               $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
-                if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
-            }
-            if (a.Get("--diarizer") is { } diarizerId)
-            {
-                diarizerManifest = host.Catalog.Get(diarizerId) is { Diarizes: true } foundDiarizer
-                    ? foundDiarizer
-                    : throw new UsageException($"transcribe: --diarizer {diarizerId} doesn't tell voices apart: it needs a worker tagged " +
-                                               $"{WorkerTags.Diarization}: {string.Join(", ", host.Catalog.All.Where(m => m.Diarizes).Select(m => m.Id))}.");
-                if (host.WhyWorkerCannotRun(diarizerManifest.Id) is { } whyNotDiarizer) throw new SetupException(whyNotDiarizer);
-            }
-            JsonObject Defaults(WorkerManifest? m) => m == null ? new JsonObject() : OneShot.MergeSettings(m.DefaultSettings(), null, m, ctx.FullPath);
-            listeners = new Listeners(manifest, settings, alignerManifest, Defaults(alignerManifest), diarizerManifest, Defaults(diarizerManifest));
-        }
+        if (a.Has("--mode") && (a.Get("--aligner") is not null || a.Get("--diarizer") is not null))
+            throw new UsageException("transcribe: --aligner and --diarizer add to what the worker hears; leave out --mode.");
+        var listeners = ResolveListeners(ctx, host, a, manifest, settings, "transcribe");
         var mode = listeners != null ? ListenMode.TranscribeAlign : ModeOf(manifest, a.Get("--mode"));
         // Aligning finds the words of a given text: without the text it has nothing to do, and comparing its words
         // with that text would always "match". What it gives is the timing, so the words are always shown.
@@ -193,8 +170,38 @@ public static class TranscribeCommand
         return mode;
     }
 
+    /// <summary>
+    /// With --aligner and/or --diarizer, the chain that listens: the worker hears the words (text only), the aligner times
+    /// what it heard, and the diarizer says who speaks when, giving each word its turn's voice; null with neither.
+    /// </summary>
+    internal static Listeners? ResolveListeners(CliContext ctx, StudioHost host, CliArgs a, WorkerManifest manifest, JsonObject settings, string command)
+    {
+        if (a.Get("--aligner") is null && a.Get("--diarizer") is null) return null;
+        if (!manifest.CanTranscribe)
+            throw new UsageException($"{command}: with --aligner or --diarizer, the worker must hear words (tagged Transcription); {manifest.DisplayName} doesn't.");
+        WorkerManifest? alignerManifest = null, diarizerManifest = null;
+        if (a.Get("--aligner") is { } alignerId)
+        {
+            alignerManifest = host.Catalog.Get(alignerId) is { AlignsText: true } found
+                ? found
+                : throw new UsageException($"{command}: --aligner {alignerId} can't time a given text: it needs a forced aligner (tagged " +
+                                           $"{WorkerTags.ForcedAlignment}: {string.Join(", ", host.Catalog.Transcribers.Where(m => m.AlignsText).Select(m => m.Id))}).");
+            if (host.WhyWorkerCannotRun(alignerManifest.Id) is { } whyNot) throw new SetupException(whyNot);
+        }
+        if (a.Get("--diarizer") is { } diarizerId)
+        {
+            diarizerManifest = host.Catalog.Get(diarizerId) is { Diarizes: true } foundDiarizer
+                ? foundDiarizer
+                : throw new UsageException($"{command}: --diarizer {diarizerId} doesn't tell voices apart: it needs a worker tagged " +
+                                           $"{WorkerTags.Diarization}: {string.Join(", ", host.Catalog.All.Where(m => m.Diarizes).Select(m => m.Id))}.");
+            if (host.WhyWorkerCannotRun(diarizerManifest.Id) is { } whyNotDiarizer) throw new SetupException(whyNotDiarizer);
+        }
+        JsonObject Defaults(WorkerManifest? m) => m == null ? new JsonObject() : OneShot.MergeSettings(m.DefaultSettings(), null, m, ctx.FullPath);
+        return new Listeners(manifest, settings, alignerManifest, Defaults(alignerManifest), diarizerManifest, Defaults(diarizerManifest));
+    }
+
     /// <summary>The worker (--worker, else the first installed transcriber) and its settings with the --set overrides.</summary>
-    private static (WorkerManifest manifest, JsonObject settings) ResolveWorker(CliContext ctx, StudioHost host, CliArgs a)
+    internal static (WorkerManifest manifest, JsonObject settings) ResolveWorker(CliContext ctx, StudioHost host, CliArgs a)
     {
         // Transcribers before aligners: the default must work without a text.
         var transcribers = host.Catalog.Transcribers.OrderByDescending(m => m.HasTag(WorkerTags.Transcription)).ToList();

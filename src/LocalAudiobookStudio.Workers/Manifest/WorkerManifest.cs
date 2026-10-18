@@ -81,6 +81,12 @@ public sealed class WorkerManifest
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsListener => !IsBridge && (IsTranscriber || VerifiesSpeaker || Diarizes);
 
+    /// <summary>
+    /// The longest audio, in minutes, a listening worker takes in one request (null: no known limit). The app warns from 90 %
+    /// of it, and cuts what it gives an aligner to fit (<c>AlignWindows</c>).
+    /// </summary>
+    public double? MaxAudioMinutes { get; set; }
+
     /// <summary>Hears the words in audio (<c>transcribe</c>; tag Transcription).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CanTranscribe => HasTag(WorkerTags.Transcription) || IsBridge;

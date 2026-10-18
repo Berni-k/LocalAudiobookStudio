@@ -48,6 +48,7 @@
         <MenuItem Header="_Close project" Command="{Binding CloseProjectCommand}" />
         <Separator />
         <MenuItem Header="_Import text…" Command="{Binding ImportTextCommand}" InputGesture="Ctrl+I" />
+        <MenuItem Header="Import _audio…" Command="{Binding ImportAudioCommand}" />
         <MenuItem Header="Export _script…" Command="{Binding ExportScriptCommand}" />
         <Separator />
         <MenuItem Header="_Save" Command="{Binding SaveCommand}" InputGesture="Ctrl+S" />

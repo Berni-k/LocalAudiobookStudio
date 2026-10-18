@@ -33,6 +33,8 @@ public sealed record GenerateSummary(int Queued, int Completed, int Failed, int 
 
 public sealed record ImportSummary(int Chapters, int Segments, int NewSpeakers, int KeptTakes);
 
+public sealed record AudioImportSummary(int Chapters, int Segments, int Pauses, int NewSpeakers, int Takes);
+
 public sealed record EraseSummary(int Segments, int FilesDeleted, int SkippedLocked, int SkippedRecorded);
 
 /// <summary>
@@ -134,6 +136,26 @@ public sealed class HeadlessProject : IDisposable
         DeleteAudioOfRemovedSegments();
         _log.LogInformation("Imported {Segments} segments in {Chapters} chapters ({Kept} kept their takes)", result.SegmentCount, imported.Count, kept);
         return new ImportSummary(imported.Count, result.SegmentCount, Project.Speakers.Count - speakersBefore, kept);
+    }
+
+    /// <summary>
+    /// Adds an analysed recording to the project as new chapters at its end: speakers for its voices (as the text import
+    /// maps labels), the segments and pauses, and, with <paramref name="keepAudio"/>, the original audio as each segment's first
+    /// take (locked with <paramref name="lockTakes"/>). A cancel or failure while cutting leaves the project as it was.
+    /// </summary>
+    public async Task<AudioImportSummary> ImportAudioAsync(AudioSource source, AudioStructure structure, string listenedBy, string? language,
+        bool keepAudio, bool lockTakes, IProgress<(double Fraction, string Message)>? progress, CancellationToken ct)
+    {
+        if (structure.SpokenCount == 0) throw new InvalidDataException("Nothing was heard in the recording.");
+        var speakersBefore = Project.Speakers.Count;
+        var map = ProjectImport.MapLabels(Engine, structure.Result.SpeakerLabels);
+        var imported = AudioImporter.ToChapters(structure, map);
+        if (keepAudio) await AudioImporter.WriteTakesAsync(Engine, source, imported.Segments, listenedBy, language, lockTakes, progress, ct).ConfigureAwait(false);
+        Project.Chapters.AddRange(imported.Chapters);
+        ProjectStore.SaveAll(Project);
+        _log.LogInformation("Imported audio: {Segments} segments in {Chapters} chapters", imported.Segments.Count, imported.Chapters.Count);
+        return new AudioImportSummary(imported.Chapters.Count, imported.Segments.Count, structure.PauseCount, Project.Speakers.Count - speakersBefore,
+            keepAudio ? imported.Segments.Count : 0);
     }
 
     private void DeleteAudioOfRemovedSegments()

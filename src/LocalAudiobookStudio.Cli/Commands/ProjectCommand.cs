@@ -29,6 +29,12 @@ public static class ProjectCommand
             new("--keep-takes", HasValue: false), new("--max-chars"), new("--chapter-regex"), new("--every-line", HasValue: false),
             new("--no-headings", HasValue: false), new("--names"), new("--title"),
         ],
+        ["import-audio"] =
+        [
+            new("--worker", "-w"), new("--runtime"), new("--device"), new("--set", Repeatable: true), new("--aligner"), new("--diarizer"),
+            new("--voices"), new("--language"), new("--chapters"), new("--chapter-pause"), new("--pause-ms"), new("--max-chars"),
+            new("--no-headings", HasValue: false), new("--no-keep-audio", HasValue: false), new("--no-lock", HasValue: false), new("--title"),
+        ],
         ["erase-takes"] = [],
         ["generate"] = [new("--all", HasValue: false), new("--failed", HasValue: false), new("--chapter", "-c", Repeatable: true)],
         ["export"] =
@@ -55,7 +61,7 @@ public static class ProjectCommand
 
         var host = await ctx.StartHostAsync();
         string? createTitle = null;
-        if (steps[0].Name == "import")
+        if (steps[0].Name is "import" or "import-audio")
         {
             var file = steps[0].Args.Positionals.FirstOrDefault();
             createTitle = steps[0].Args.Get("--title") ?? (file is null or "-" ? "Untitled" : Path.GetFileNameWithoutExtension(file));
@@ -80,6 +86,7 @@ public static class ProjectCommand
                 var (result, ok) = step.Name switch
                 {
                     "import" => (Import(ctx, project, step.Args), true),
+                    "import-audio" => (await ImportAudioAsync(ctx, project, step.Args), true),
                     "erase-takes" => (EraseTakes(ctx, project), true),
                     "generate" => await GenerateAsync(ctx, project, step.Args),
                     "export" => (await ExportAsync(ctx, project, step.Args), true),
@@ -143,6 +150,15 @@ public static class ProjectCommand
                     catch (ArgumentException ex) { throw new UsageException("import: --chapter-regex: " + ex.Message); }
                 }
                 break;
+            case "import-audio":
+                if (a.Positionals.Count != 1) throw new UsageException("import-audio: give one audio file.");
+                if (!File.Exists(a.Positionals[0])) throw new UsageException($"import-audio: {a.Positionals[0]} doesn't exist.");
+                a.GetInt("--voices", 1, 64);
+                a.GetInt("--pause-ms", 0, 600_000);
+                a.GetInt("--max-chars", 50, 100_000);
+                if (a.GetDouble("--chapter-pause") is < 0.1) throw new UsageException("import-audio: --chapter-pause is a number of seconds, at least 0.1.");
+                _ = ChapterSources(a);
+                break;
             case "generate":
                 a.NoPositionals();
                 if (a.Has("--all") && a.Has("--failed")) throw new UsageException("generate: --all and --failed don't go together.");
@@ -190,6 +206,74 @@ public static class ProjectCommand
                  (r.NewSpeakers > 0 ? $", {r.NewSpeakers} new speaker(s)" : "") +
                  (a.Has("--keep-takes") ? $", {r.KeptTakes} kept their takes" : "") + ".");
         return r;
+    }
+
+    // ================================================================== import audio
+
+    /// <summary>--chapters: any of meta, headings, pauses, comma separated, or none; default meta,headings.</summary>
+    private static (bool Meta, bool Headings, bool Pauses) ChapterSources(CliArgs a)
+    {
+        if (a.Get("--chapters") is not { } list) return (true, true, a.Has("--chapter-pause"));
+        var parts = list.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(p => p.ToLowerInvariant()).ToList();
+        var unknown = parts.Where(p => p is not ("meta" or "headings" or "pauses" or "none")).ToList();
+        if (unknown.Count > 0) throw new UsageException($"import-audio: --chapters takes meta, headings, pauses (comma separated) or none, not '{unknown[0]}'.");
+        return (parts.Contains("meta"), parts.Contains("headings"), parts.Contains("pauses"));
+    }
+
+    private static async Task<object> ImportAudioAsync(CliContext ctx, HeadlessProject p, CliArgs a)
+    {
+        var file = a.Positionals[0];
+        var host = p.Host;
+        var (manifest, settings) = TranscribeCommand.ResolveWorker(ctx, host, a);
+        if (a.Get("--language") is { } language) settings["language"] = OneShot.ParseSettingValue(manifest, "language", language);
+        var listeners = TranscribeCommand.ResolveListeners(ctx, host, a, manifest, settings, "import-audio")
+                        ?? new Listeners(manifest, settings, null, new JsonObject());
+        var keepAudio = !a.Has("--no-keep-audio");
+
+        var lastReport = -1d;
+        string? lastMessage = null;
+        var progress = new Progress<(double Fraction, string Message)>(r =>
+        {
+            // A new message, and about every 10 % rather than every update.
+            if (r.Message == lastMessage || (r.Fraction < 1 && r.Fraction - lastReport < 0.1 && r.Fraction >= lastReport)) return;
+            lastReport = r.Fraction;
+            lastMessage = r.Message;
+            ctx.Info(r.Message);
+        });
+        var sw = Stopwatch.StartNew();
+        using var source = await AudioSource.PrepareAsync(host, file, keepAudio, progress, ctx.Cancel);
+        ctx.Info($"{Path.GetFileName(file)}: {TimeSpan.FromMilliseconds(source.DurationMs):h\\:mm\\:ss}" +
+                 (source.Chapters.Count > 0 ? $", {source.Chapters.Count} chapter(s) in the file" : "") + $". Listening with {listeners.Names}…");
+        lastReport = -1;
+        var transcript = await AudioAnalyzer.AnalyzeAsync(host.Scheduler, source, listeners, a.GetInt("--voices"), progress, ctx.Cancel);
+        var words = AlignWindows.UnitsOf(transcript);
+        if (words.Count == 0)
+            throw new InvalidDataException(transcript.Words.Count == 0 && string.IsNullOrWhiteSpace(transcript.Text)
+                ? "Nothing was heard in the recording."
+                : $"{manifest.DisplayName} gives no word times, which the import needs (choose a worker tagged Alignment, or add --aligner).");
+
+        var (meta, headings, pauses) = ChapterSources(a);
+        var options = new AudioStructureOptions
+        {
+            ChaptersFromMetadata = meta,
+            ChaptersFromHeadings = headings,
+            ChaptersFromPauses = pauses,
+            ChapterPauseSec = a.GetDouble("--chapter-pause") ?? 3,
+            SpeakHeadings = !a.Has("--no-headings"),
+            InsertPauseMs = a.GetInt("--pause-ms") ?? 600,
+            MaxSegmentChars = a.GetInt("--max-chars") ?? 1500,
+            MaxCharsForSpeaker = _ => ProjectImport.MaxCharsFor(host, p.Project, null),
+        };
+        var structure = AudioStructurer.Build(words, source.Chapters, options);
+        ctx.Info($"{structure.SpokenCount} segments in {structure.Result.Chapters.Count} chapter(s), {structure.PauseCount} pause(s), " +
+                 $"{structure.Result.SpeakerLabels.Count} voice(s).");
+
+        lastReport = -1;
+        var summary = await p.ImportAudioAsync(source, structure, listeners.Names, transcript.Language, keepAudio, !a.Has("--no-lock"), progress, ctx.Cancel);
+        ctx.Info($"Imported {summary.Segments} segments in {summary.Chapters} chapter(s)" +
+                 (summary.NewSpeakers > 0 ? $", {summary.NewSpeakers} new speaker(s)" : "") +
+                 (summary.Takes > 0 ? $", with the original audio as their first take" : "") + $" ({sw.Elapsed.TotalSeconds:0} s).");
+        return summary;
     }
 
     // ================================================================== erase takes

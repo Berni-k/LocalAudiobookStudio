@@ -32,6 +32,10 @@ public static class WindowService
     public static async Task<bool> ShowImportAsync(ImportViewModel vm) =>
         await ShowDialog<bool>(new ImportDialog { DataContext = vm });
 
+    /// <summary>The Import audio dialog (modal). True when the recording was added to the project.</summary>
+    public static async Task<bool> ShowImportAudioAsync(ImportAudioViewModel vm) =>
+        await ShowDialog<bool>(new ImportAudioDialog { DataContext = vm });
+
     public static Task ShowExportAsync(ExportViewModel vm) => ShowDialog<object>(new ExportDialog { DataContext = vm });
 
     /// <param name="speaker">The speaker to show first (e.g. the one double-clicked); null shows the first.</param>

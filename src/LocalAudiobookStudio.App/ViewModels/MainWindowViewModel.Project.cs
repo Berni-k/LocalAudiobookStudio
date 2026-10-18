@@ -115,6 +115,20 @@ public sealed partial class MainWindowViewModel
         await ImportTextFileAsync(file);
     }
 
+    [RelayCommand(CanExecute = nameof(CanUseProject))]
+    private async Task ImportAudio()
+    {
+        if (Session == null) return;
+        var file = await Dialogs.OpenFile("Import audio", new FileFilter("Audio", "*.m4b", "*.m4a", "*.mp3", "*.wav", "*.flac", "*.ogg", "*.opus", "*.aac"));
+        if (file == null) return;
+        var vm = new ImportAudioViewModel(Session, this, file);
+        var imported = await WindowService.ShowImportAudioAsync(vm);
+        vm.Dispose();
+        if (!imported) return;
+        if (vm.FirstChapter != null) SelectedChapter = vm.FirstChapter;
+        StatusText = "Imported the recording: " + vm.Summary;
+    }
+
     public async Task ImportTextFileAsync(string file)
     {
         string text;

@@ -11,6 +11,7 @@
       "mms-300m-fa": { "model": "mms-300m-fa-onnx", "file": "mms_300m_fa_fp16.onnx", "vocab": "vocab.json" }
     }
   },
+  "maxAudioMinutes": 8,
   "approxVramGb": 1,
   "devices": ["cuda", "cpu"],
   "cpuNote": "Runs well on the CPU.",

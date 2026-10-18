@@ -291,7 +291,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         foreach (var c in new IRelayCommand[]
                  {
-                     ImportTextCommand, ExportScriptCommand, SaveCommand, PackProjectCommand, ExportAudiobookCommand,
+                     ImportTextCommand, ImportAudioCommand, ExportScriptCommand, SaveCommand, PackProjectCommand, ExportAudiobookCommand,
                      CleanUpTakesCommand, CompressTakesCommand, UndoCommand, RedoCommand, GenerateStaleChapterCommand, GenerateStaleBookCommand,
                      ShowSpeakersCommand, AddChapterCommand, ProjectPropertiesCommand, CloseProjectCommand, ImportAssetsCommand,
                  })

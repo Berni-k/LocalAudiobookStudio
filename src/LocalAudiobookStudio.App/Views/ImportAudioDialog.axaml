@@ -1,0 +1,197 @@
+<!-- Import audio: options on the left; on the right progress while it listens, then the preview of what would be added. -->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LocalAudiobookStudio.App.ViewModels"
+        x:Class="LocalAudiobookStudio.App.Views.ImportAudioDialog"
+        x:DataType="vm:ImportAudioViewModel"
+        Title="{Binding FileName, StringFormat='Import audio — {0}'}"
+        Width="1180" Height="800" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <DockPanel Margin="16">
+    <!-- Buttons -->
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{Binding Summary}" Classes="secondary" VerticalAlignment="Center" TextWrapping="Wrap" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="primary" Content="Import" Command="{Binding ImportCommand}" MinWidth="90" HorizontalContentAlignment="Center"
+                IsVisible="{Binding !IsOptions}" />
+        <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <Grid ColumnDefinitions="360,16,*">
+      <!-- ===== Options -->
+      <ScrollViewer>
+        <StackPanel Spacing="6" Margin="0,0,10,0">
+          <TextBlock Text="LISTENING" Classes="header" />
+          <TextBlock Text="Transcription worker" Classes="caption" />
+          <ComboBox ItemsSource="{Binding Hearer.Workers}" SelectedItem="{Binding Hearer.Worker}" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsBusy}"
+                    PlaceholderText="Choose a worker" />
+          <TextBlock Text="No installed worker is tagged Transcription. Install one in Workers." Classes="caption error" TextWrapping="Wrap"
+                     IsVisible="{Binding Hearer.NoWorkerInstalled}" />
+          <StackPanel Grid.IsSharedSizeScope="True" IsEnabled="{Binding !IsBusy}">
+            <ContentControl Content="{Binding Hearer.Settings}" />
+          </StackPanel>
+
+          <CheckBox Content="Time the words with an aligner" IsChecked="{Binding UseAligner}" IsEnabled="{Binding !IsBusy}" Margin="0,8,0,0"
+                    ToolTip.Tip="A forced aligner gives sharper word times, so pauses and chapter breaks are found better. Long recordings are cut at pauses to fit it." />
+          <StackPanel IsVisible="{Binding UseAligner}" IsEnabled="{Binding !IsBusy}" Spacing="4">
+            <ComboBox ItemsSource="{Binding Aligner.Workers}" SelectedItem="{Binding Aligner.Worker}" HorizontalAlignment="Stretch" PlaceholderText="Choose a worker" />
+            <TextBlock Text="No installed worker is tagged Alignment Forced. Install one in Workers." Classes="caption error" TextWrapping="Wrap"
+                       IsVisible="{Binding Aligner.NoWorkerInstalled}" />
+            <StackPanel Grid.IsSharedSizeScope="True"><ContentControl Content="{Binding Aligner.Settings}" /></StackPanel>
+          </StackPanel>
+
+          <CheckBox Content="Tell voices apart" IsChecked="{Binding UseSpeakers}" IsEnabled="{Binding !IsBusy}" Margin="0,8,0,0"
+                    ToolTip.Tip="Gives each voice its own speaker. Without it everything is the project's default speaker." />
+          <StackPanel IsVisible="{Binding UseSpeakers}" IsEnabled="{Binding !IsBusy}" Spacing="4">
+            <ComboBox ItemsSource="{Binding Diarizer.Workers}" SelectedItem="{Binding Diarizer.Worker}" HorizontalAlignment="Stretch" PlaceholderText="Choose a worker" />
+            <TextBlock Text="No installed worker is tagged Diarization. Install one in Workers." Classes="caption error" TextWrapping="Wrap"
+                       IsVisible="{Binding Diarizer.NoWorkerInstalled}" />
+            <StackPanel Grid.IsSharedSizeScope="True"><ContentControl Content="{Binding Diarizer.Settings}" /></StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Voices" VerticalAlignment="Center" />
+              <NumericUpDown Value="{Binding Voices}" Minimum="1" Maximum="64" Increment="1" FormatString="0" Watermark="auto" Width="130"
+                             ToolTip.Tip="How many voices there are, if you know" />
+            </StackPanel>
+          </StackPanel>
+
+          <Button Classes="primary" Content="Analyze" Command="{Binding AnalyzeCommand}" Margin="0,10,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          <TextBlock Text="{Binding Error}" Classes="error" TextWrapping="Wrap" />
+
+          <TextBlock Text="CHAPTERS" Classes="header" Margin="0,16,0,0" />
+          <CheckBox Content="From the file's own chapters" IsChecked="{Binding ChaptersFromMetadata}" IsVisible="{Binding HasFileChapters}" />
+          <CheckBox Content="At spoken headings (“Chapter twelve”)" IsChecked="{Binding ChaptersFromHeadings}" />
+          <CheckBox Content="At pauses longer than" IsChecked="{Binding ChaptersFromPauses}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0" IsVisible="{Binding ChaptersFromPauses}">
+            <NumericUpDown Value="{Binding ChapterPauseSec}" Minimum="0.5" Maximum="600" Increment="0.5" FormatString="0.0" Width="130" />
+            <TextBlock Text="seconds" VerticalAlignment="Center" />
+          </StackPanel>
+          <CheckBox Content="Speak chapter headings" IsChecked="{Binding SpeakHeadings}" />
+
+          <TextBlock Text="SEGMENTS" Classes="header" Margin="0,12,0,0" />
+          <TextBlock Text="Max segment length (characters)" Classes="caption" />
+          <NumericUpDown Value="{Binding MaxSegmentChars}" Minimum="100" Maximum="10000" Increment="100" FormatString="0"
+                         ToolTip.Tip="Longer stretches are split at sentence ends. Each speaker's worker limit also applies." />
+          <TextBlock Text="Insert a pause when the gap is at least (ms)" Classes="caption" Margin="0,6,0,0" />
+          <NumericUpDown Value="{Binding InsertPauseMs}" Minimum="0" Maximum="60000" Increment="100" FormatString="0"
+                         ToolTip.Tip="A gap this long between two segments becomes a Pause of that length, to sound like the recording. Shorter gaps use the project's normal spacing. 0 inserts none." />
+
+          <TextBlock Text="AUDIO" Classes="header" Margin="0,12,0,0" />
+          <CheckBox Content="Use the recording as each segment's first take" IsChecked="{Binding KeepAudio}" IsEnabled="{Binding !IsBusy}" />
+          <CheckBox Content="Lock those segments" IsChecked="{Binding LockTakes}" IsEnabled="{Binding KeepAudio}" Margin="24,0,0,0"
+                    ToolTip.Tip="{Binding LockHint}" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Right: hint, progress, or the preview -->
+      <Grid Grid.Column="2">
+        <!-- Nothing has run yet -->
+        <StackPanel IsVisible="{Binding IsOptions}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6" MaxWidth="460">
+          <TextBlock Text="Choose the workers and press Analyze." HorizontalAlignment="Center" />
+          <TextBlock Text="The whole recording is listened to and kept in memory. Then change the options on the left until the preview looks right, and press Import."
+                     Classes="caption" TextWrapping="Wrap" TextAlignment="Center" />
+        </StackPanel>
+
+        <!-- Listening -->
+        <StackPanel IsVisible="{Binding IsBusy}" VerticalAlignment="Center" HorizontalAlignment="Stretch" Spacing="8" MaxWidth="560">
+          <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" />
+          <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" />
+          <TextBlock Text="Cancel stops everything and closes this window." Classes="caption" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- The preview -->
+        <Grid IsVisible="{Binding IsReview}" RowDefinitions="Auto,*,Auto">
+          <StackPanel Spacing="4" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding StaleText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+              <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding StaleText}" Classes="caption warning" />
+            </StackPanel>
+          </StackPanel>
+          <Grid Grid.Row="1" ColumnDefinitions="260,12,*">
+            <Border Classes="card" Padding="0">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="CHAPTERS" Classes="header" Margin="8,8,8,4" />
+                <ListBox ItemsSource="{Binding Chapters}" SelectedItem="{Binding SelectedChapter}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AudioChapterRow">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" Classes="caption" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </Border>
+            <Border Grid.Column="2" Classes="card" Padding="0">
+              <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,8,8,4">
+                  <TextBlock Text="SEGMENTS" Classes="header" />
+                  <Button Grid.Column="1" Content="Stop" Command="{Binding StopPlaybackCommand}" FontSize="11" Padding="6,1" />
+                </Grid>
+                <ListBox ItemsSource="{Binding Rows}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AudioSegmentRow">
+                      <Grid ColumnDefinitions="Auto,52,110,*" Margin="0,2">
+                        <Button Classes="icon" Command="{Binding PlayCommand}" IsVisible="{Binding IsSegment}" ToolTip.Tip="Play this part of the recording" Padding="2">
+                          <PathIcon Data="{StaticResource IconPlay}" Width="9" Height="9" />
+                        </Button>
+                        <TextBlock Grid.Column="1" Text="{Binding TimeText}" Classes="caption" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas, monospace" />
+                        <TextBlock Grid.Column="2" Text="{Binding Speaker}" Classes="caption" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsSegment}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   FontWeight="{Binding IsHeading, Converter={x:Static vm:ImportAudioConverters.HeadingWeight}}"
+                                   Classes.caption="{Binding IsPause}" Grid.ColumnSpan="1" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </Border>
+          </Grid>
+
+          <!-- Voices: name, merge, or assign to an existing speaker; listen to a stretch of each -->
+          <Border Grid.Row="2" Classes="card" Padding="8" Margin="0,8,0,0" IsVisible="{Binding HasSpeakers}" MaxHeight="260">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Top" Text="VOICES" Classes="header" Margin="0,0,0,4" />
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <!-- Space under the voices, so the scrollbar has a place of its own. -->
+                <ItemsControl ItemsSource="{Binding Speakers}" Margin="0,0,0,18">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="16" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AudioSpeakerRow">
+                      <StackPanel Spacing="4" Width="210">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Mapping.Label}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Detail}" Classes="caption" />
+                          </StackPanel>
+                          <Button Grid.Column="1" Content="Listen" Command="{Binding ListenCommand}" FontSize="11" Padding="6,1" VerticalAlignment="Center" />
+                        </Grid>
+                        <ComboBox ItemsSource="{Binding Mapping.Modes}" SelectedItem="{Binding Mapping.Mode}" HorizontalAlignment="Stretch" />
+                        <TextBox Text="{Binding Mapping.NewName}" IsVisible="{Binding Mapping.IsNew}" Watermark="Speaker name" />
+                        <ComboBox ItemsSource="{Binding Mapping.ExistingSpeakers}" SelectedItem="{Binding Mapping.ExistingSpeaker}" IsVisible="{Binding Mapping.IsExisting}" HorizontalAlignment="Stretch">
+                          <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SpeakerViewModel"><TextBlock Text="{Binding Name}" /></DataTemplate>
+                          </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding Mapping.OtherLabels}" SelectedItem="{Binding Mapping.MergeTarget}" IsVisible="{Binding Mapping.IsMerge}" HorizontalAlignment="Stretch" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
+          </Border>
+        </Grid>
+
+        <!-- A recording near what a worker takes -->
+        <Border VerticalAlignment="Top" IsVisible="{Binding LengthWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Classes="card" Padding="8" Margin="0,0,0,8">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconWarning}" Width="12" Height="12" Foreground="{DynamicResource SemiColorWarning}" VerticalAlignment="Top" Margin="0,2,0,0" />
+            <TextBlock Text="{Binding LengthWarning}" Classes="caption warning" TextWrapping="Wrap" MaxWidth="700" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>
