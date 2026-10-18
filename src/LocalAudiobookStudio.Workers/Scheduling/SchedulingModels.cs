@@ -96,6 +96,15 @@ public sealed class GenerationJob
     /// <summary>The job this one continues (<see cref="Then"/>): its transcript's language carries over.</summary>
     public GenerationJob? ContinuesFrom { get; internal set; }
 
+    /// <summary>The job that continues this one (<see cref="Then"/>), once there is one: for following a chain's progress.</summary>
+    public GenerationJob? ContinuedBy { get; internal set; }
+
+    /// <summary>
+    /// For one of several jobs that do one thing in turn on pieces of the same input (an aligner's windows of a long
+    /// recording): which one it is, for progress.
+    /// </summary>
+    public (int Number, int Of)? Part { get; init; }
+
     /// <summary>Runs on the worker's task before the request is sent (e.g. decoding context audio for it).</summary>
     public Func<GenerationJob, CancellationToken, Task>? BeforeRun { get; init; }
 

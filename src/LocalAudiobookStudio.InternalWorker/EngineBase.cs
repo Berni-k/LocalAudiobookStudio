@@ -98,8 +98,12 @@ internal abstract class EngineBase(EngineContext context) : IEngine
     /// sends the transcript: with the timed words for <see cref="ListenMode.TranscribeAlign"/>, the text only for
     /// <see cref="ListenMode.Transcribe"/>.
     /// </summary>
+    /// <param name="piecesAtOnce">
+    /// Given how many pieces there are, how many <paramref name="recognize"/> hears at once (it must then be thread-safe);
+    /// one at a time without it.
+    /// </param>
     protected async Task TranscribeInPiecesAsync(string? id, JsonObject msg, ListenMode mode, double minPieceSec, double maxPieceSec, bool dropSilentWords,
-        Func<float[], long, CancellationToken, Task<(IEnumerable<HeardWord> Words, string? Language)>> recognize)
+        Func<float[], long, CancellationToken, Task<(IEnumerable<HeardWord> Words, string? Language)>> recognize, Func<int, int>? piecesAtOnce = null)
     {
         var path = (string?)msg["audioPath"] ?? throw new ArgumentException("the request has no audioPath");
         var language = LanguageOf(msg);
@@ -110,12 +114,24 @@ internal abstract class EngineBase(EngineContext context) : IEngine
         if (audio.Length >= AudioPieces.SampleRate / 10)
         {
             var pieces = AudioPieces.QuietPieces(audio, minPieceSec, maxPieceSec);
-            for (var i = 0; i < pieces.Count; i++)
+            var results = new (IEnumerable<HeardWord> Words, string? Language)[pieces.Count];
+            var done = 0;
+            var audioSec = audio.Length / (double)AudioPieces.SampleRate;
+            // Progress counts the pieces heard, as about how much of the recording that is (pieces may finish out of order).
+            void Report() => Protocol.Progress(id, (double)done / pieces.Count, pieces.Count == 1 ? "Listening"
+                : $"Listening, {Clock(audioSec * done / pieces.Count)} of {Clock(audioSec)} heard");
+            Report();
+            var parallel = Math.Max(1, piecesAtOnce?.Invoke(pieces.Count) ?? 1);
+            await Parallel.ForAsync(0, pieces.Count, new ParallelOptions { MaxDegreeOfParallelism = parallel, CancellationToken = request.Token },
+                async (i, ct) =>
+                {
+                    var (start, end) = pieces[i];
+                    results[i] = await recognize(audio[start..end], start * 1000L / AudioPieces.SampleRate, ct);
+                    Interlocked.Increment(ref done);
+                    Report();
+                });
+            foreach (var (words, lang) in results)
             {
-                request.Token.ThrowIfCancellationRequested();
-                Protocol.Progress(id, (double)i / pieces.Count, pieces.Count == 1 ? "Listening" : $"Listening (part {i + 1} of {pieces.Count})");
-                var (start, end) = pieces[i];
-                var (words, lang) = await recognize(audio[start..end], start * 1000L / AudioPieces.SampleRate, request.Token);
                 heard.AddRange(words);
                 detected ??= lang;
             }
@@ -127,6 +143,10 @@ internal abstract class EngineBase(EngineContext context) : IEngine
             ("words", mode == ListenMode.Transcribe ? new JsonArray() : new JsonArray([.. finished])),
             ("language", language ?? detected));
     }
+
+    /// <summary>A time in the recording for progress messages: "4:05", or "1:02:05" past an hour.</summary>
+    protected static string Clock(double seconds) =>
+        TimeSpan.FromSeconds(Math.Round(seconds)).ToString(seconds >= 3600 ? @"h\:mm\:ss" : @"m\:ss");
 
     /// <summary>
     /// Writes generated audio for a generate request like protocol.py: a 16-bit WAV at outPath + ".partial", renamed

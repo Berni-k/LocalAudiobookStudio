@@ -29,12 +29,11 @@ public static class AudioAnalyzer
         try
         {
             scheduler.Enqueue(job);
+            var steps = new StepProgress(listeners);
             while (!done.Task.IsCompleted)
             {
                 await Task.WhenAny(done.Task, Task.Delay(250, CancellationToken.None)).ConfigureAwait(false);
-                if (job.State == JobState.Running) progress?.Report((job.Progress, job.ProgressMessage ?? "Listening…"));
-                else if (job.State == JobState.Completed && !done.Task.IsCompleted) progress?.Report((1, "Timing the words…"));
-                else if (job.State == JobState.Queued) progress?.Report((0, "Waiting for a worker…"));
+                if (!done.Task.IsCompleted) progress?.Report(steps.Of(job));
             }
             var finished = await done.Task.ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
@@ -47,6 +46,57 @@ public static class AudioAnalyzer
         {
             scheduler.JobCompleted -= Finished;
             scheduler.JobFailed -= Finished;
+        }
+    }
+
+    /// <summary>
+    /// Progress over the whole chain of jobs <see cref="Transcription.Listen"/> makes (the hearer, then the aligner's
+    /// windows, then the diarizer): which step runs, how far it is, and about how long it still takes. The bar moves
+    /// through the steps in equal shares.
+    /// </summary>
+    private sealed class StepProgress(Listeners listeners)
+    {
+        private readonly string[] _names = new[]
+        {
+            listeners.Hearer == null ? null : listeners.Hearer.CanDiarize && listeners.Diarizer == null ? "Hearing the words and voices" : "Hearing the words",
+            listeners.Aligner == null ? null : "Timing the words",
+            listeners.Diarizer == null ? null : "Telling the voices apart",
+        }.OfType<string>().ToArray();
+
+        private int _step = -1;
+        private DateTime _stepStartedUtc;
+
+        public (double Fraction, string Message) Of(GenerationJob first)
+        {
+            var job = first;
+            while (job.ContinuedBy is { } next) job = next;
+            var mode = job.Transcribe?.Mode;
+            var name = mode == ListenMode.Diarize ? "Telling the voices apart" : mode == ListenMode.Align ? "Timing the words" : _names.FirstOrDefault() ?? "Listening";
+            var step = Math.Max(0, Array.IndexOf(_names, name));
+            // A step's time counts from when its first job starts running (not while it waits or its worker loads).
+            if (step != _step || _stepStartedUtc == default)
+            {
+                _step = step;
+                _stepStartedUtc = job.State == JobState.Running && job.Progress > 0 ? DateTime.UtcNow : default;
+            }
+
+            var within = job.Part is { } part ? (part.Number - 1 + job.Progress) / part.Of : job.Progress;
+            var fraction = (step + Math.Clamp(within, 0, 1)) / Math.Max(1, _names.Length);
+            var detail = job.State == JobState.Queued
+                ? "waiting for a worker…"
+                : (job.Part is { } p ? $"part {p.Number} of {p.Of}" + (job.ProgressMessage is { } m ? $", {m}" : "") : job.ProgressMessage) ?? "working…";
+            var header = _names.Length > 1 ? $"Step {step + 1} of {_names.Length}: {name}" : name;
+            return (fraction, $"{header} — {detail}{Left(within)}");
+        }
+
+        /// <summary>" · about 3 min left" once the step is far enough along to tell; empty before.</summary>
+        private string Left(double within)
+        {
+            if (_stepStartedUtc == default || within < 0.03 || within >= 1) return "";
+            var spent = DateTime.UtcNow - _stepStartedUtc;
+            if (spent < TimeSpan.FromSeconds(10)) return "";
+            var left = spent * ((1 - within) / within);
+            return left < TimeSpan.FromMinutes(1) ? " · less than a minute left" : $" · about {Math.Ceiling(left.TotalMinutes):0} min left";
         }
     }
 }

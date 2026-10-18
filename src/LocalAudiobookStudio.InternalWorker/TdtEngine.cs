@@ -16,9 +16,35 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
     private const double MaxPieceSec = 30, MinPieceSec = 20;
     private const int MaxTokensPerStep = 10;
 
-    private InferenceSession? _preprocessor, _encoder, _decoder;
+    /// <summary>
+    /// From this many pieces on (a long recording), the pieces are heard many at once, one thread each: on the CPU that
+    /// is about three times faster than one piece at a time on all cores (33 minutes on 12 cores: 99 s → 36 s). A short
+    /// take keeps all cores on its one piece.
+    /// </summary>
+    private const int ManyPieces = 4;
+
+    /// <summary>The model's three graphs, loaded with one set of thread options.</summary>
+    private sealed record Sessions(InferenceSession Preprocessor, InferenceSession Encoder, InferenceSession Decoder) : IDisposable
+    {
+        public void Dispose()
+        {
+            Preprocessor.Dispose();
+            Encoder.Dispose();
+            Decoder.Dispose();
+        }
+    }
+
+    private Sessions? _wide;   // all the threads allowed, for one piece at a time
+    private Sessions? _narrow; // one thread per run, many runs at once; loaded when first needed
+    private readonly Lock _loadLock = new();
+    private string _folder = "";
+    private JsonObject _entry = new();
     private Dictionary<int, string> _vocab = new();
     private int _blank;
+
+    /// <summary>The cores the app allows (LAS_CPU_THREADS), else all of them.</summary>
+    private static int Threads =>
+        int.TryParse(Environment.GetEnvironmentVariable("LAS_CPU_THREADS"), out var threads) && threads > 0 ? threads : Environment.ProcessorCount;
 
     public override int SelfTest()
     {
@@ -44,13 +70,12 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
         Protocol.Send("prepared", id);
 
         Protocol.Progress(id, 0.3, $"Loading {key} on ONNX Runtime (CPU)");
+        _folder = folder;
+        _entry = entry;
         var options = new SessionOptions();
         if (int.TryParse(Environment.GetEnvironmentVariable("LAS_CPU_THREADS"), out var threads) && threads > 0)
             options.IntraOpNumThreads = threads;
-        string File(string name) => Path.Combine(folder, EngineContext.Require(entry, name));
-        _preprocessor = new InferenceSession(File("preprocessor"), options);
-        _encoder = new InferenceSession(File("encoder"), options);
-        _decoder = new InferenceSession(File("decoder"), options);
+        _wide = Load(options);
         // vocab.txt: "<token> <id>" per line; ▁ marks a word start.
         _vocab = System.IO.File.ReadLines(File("vocab"))
             .Select(l => l.Split(' '))
@@ -61,31 +86,56 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
         Protocol.Send("ready", id);
     }
 
+    private string File(string name) => Path.Combine(_folder, EngineContext.Require(_entry, name));
+
+    private Sessions Load(SessionOptions options) =>
+        new(new InferenceSession(File("preprocessor"), options), new InferenceSession(File("encoder"), options),
+            new InferenceSession(File("decoder"), options));
+
+    /// <summary>The one-thread sessions (a second copy of the model in memory), loaded the first time a long recording comes.</summary>
+    private Sessions Narrow()
+    {
+        lock (_loadLock)
+        {
+            if (_narrow != null) return _narrow;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            _narrow = Load(new SessionOptions { IntraOpNumThreads = 1 });
+            Protocol.Log($"loaded one-thread sessions for long recordings in {clock.ElapsedMilliseconds} ms ({Threads} pieces at once)");
+            return _narrow;
+        }
+    }
+
     public override Task ListenAsync(string? id, JsonObject msg, ListenMode mode)
     {
         RequireHearing(mode);
+        var sessions = _wide ?? throw new InvalidOperationException("the model isn't loaded");
         // A transducer only writes what it hears: no silence check, which could only lose real words.
         return TranscribeInPiecesAsync(id, msg, mode, MinPieceSec, MaxPieceSec, dropSilentWords: false, (piece, offsetMs, ct) =>
-            Task.FromResult<(IEnumerable<HeardWord>, string?)>((Recognize(piece, offsetMs, ct), null)));
+                Task.Run<(IEnumerable<HeardWord>, string?)>(() => (Recognize(sessions, piece, offsetMs, ct), null), ct),
+            piecesAtOnce: count =>
+            {
+                if (count < ManyPieces || Threads < 2) return 1;
+                sessions = Narrow();
+                return Threads;
+            });
     }
 
     /// <summary>Words of one piece, with times in the whole file.</summary>
-    private List<HeardWord> Recognize(float[] audio, long offsetMs, CancellationToken ct)
+    private List<HeardWord> Recognize(Sessions sessions, float[] audio, long offsetMs, CancellationToken ct)
     {
-        if (_preprocessor == null || _encoder == null) throw new InvalidOperationException("the model isn't loaded");
         var clock = System.Diagnostics.Stopwatch.StartNew();
         using var runOptions = new RunOptions();
         using var waveforms = OrtValue.CreateTensorValueFromMemory(audio, [1, audio.Length]);
         using var waveformLengths = OrtValue.CreateTensorValueFromMemory(new[] { (long)audio.Length }, [1]);
-        using var features = _preprocessor.Run(runOptions, ["waveforms", "waveforms_lens"], [waveforms, waveformLengths], ["features", "features_lens"]);
-        using var encoded = _encoder.Run(runOptions, ["audio_signal", "length"], [features[0], features[1]], ["outputs", "encoded_lengths"]);
+        using var features = sessions.Preprocessor.Run(runOptions, ["waveforms", "waveforms_lens"], [waveforms, waveformLengths], ["features", "features_lens"]);
+        using var encoded = sessions.Encoder.Run(runOptions, ["audio_signal", "length"], [features[0], features[1]], ["outputs", "encoded_lengths"]);
 
         var shape = encoded[0].GetTensorTypeAndShape().Shape; // [1, D, T]
         var dim = (int)shape[1];
         var frames = (int)shape[2];
         var frameCount = (int)encoded[1].GetTensorDataAsSpan<long>()[0];
         var encodeMs = clock.ElapsedMilliseconds;
-        var tokens = Decode(encoded[0].GetTensorDataAsSpan<float>().ToArray(), dim, frames, Math.Min(frameCount, frames), ct);
+        var tokens = Decode(sessions.Decoder, encoded[0].GetTensorDataAsSpan<float>().ToArray(), dim, frames, Math.Min(frameCount, frames), ct);
         Protocol.Log($"{audio.Length / (double)AudioPieces.SampleRate:0.0} s of audio: encoder {encodeMs} ms, decoder {clock.ElapsedMilliseconds - encodeMs} ms ({tokens.Count} tokens)");
         return Words(tokens, offsetMs, audio.Length * 1000L / AudioPieces.SampleRate);
     }
@@ -94,9 +144,8 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
     /// Greedy TDT decoding (as onnx-asr does it), keeping each token's duration: (token, frame, frames, logprob).
     /// One decoder run per step: its inputs are tensors over arrays allocated once and refilled in place.
     /// </summary>
-    private List<(int Token, int Frame, int Frames, double LogProb)> Decode(float[] encoder, int dim, int frames, int frameCount, CancellationToken ct)
+    private List<(int Token, int Frame, int Frames, double LogProb)> Decode(InferenceSession decoder, float[] encoder, int dim, int frames, int frameCount, CancellationToken ct)
     {
-        var decoder = _decoder!;
         var meta = decoder.InputMetadata;
         var shape1 = meta["input_states_1"].Dimensions;
         var shape2 = meta["input_states_2"].Dimensions;
@@ -202,8 +251,7 @@ internal sealed class TdtEngine(EngineContext context) : EngineBase(context)
 
     public override void Dispose()
     {
-        _preprocessor?.Dispose();
-        _encoder?.Dispose();
-        _decoder?.Dispose();
+        _wide?.Dispose();
+        _narrow?.Dispose();
     }
 }

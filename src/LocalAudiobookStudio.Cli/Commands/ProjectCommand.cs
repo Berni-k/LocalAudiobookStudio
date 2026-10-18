@@ -231,13 +231,16 @@ public static class ProjectCommand
         var keepAudio = !a.Has("--no-keep-audio");
 
         var lastReport = -1d;
-        string? lastMessage = null;
+        string? lastMessage = null, lastStep = null;
         var progress = new Progress<(double Fraction, string Message)>(r =>
         {
-            // A new message, and about every 10 % rather than every update.
-            if (r.Message == lastMessage || (r.Fraction < 1 && r.Fraction - lastReport < 0.1 && r.Fraction >= lastReport)) return;
+            // A new message, and about every 10 % rather than every update; always when a new step starts (the
+            // analysis says "Step 2 of 3: Timing the words — …").
+            var step = r.Message.Split(" — ")[0];
+            if (r.Message == lastMessage || (step == lastStep && r.Fraction < 1 && r.Fraction - lastReport < 0.1 && r.Fraction >= lastReport)) return;
             lastReport = r.Fraction;
             lastMessage = r.Message;
+            lastStep = step;
             ctx.Info(r.Message);
         });
         var sw = Stopwatch.StartNew();

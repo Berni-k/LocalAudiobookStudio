@@ -695,6 +695,7 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
                 if (job.Then?.Invoke(job) is { } next)
                 {
                     next.ContinuesFrom = job;
+                    job.ContinuedBy = next;
                     next.OnlyGpus ??= job.OnlyGpus;
                     job.State = JobState.Completed;
                     job.FinishedUtc = DateTime.UtcNow;

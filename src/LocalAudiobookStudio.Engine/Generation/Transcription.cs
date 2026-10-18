@@ -72,9 +72,11 @@ public static class Transcription
     public static GenerationJob Job(WorkerManifest worker, string wavPath, string? expectedText, JsonObject settings,
         string label, JobPriority priority, object? tag = null, long readingOrder = 0, ListenMode? mode = null,
         IReadOnlyList<string>? speakers = null, int? speakerCount = null, Func<GenerationJob, Task>? afterRun = null,
-        Func<GenerationJob, GenerationJob?>? then = null, Func<GenerationJob, CancellationToken, Task>? beforeRun = null) =>
+        Func<GenerationJob, GenerationJob?>? then = null, Func<GenerationJob, CancellationToken, Task>? beforeRun = null,
+        (int Number, int Of)? part = null) =>
         new()
         {
+            Part = part,
             WorkerId = worker.Id,
             Priority = priority,
             ReadingOrder = readingOrder,
@@ -208,7 +210,8 @@ public static class Transcription
             {
                 AlignWindows.Slice(wavPath, windows[i].StartMs, windows[i].EndMs, slices[i]);
                 return Task.CompletedTask;
-            });
+            },
+            part: (i + 1, windows.Count));
         return Window(0);
     }
 

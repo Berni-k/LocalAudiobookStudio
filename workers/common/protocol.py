@@ -308,6 +308,44 @@ def device_description() -> str:
     return f"cuda:0 (GPU {cvd})"
 
 
+class busy:
+    """For a long step that can't report its own progress (a library call, a model reading a whole recording before
+    its first token): ``with busy(report, fraction, message):`` sends the message, then again every few seconds with
+    the time spent so far, so the app shows what is going on and doesn't take the silence for a hang (it kills a worker
+    after 10 minutes without output). ``stop()`` ends it early, from any thread (when the step starts reporting).
+    Cancelling still works: the step itself can't be interrupted, but the app kills the worker when it doesn't stop."""
+
+    def __init__(self, report: Callable[..., None], fraction: float, message: str, every: float = 10.0):
+        self._report, self._fraction, self._message, self._every = report, fraction, message, every
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def __enter__(self) -> "busy":
+        self._report(self._fraction, self._message)
+        start = time.monotonic()
+
+        def beat() -> None:
+            while not self._stop.wait(self._every):
+                seconds = int(time.monotonic() - start)
+                spent = f"{seconds // 60} min {seconds % 60:02d} s" if seconds >= 60 else f"{seconds} s"
+                try:
+                    self._report(self._fraction, f"{self._message} ({spent})")
+                except Cancelled:
+                    return  # the step raises it when it next reports, or the app kills the worker
+
+        self._thread = threading.Thread(target=beat, name="busy", daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def __exit__(self, *exc: Any) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+
+
 def _default_selftest(worker: Any) -> int:
     """Import the worker's libraries (via ``worker.selftest`` if present) and check CUDA."""
     try:

@@ -16,11 +16,12 @@ brings the aligner in when they don't line up with what it is looking for.
 import os
 import re
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from common.audio import SAMPLE_RATE, read_wav  # noqa: E402
-from common.protocol import ensure_model, log, run_worker, torch_device  # noqa: E402
+from common.protocol import busy, ensure_model, log, run_worker, torch_device  # noqa: E402
 
 MODEL = "moss-transcribe-diarize"  # workers/models.json
 
@@ -96,12 +97,20 @@ class MossTranscribeWorker:
         text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         audio_kwargs = {"device": "cuda"} if self.device == "cuda" else {}
         dtype = next(self.model.parameters()).dtype
-        with torch.inference_mode(), (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
+        clock = time.monotonic()
+        with busy(report, 0.01, "Reading the audio"), torch.inference_mode(), \
+                (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
             inputs = self.processor(text=text, audio=[audio], max_length=131072, audio_kwargs=audio_kwargs,
                                     return_tensors="pt").to(self.device)
         prompt_len = int(inputs["attention_mask"][0].sum().item())
         seconds = len(audio) / SAMPLE_RATE
         expected = max(TOKENS_PER_SEC * seconds, 16.0)
+        log(f"{seconds:.0f} s of audio: features in {time.monotonic() - clock:.1f} s, {prompt_len} prompt tokens")
+        clock = time.monotonic()
+
+        # The model hears the whole recording before it writes its first word, which takes a while for a long one:
+        # until then the progress says so, and it moves with every token after that.
+        hearing = busy(report, 0.03, "Hearing the whole recording")
 
         class Progress(BaseStreamer):
             """Called with every token: moves the progress bar, and report() raises when the job is cancelled."""
@@ -113,22 +122,26 @@ class MossTranscribeWorker:
                 if not self.seen_prompt:
                     self.seen_prompt = True
                     return
+                if self.count == 0:
+                    hearing.stop()
+                    log(f"first token after {time.monotonic() - clock:.1f} s")
                 self.count += int(value.numel()) if hasattr(value, "numel") else 1
-                report(min(0.95, 0.05 + 0.9 * self.count / expected), "Listening")
+                report(min(0.95, 0.05 + 0.9 * self.count / expected), "Writing down what was said")
 
             def end(self):
                 return None
 
-        report(0.05, "Listening")
         generation_config = type(self.model.generation_config)(**self.model.generation_config.to_dict())
         generation_config.max_new_tokens = int(expected * 4) + 256
         generation_config.do_sample = False
-        with torch.inference_mode(), (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
+        streamer = Progress()
+        with hearing, torch.inference_mode(), (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
             output = self.model.generate(
                 input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"],
                 input_features=inputs["input_features"], audio_feature_lengths=inputs["audio_feature_lengths"],
                 audio_chunk_mapping=inputs["audio_chunk_mapping"], generation_config=generation_config,
-                streamer=Progress())
+                streamer=streamer)
+        log(f"{streamer.count} tokens in {time.monotonic() - clock:.1f} s")
         return self.processor.tokenizer.decode(output[0][prompt_len:], skip_special_tokens=True).strip(), total_ms
 
     def transcribe_diarize(self, req, report):

@@ -401,7 +401,7 @@ class PyannoteWorker:
                     embeddings[(c, sp)] = out[k]
                     k += 1
             embedded[0] += 1
-            report(0.4 + 0.45 * embedded[0] / len(batches), "Telling the voices apart")
+            report(0.4 + 0.45 * embedded[0] / len(batches), "Listening to each voice")
 
         list(pool.map(embed, batches))
         pool.shutdown()

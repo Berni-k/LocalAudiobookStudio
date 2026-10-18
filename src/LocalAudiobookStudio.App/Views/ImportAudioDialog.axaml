@@ -94,7 +94,7 @@
 
         <!-- Listening -->
         <StackPanel IsVisible="{Binding IsBusy}" VerticalAlignment="Center" HorizontalAlignment="Stretch" Spacing="8" MaxWidth="560">
-          <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding ProgressText}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
           <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="1" />
           <TextBlock Text="Cancel stops everything and closes this window." Classes="caption" HorizontalAlignment="Center" />
         </StackPanel>

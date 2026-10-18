@@ -266,7 +266,7 @@ internal sealed class PyannoteEngine(EngineContext context) : EngineBase(context
             var result = output[0].GetTensorDataAsSpan<float>();
             var dim = result.Length / count;
             for (var b = 0; b < count; b++) embeddings[c][group[b].Speaker] = result.Slice(b * dim, dim).ToArray();
-            Protocol.Progress(id, 0.4 + 0.45 * Interlocked.Increment(ref embedded) / byChunk.Length, "Telling the voices apart");
+            Protocol.Progress(id, 0.4 + 0.45 * Interlocked.Increment(ref embedded) / byChunk.Length, "Listening to each voice");
         });
 
         var embeddingLap = Lap("embeddings");
