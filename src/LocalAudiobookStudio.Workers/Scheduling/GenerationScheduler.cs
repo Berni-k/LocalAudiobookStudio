@@ -858,8 +858,9 @@ public sealed partial class GenerationScheduler : IAsyncDisposable
         job.Attempts++;
         job.LastError = message;
         // A refusal to fuse would only be refused again; whoever built the job generates the parts one by one.
-        var unfusable = ex is WorkerErrorException { IsUnfusable: true };
-        if (job.Attempts < Options.MaxAttempts && !unfusable)
+        // Nor is an error the worker says a retry would repeat.
+        var noRetry = ex is WorkerErrorException { IsUnfusable: true } or WorkerErrorException { IsFinal: true };
+        if (job.Attempts < Options.MaxAttempts && !noRetry)
         {
             lock (_lock)
             {

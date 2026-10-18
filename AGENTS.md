@@ -250,7 +250,10 @@ can't be open in the app and in `las` at the same time (`.cache/open.lock`): use
    `selftest()`), run by `run_worker(...)` from `workers/common/protocol.py`. Get model folders with
    `ensure_model(id)`, write `req.out_path` with `write_wav`, and return
    `{"durationMs", "seed", "sampleRate"}`. In `generate`, call `report(fraction, message)` often: it also raises when
-   the job is cancelled. Use `torch_device()` so the CPU slot works.
+   the job is cancelled. Use `torch_device()` so the CPU slot works. A long step that can't report (a library call)
+   goes in `with busy(report, fraction, message):`, which keeps the progress moving (the app kills a worker after
+   10 minutes without output). Raise `Final(message)` for a failure a retry would repeat (error code `final`: the
+   app shows the message and doesn't retry), as `moss_transcribe` does for a transcript the model cut short.
 5. **Other runtimes** (optional): `manifest.<runtime>.json` overlays (`onnx`, `onnx-cuda`, `hartsy`, `internal`,
    `internal-gpu`) next to it; mark settings a runtime can't do with `unsupportedSettings` / `unsupportedOptions`.
    - `internal` runs the model in .NET on the bundled `las-internal-worker`, no Python: the manifest names an `engine`

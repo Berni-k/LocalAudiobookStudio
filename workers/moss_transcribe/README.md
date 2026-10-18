@@ -5,9 +5,15 @@ Backend: transformers remote code shipped in the model repo, [MOSS-Transcribe-Di
 is not installed: it drags in a web server, PyAV and numba, and what the worker needs from it (the prompt, building the
 inputs, generating, parsing the answer) is a few lines.
 
-- **Output:** one pass gives `[start][S01]words[end]` per segment: seconds, anonymous speaker labels. Recordings up to
-  90 minutes; 50+ languages. The prompt is upstream's default (Chinese, as trained); *Hotwords* are appended the way its
-  recipes do.
+- **Output:** one pass gives `[start][S01]words[end]` per segment: seconds, anonymous speaker labels. 50+ languages.
+  The prompt is upstream's default (Chinese, as trained); *Hotwords* are appended the way its recipes do.
+- **Up to 30 minutes.** Upstream says 90, but the model ends its answer after 16,384 tokens wherever it is (upstream
+  issue #26): dense prose takes about 8 tokens a second, so 45 minutes of it stopped at 34:40. The worker checks that
+  the blocks reach the end of the speech and fails otherwise (error code `final`: the app doesn't retry, as the answer
+  would be the same), so a long recording is never returned with its end silently missing. Measured on Kokoro reading
+  the repository's docs: 20 and 30 minutes came back whole, 45 minutes stopped. Cutting recordings into parts was tried
+  and left: separate parts number their voices afresh, and earlier parts kept in the context made the model copy the
+  previous part's answer.
 - **Blocks, not words.** The model times segments. The worker is tagged Transcription and Diarization (no
   Alignment) and answers `transcribeDiarize` with those segments as they are: `{text, startMs, endMs, speaker}`
   (voices labelled S1, S2 …; the model's S01 is renumbered). It also answers `diarize` with the same blocks, which
@@ -23,7 +29,19 @@ inputs, generating, parsing the answer) is a few lines.
   17.68 s and 32.91 s). The take's transcript stores the words and the blocks.
 - **Speakers:** on a file of one voice, a second voice and the first again, it labelled S01, S02, S01 and put the
   changes within a word of the joins. The labels only mean "the same voice as before".
-- **Speed:** 6× real time on an RTX 3090 (56 s in 9.2 s, model loaded). Greedy decoding, bfloat16 on the GPU, float32
-  on the CPU.
-- **Not done:** long recordings aren't cut into pieces (the model takes up to 90 minutes), and the `speakers` and
-  `speakerCount` hints are ignored.
+- **Speed and memory** (`moss_decoding.py`): the worker does its own greedy decoding instead of `generate()`, which on
+  an RTX 3090 made 30 minutes take 20 minutes and spill out of 24 GB:
+  - the audio is encoded eight 30 s chunks at a time and the prompt fed to the language model in 2,048-token slices,
+    so memory grows with the length instead of its square (10 minutes: 13.3 GB → 4.6 GB), and the progress moves
+    while the model takes the recording in;
+  - attention for each new token is two matrix products: PyTorch's attention kernels split one query's work only by
+    head, which over a long cache leaves most of the GPU idle (64,000 cached tokens: 4.8 ms a layer → 0.74 ms);
+  - each step is replayed as a CUDA graph over a static cache, since launching a 0.6B model's kernels from Python is
+    most of a step (26 → 150 tokens a second with a short context, 70–85 at 20–30 minutes). The graph attends over the
+    part of the cache written so far, in steps of 4,096 tokens. The cache writes where its own counter says, which the
+    capture's warm-up moves on: it is put back before capturing.
+
+  20 minutes of prose: 115 s (was 679 s); 30 minutes: 188 s (was 1,211 s), the same words (20 of 3,227 differ, as
+  rounding moves near ties). The progress is the latest time the model wrote ("12:30 of 30:00"). On the CPU the same
+  loop runs without graphs.
+- **Not done:** the `speakers` and `speakerCount` hints are ignored.

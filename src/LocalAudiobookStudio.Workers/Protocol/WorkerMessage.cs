@@ -263,6 +263,9 @@ public static class ErrorCodes
 {
     /// <summary>The worker can't fuse this combination of parts (too many voices, settings that differ, …): not a failure.</summary>
     public const string Unfusable = "unfusable";
+
+    /// <summary>The request failed in a way that trying again would repeat (the model's answer is deterministic): not retried.</summary>
+    public const string Final = "final";
 }
 
 /// <summary>What the app asks a transcription or alignment worker to do.</summary>
@@ -399,6 +402,9 @@ public sealed class WorkerErrorException(string message, bool fatal, string? tra
 
     /// <summary>The worker refused to fuse the parts; generate them one by one instead.</summary>
     public bool IsUnfusable => Code == ErrorCodes.Unfusable;
+
+    /// <summary>Trying again would fail the same way.</summary>
+    public bool IsFinal => Code == ErrorCodes.Final;
 }
 
 /// <summary>The worker process exited or stopped responding.</summary>

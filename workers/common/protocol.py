@@ -40,7 +40,8 @@ A worker whose manifest declares ``fusion`` also implements ``generate_parts(req
 list of :class:`Part` (segments to generate, and lines of context around them), ``req.settings`` the settings they
 share. It writes them all into ``req.out_path`` and returns what ``generate`` does, plus optionally
 ``"spans": [(startMs, endMs) or None, ...]``, one per part, where it knows them. It raises :class:`Unfusable` for a
-combination it can't do; the app then generates the segments one by one. This module handles
+combination it can't do; the app then generates the segments one by one. Any request may raise :class:`Final` for a
+failure that trying again would repeat (the app shows its message and doesn't retry). This module handles
 the rest: the ``hello`` handshake, newline-delimited JSON over stdin/stdout, redirecting stray
 ``print`` output to stderr, turning exceptions into ``error`` messages, cooperative cancellation,
 progress throttling, the ``.partial`` rename, and ``shutdown``. Models come from the app:
@@ -93,6 +94,11 @@ class Cancelled(Exception):
 class Unfusable(Exception):
     """Raised from ``generate_parts`` when the worker can't render these parts together (too many voices,
     settings it can't mix, …). Not a failure: the app generates the segments one by one instead."""
+
+
+class Final(Exception):
+    """A failure that trying again would repeat (the model's answer is deterministic): the app doesn't retry the
+    request. The message is shown to the user as it is, so say what happened and what to do."""
 
 
 @dataclass
@@ -504,9 +510,14 @@ def run_worker(worker: Any, name: str, model_version: str) -> None:
         except Unfusable as e:
             send({"type": "error", "id": mid, "message": str(e) or "can't render these parts together",
                   "fatal": False, "code": "unfusable"})
+        except Final as e:
+            send({"type": "error", "id": mid, "message": str(e), "fatal": False, "code": "final"})
         except Exception as e:  # noqa: BLE001
             message = f"{type(e).__name__}: {e}"
-            fatal = "out of memory" in message.lower() or isinstance(e, (MemoryError, SystemError))
+            # A CUDA error (a device-side assert, an illegal address) leaves the process's GPU unusable: every later
+            # request fails the same way until the worker is restarted.
+            fatal = ("out of memory" in message.lower() or "CUDA error" in message
+                     or isinstance(e, (MemoryError, SystemError)))
             send({"type": "error", "id": mid, "message": message, "fatal": fatal,
                   "trace": traceback.format_exc()})
         finally:

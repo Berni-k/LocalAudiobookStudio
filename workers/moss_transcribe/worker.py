@@ -1,9 +1,10 @@
 """MOSS-Transcribe-Diarize 0.9B (https://huggingface.co/OpenMOSS-Team/MOSS-Transcribe-Diarize).
 
 One pass of speech recognition and speaker diarization: the model writes ``[start][S01]words[end]`` per segment
-(seconds, anonymous speaker labels), for recordings up to 90 minutes. The model's own code is Hugging Face remote
-code; the GitHub package's helpers (message building, input preparation, generation, the output parser) are a few
-lines each and are redone here, so none of its dependencies (a web server, PyAV, numba …) are installed.
+(seconds, anonymous speaker labels), for recordings up to about 30 minutes (see check_whole). The model's own code is
+Hugging Face remote code; the GitHub package's helpers (message building, input preparation, the output parser) are a
+few lines each and are redone here, so none of its dependencies (a web server, PyAV, numba …) are installed. Decoding
+is our own, for speed and memory on long recordings (moss_decoding.py).
 
 The model times segments, not words, so the worker is tagged Transcription and Diarization (no Alignment) and answers
 ``transcribeDiarize`` with the segments as they are: timed blocks of text, each with its voice (labelled S1, S2 …; the
@@ -20,8 +21,8 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from common.audio import SAMPLE_RATE, read_wav  # noqa: E402
-from common.protocol import busy, ensure_model, log, run_worker, torch_device  # noqa: E402
+from common.audio import SAMPLE_RATE, frame_levels, read_wav  # noqa: E402
+from common.protocol import Final, busy, ensure_model, log, run_worker, torch_device  # noqa: E402
 
 MODEL = "moss-transcribe-diarize"  # workers/models.json
 
@@ -31,7 +32,40 @@ PROMPT = ("请将音频转写为文本，每一段需以起始时间戳和说话
 HOTWORD_HINT = "热词提示："
 
 _SEGMENT = re.compile(r"\[(\d+(?:\.\d+)?)\]\s*\[(S\d+)\](.*?)\[(\d+(?:\.\d+)?)\]", re.DOTALL)
-TOKENS_PER_SEC = 10  # speech is a few words a second, plus the tags; the cap below is generous
+_TIME = re.compile(r"\[(\d+(?:\.\d+)?)\]")
+TOKENS_PER_SEC = 12  # most tokens the answer may take per second of audio (dense prose: about 8, with the tags)
+# Upstream's own cap. The model itself ends its answer after 16,384 tokens wherever it is (upstream issue #26; 45
+# minutes of prose stopped at 34:40 with exactly that many, the cap then 32,656); check_whole turns that into an error.
+MAX_ANSWER_TOKENS = 65536
+ENCODER_BATCH = 8    # 30 s chunks the Whisper encoder hears at once
+PREFILL_SLICE = 2048  # prompt tokens fed to the language model at once
+UNHEARD_LIMIT_SEC = 10  # more speech than this after the last block: the model stopped early
+
+
+def check_whole(segments, audio) -> None:
+    """Raises Final when the model stopped writing well before the speech ends. It does that on long recordings (it
+    ends its answer after MAX_ANSWER_TOKENS, wherever it is), and a transcript that silently leaves out the rest is
+    worse than none. The model answers the same way every time, so the app doesn't retry."""
+    import numpy as np
+
+    total = len(audio) / SAMPLE_RATE
+    last = max((s["endMs"] for s in segments), default=0) / 1000
+    levels = frame_levels(audio)
+    after = levels[int(last * 50) + 50:]  # from a second after the last block
+    speech = float(np.percentile(levels, 95)) if len(levels) else 0.0
+    if speech <= 0 or len(after) == 0:
+        return
+    unheard = int((after > 0.1 * speech).sum()) / 50  # seconds of sound after the last block
+    if unheard > UNHEARD_LIMIT_SEC:
+        raise Final(f"MOSS-Transcribe-Diarize stopped writing at {clock_text(last)} of {clock_text(total)}; "
+                    f"there are {clock_text(unheard)} of speech after that. It writes down about 30 minutes of speech "
+                    "at most: cut the recording into parts of 30 minutes or less, or choose another transcriber.")
+
+
+def clock_text(seconds: float) -> str:
+    """A time in the recording for progress messages: "4:05", or "1:02:05" past an hour."""
+    s = int(round(seconds))
+    return f"{s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
 
 
 def parse_segments(raw: str, total_ms: int):
@@ -70,6 +104,8 @@ class MossTranscribeWorker:
         import torch
         from transformers import AutoModelForCausalLM, AutoProcessor
 
+        import moss_decoding
+
         if self.model_dir is None:
             self.prepare(report)
         self.device = torch_device()
@@ -77,14 +113,16 @@ class MossTranscribeWorker:
         report(0.3, "Loading MOSS-Transcribe-Diarize")
         self.processor = AutoProcessor.from_pretrained(self.model_dir, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_dir, trust_remote_code=True, dtype=dtype, attn_implementation="sdpa").to(self.device).eval()
+            self.model_dir, trust_remote_code=True, dtype=dtype,
+            attn_implementation=moss_decoding.ATTENTION).to(self.device).eval()
+        eos = self.model.generation_config.eos_token_id
+        self.eos = set(eos if isinstance(eos, (list, tuple)) else [eos])
         report(1.0, "Ready")
         log(f"MOSS-Transcribe-Diarize loaded on {self.device}")
 
     def _hear(self, req, report):
         """(the model's answer, the audio's length in ms)."""
         import torch
-        from transformers.generation.streamers import BaseStreamer
 
         audio = read_wav(req.audio_path)
         total_ms = int(len(audio) * 1000 / SAMPLE_RATE)
@@ -96,53 +134,75 @@ class MossTranscribeWorker:
                                                  {"type": "text", "text": prompt}]}]
         text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         audio_kwargs = {"device": "cuda"} if self.device == "cuda" else {}
-        dtype = next(self.model.parameters()).dtype
+        seconds = len(audio) / SAMPLE_RATE
+        length = clock_text(seconds)
         clock = time.monotonic()
-        with busy(report, 0.01, "Reading the audio"), torch.inference_mode(), \
-                (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
+        with busy(report, 0.01, "Reading the audio"), torch.inference_mode():
             inputs = self.processor(text=text, audio=[audio], max_length=131072, audio_kwargs=audio_kwargs,
                                     return_tensors="pt").to(self.device)
-        prompt_len = int(inputs["attention_mask"][0].sum().item())
-        seconds = len(audio) / SAMPLE_RATE
-        expected = max(TOKENS_PER_SEC * seconds, 16.0)
-        log(f"{seconds:.0f} s of audio: features in {time.monotonic() - clock:.1f} s, {prompt_len} prompt tokens")
-        clock = time.monotonic()
+        ids = inputs["input_ids"]
+        log(f"{seconds:.0f} s of audio: features in {time.monotonic() - clock:.1f} s, {ids.shape[1]} prompt tokens")
+        import moss_decoding
 
-        # The model hears the whole recording before it writes its first word, which takes a while for a long one:
-        # until then the progress says so, and it moves with every token after that.
-        hearing = busy(report, 0.03, "Hearing the whole recording")
+        # The model stops by itself; this only bounds the cache (dense prose takes about 8 tokens a second of audio).
+        max_new = min(int(TOKENS_PER_SEC * seconds) + 256, MAX_ANSWER_TOKENS)
+        decoder = moss_decoding.Decoder(self.model, ids.shape[1] + max_new, self.device)
+        try:
+            clock = time.monotonic()
+            with torch.inference_mode():
+                self._take_in(inputs, decoder, report, seconds)
+            log(f"recording taken in: {time.monotonic() - clock:.1f} s")
+            clock = time.monotonic()
 
-        class Progress(BaseStreamer):
-            """Called with every token: moves the progress bar, and report() raises when the job is cancelled."""
+            # Greedy, one token at a time. The progress is the latest time the model wrote, and report() raises when
+            # the job is cancelled.
+            tokenizer = self.processor.tokenizer
+            written, tail, reached = [], "", 0.0
+            token, position = int(ids[0, -1]), ids.shape[1] - 1
+            with torch.inference_mode():
+                while len(written) < max_new:
+                    token = decoder.step(token, position)
+                    position += 1
+                    if token in self.eos:
+                        break
+                    written.append(token)
+                    tail = (tail + tokenizer.decode([token], skip_special_tokens=True))[-48:]
+                    times = _TIME.findall(tail)
+                    if times:
+                        reached = max(reached, min(seconds, float(times[-1])))
+                    report(0.1 + 0.85 * reached / max(seconds, 1.0), f"Writing down what was said, {clock_text(reached)} of {length}")
+            spent = time.monotonic() - clock
+            log(f"{len(written)} tokens in {spent:.1f} s ({len(written) / max(spent, 1e-3):.0f} a second)")
+        finally:
+            decoder.close()
+        return tokenizer.decode(written, skip_special_tokens=True).strip(), total_ms
 
-            def __init__(self):
-                self.count, self.seen_prompt = 0, False
+    def _take_in(self, inputs, decoder, report, seconds):
+        """Fills the decoder's cache with the whole prompt but its last token: the audio encoded a few 30 s chunks at
+        a time, then the prompt fed in slices. Done in one go (as generate() does it) the attention of a long recording
+        takes far more memory than the card has (15 minutes: 24 GB and spilling into shared memory, crawling); this way
+        it grows with the length (10 minutes: 3.4 GB), and the progress can move while it happens."""
+        import torch
 
-            def put(self, value):
-                if not self.seen_prompt:
-                    self.seen_prompt = True
-                    return
-                if self.count == 0:
-                    hearing.stop()
-                    log(f"first token after {time.monotonic() - clock:.1f} s")
-                self.count += int(value.numel()) if hasattr(value, "numel") else 1
-                report(min(0.95, 0.05 + 0.9 * self.count / expected), "Writing down what was said")
+        m = self.model.model
+        length = clock_text(seconds)
+        features, lengths = inputs["input_features"], inputs["audio_feature_lengths"].tolist()
+        dtype = next(m.whisper_encoder.parameters()).dtype
+        chunks = features.shape[0]
+        heard = []
+        for first in range(0, chunks, ENCODER_BATCH):
+            report(0.02 + 0.04 * first / chunks, f"Hearing the audio, {clock_text(min(seconds, first * 30))} of {length}")
+            hidden = m.whisper_encoder(features[first:first + ENCODER_BATCH].to(dtype), return_dict=True).last_hidden_state
+            for j, n in enumerate(lengths[first:first + ENCODER_BATCH]):
+                heard.append(hidden[j:j + 1, : int(n) * 4])
+        audio_embeds = m.vq_adaptor(m.time_merge(torch.cat(heard, dim=1).to(m.dtype))).squeeze(0)
 
-            def end(self):
-                return None
-
-        generation_config = type(self.model.generation_config)(**self.model.generation_config.to_dict())
-        generation_config.max_new_tokens = int(expected * 4) + 256
-        generation_config.do_sample = False
-        streamer = Progress()
-        with hearing, torch.inference_mode(), (torch.autocast("cuda", dtype=dtype) if self.device == "cuda" else torch.no_grad()):
-            output = self.model.generate(
-                input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"],
-                input_features=inputs["input_features"], audio_feature_lengths=inputs["audio_feature_lengths"],
-                audio_chunk_mapping=inputs["audio_chunk_mapping"], generation_config=generation_config,
-                streamer=streamer)
-        log(f"{streamer.count} tokens in {time.monotonic() - clock:.1f} s")
-        return self.processor.tokenizer.decode(output[0][prompt_len:], skip_special_tokens=True).strip(), total_ms
+        ids = inputs["input_ids"][:, :-1]
+        embeds = m.get_input_embeddings()(ids)
+        mask = (ids == self.model.config.audio_token_id).unsqueeze(-1).expand_as(embeds)
+        embeds = embeds.masked_scatter(mask, audio_embeds.to(embeds.dtype))
+        decoder.prefill(embeds, PREFILL_SLICE, lambda done, total: report(
+            0.06 + 0.04 * done / total, f"Taking in the recording, {clock_text(seconds * done / total)} of {length}"))
 
     def transcribe_diarize(self, req, report):
         """The segments as the model timed them. An answer without tags (the model doesn't always follow the
@@ -151,6 +211,7 @@ class MossTranscribeWorker:
         segments = parse_segments(raw, total_ms)
         if not segments and raw.strip():
             segments = [{"text": raw.strip(), "startMs": 0, "endMs": total_ms, "speaker": "S1"}]
+        check_whole(segments, read_wav(req.audio_path))
         report(1.0)
         return {"text": " ".join(s["text"] for s in segments), "segments": segments, "language": None}
 
